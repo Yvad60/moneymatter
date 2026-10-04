@@ -1766,6 +1766,14 @@ describe('Enable Banking dedup improvements (E2E)', () => {
       expect(requested!.dateFrom).toBe(today);
       expect(requested!.dateFrom! <= requested!.dateTo!).toBe(true);
     });
+
+    it('asks for the longest available history on the initial sync only', async () => {
+      const { connectionId, accountId } = await setupConnectionWithAccount();
+      expect(helpers.enablebanking.lastTransactionsQuery()!.strategy).toBe('longest');
+
+      await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId, raw: true });
+      expect(helpers.enablebanking.lastTransactionsQuery()!.strategy).toBeNull();
+    });
   });
 
   // ==========================================================================

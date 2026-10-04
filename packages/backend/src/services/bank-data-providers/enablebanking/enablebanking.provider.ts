@@ -55,6 +55,7 @@ import {
   PSUType,
   StartAuthorizationResponse,
   TransactionStatus,
+  TransactionsFetchStrategy,
 } from './types';
 import { balancesForLog, pickAccountBalance } from './utils/balances';
 import { filterIbanCompatible, haveSameParties, pickNearestByDate } from './utils/candidate-selection';
@@ -649,12 +650,14 @@ export class EnableBankingProvider extends BaseBankDataProvider {
    * @param accountApiUid - Session-specific uid for API calls
    * @param dateRange - Optional date range filter
    * @param accountExternalIdForHash - Stable identifier for hash generation (defaults to accountApiUid for backward compatibility)
+   * @param strategy - Omitted means the bank is asked for exactly `dateRange`
    */
   async fetchTransactions(
     connectionId: string,
     accountApiUid: string,
     dateRange?: DateRange,
     accountExternalIdForHash?: string,
+    strategy?: TransactionsFetchStrategy,
   ): Promise<ProviderTransaction[]> {
     const credentials = await this.getValidatedCredentials(connectionId);
 
@@ -671,6 +674,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     const transactions = await apiClient.getAllTransactions(accountApiUid, {
       date_from: dateRange?.from?.toISOString().split('T')[0],
       date_to: dateRange?.to?.toISOString().split('T')[0],
+      strategy,
     });
 
     // Cancelled, rejected and scheduled payments are not spendable money and must
@@ -1310,7 +1314,9 @@ export class EnableBankingProvider extends BaseBankDataProvider {
 
   /**
    * Initial-sync: shrink lookback until bank accepts it. Schedule in
-   * INITIAL_SYNC_FALLBACK_DAYS. Only date-range rejections retry –
+   * INITIAL_SYNC_FALLBACK_DAYS. Each attempt asks for the `longest` strategy so
+   * Enable Banking clamps to the bank's limit itself where it can; the ladder
+   * covers banks that still answer 400. Only date-range rejections retry –
    * auth/network/5xx rethrow immediately. On full exhaustion, log the
    * cascade before rethrowing (caller would otherwise see only the 90d failure).
    */
@@ -1331,7 +1337,13 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     for (const days of INITIAL_SYNC_FALLBACK_DAYS) {
       const from = new Date(to.getTime() - days * MS_PER_DAY);
       try {
-        return await this.fetchTransactions(connectionId, apiUid, { from, to }, accountExternalId);
+        return await this.fetchTransactions(
+          connectionId,
+          apiUid,
+          { from, to },
+          accountExternalId,
+          TransactionsFetchStrategy.LONGEST,
+        );
       } catch (error) {
         if (!isAspspDateRangeRejection(error)) {
           logger.info(`Enable Banking initial sync: non-retryable error during ${days}-day window attempt`, {

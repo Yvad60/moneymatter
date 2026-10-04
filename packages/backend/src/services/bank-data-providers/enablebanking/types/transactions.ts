@@ -11,7 +11,7 @@ import {
   PartyIdentification,
   ReferenceNumber,
 } from './common';
-import { CreditDebitIndicator, TransactionStatus } from './enums';
+import { CreditDebitIndicator, TransactionStatus, TransactionsFetchStrategy } from './enums';
 
 /**
  * Transaction from Enable Banking
@@ -132,4 +132,5 @@ export interface TransactionsQuery {
   date_to?: string;
   /** Continuation key for pagination */
   continuation_key?: string;
+  strategy?: TransactionsFetchStrategy;
 }

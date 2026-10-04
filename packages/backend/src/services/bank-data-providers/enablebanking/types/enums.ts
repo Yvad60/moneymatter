@@ -340,7 +340,7 @@ export enum ReferenceNumberScheme {
  * @public
  */
 export enum TransactionsFetchStrategy {
-  SINCE_LAST_REFERENCE = 'SINCE_LAST_REFERENCE',
-  BY_DATE_RANGE = 'BY_DATE_RANGE',
-  SINCE_LAST_REFERENCE_OR_BY_DATE_RANGE = 'SINCE_LAST_REFERENCE_OR_BY_DATE_RANGE',
+  DEFAULT = 'default',
+  /** Bank-side search for the longest available period. Ignores `date_to`, costs extra ASPSP calls. */
+  LONGEST = 'longest',
 }

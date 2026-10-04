@@ -290,6 +290,7 @@ const getTransactionsHandler = http.get(
     recordTransactionsQuery({
       dateFrom: url.searchParams.get('date_from'),
       dateTo: url.searchParams.get('date_to'),
+      strategy: url.searchParams.get('strategy'),
     });
 
     // Parse pagination parameters

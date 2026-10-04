@@ -305,10 +305,12 @@ export const setMockTransactionConfig = (config: Partial<MockTransactionConfig>)
  * fixtures regardless of the range, so this is the only way a test can assert
  * which window the provider actually asked the bank for.
  */
-let lastTransactionsQuery: { dateFrom: string | null; dateTo: string | null } | null = null;
+type RecordedTransactionsQuery = { dateFrom: string | null; dateTo: string | null; strategy: string | null };
 
-export const recordTransactionsQuery = ({ dateFrom, dateTo }: { dateFrom: string | null; dateTo: string | null }) => {
-  lastTransactionsQuery = { dateFrom, dateTo };
+let lastTransactionsQuery: RecordedTransactionsQuery | null = null;
+
+export const recordTransactionsQuery = ({ dateFrom, dateTo, strategy }: RecordedTransactionsQuery) => {
+  lastTransactionsQuery = { dateFrom, dateTo, strategy };
 };
 
 export const getLastTransactionsQuery = () => lastTransactionsQuery;
