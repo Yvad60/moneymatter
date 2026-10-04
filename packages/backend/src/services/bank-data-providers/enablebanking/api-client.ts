@@ -120,7 +120,7 @@ export function classifyAspspError({
  *
  * Match: concept anchor + limit verb + time window, all three required.
  *   concept    – datefrom/dateto/date OR range/period/window/lookback/history/interval/transactions
- *   limit verb – within/exceed/maximum/limited to/older than/less than/no more than
+ *   limit verb – within/exceed/maximum/limited to/older than/less than/more than
  *   time       – N day/week/month/year
  * Each alone is too permissive (e.g. "account opened within last 30 days" hits
  * limit + time but has no concept anchor). Bare "date" is an anchor because
@@ -145,7 +145,7 @@ export function isAspspDateRangeRejection(error: unknown): boolean {
   if (haystack === '') return false;
 
   const hasLimitVerb =
-    /\b(?:within|exceed|exceeds|maximum|max|limited?\s+to|older\s+than|less\s+than|no\s+more\s+than)\b/.test(haystack);
+    /\b(?:within|exceed|exceeds|maximum|max|limited?\s+to|older\s+than|less\s+than|more\s+than)\b/.test(haystack);
   const hasTimeWindow = /\b\d+\s*(?:day|week|month|year)s?\b/.test(haystack);
   if (!hasLimitVerb || !hasTimeWindow) return false;
 
