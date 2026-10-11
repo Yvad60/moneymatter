@@ -139,18 +139,8 @@ EOF
   echo "Generated $LOCAL_ENV" >&2
 fi
 
-# --- Ensure SSL certs exist ----------------------------------------------------
-# certs/ is gitignored, so fresh worktrees don't have it. Without certs Vite and
-# the backend silently fall back to plain HTTP and the https:// URLs printed
-# below just refuse to connect.
-case "${1:-}" in
-  up | restart)
-    if [[ ! -f "$ROOT/docker/dev/certs/cert.pem" ]]; then
-      echo "SSL certs missing — running scripts/generate-ssl-certs.sh ..." >&2
-      (cd "$ROOT" && bash scripts/generate-ssl-certs.sh)
-    fi
-    ;;
-esac
+# --- SSL certs disabled for local dev -------------------------------------------
+# Auto-generation disabled so backend/frontend fall back to plain HTTP.
 
 # --- Run docker compose --------------------------------------------------------
 export COMPOSE_PROJECT_NAME="$PROJECT"

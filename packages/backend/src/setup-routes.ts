@@ -53,6 +53,7 @@ import userRoutes from './routes/user.route';
 import vehiclesRoutes from './routes/vehicles.route';
 import ventureRoutes from './routes/venture.route';
 import webhooksRoutes from './routes/webhooks.route';
+import traceRoutes from "./trace-app/trace.route";
 
 export function setupRoutes(app: Express) {
   app.get('/health', (_req: Request, res: Response) => {
@@ -214,6 +215,7 @@ export function setupRoutes(app: Express) {
   app.use(`${API_PREFIX}/landing`, landingRoutes);
   app.use(`${API_PREFIX}/billing`, billingRoutes);
   app.use(`${API_PREFIX}/admin`, adminRoutes);
+  app.use(`${API_PREFIX}/trace`, traceRoutes);
 
   // "development" is required here: Playwright frontend e2e tests run against
   // the dev backend on CI and rely on /tests/verify-email and other test-only endpoints.

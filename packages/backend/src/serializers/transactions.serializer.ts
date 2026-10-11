@@ -142,7 +142,7 @@ interface CreateTransactionRequest {
 // Internal Types (DB format with Money)
 // ============================================================================
 
-interface CreateTransactionInternal {
+export interface CreateTransactionInternal {
   amount: Money;
   commissionRate?: Money;
   destinationAmount?: Money;

@@ -1,23 +1,26 @@
 import { z } from "zod";
 import { createController } from "../controllers/helpers/controller-factory";
+import { migrateSmsTransactions } from "./services/migrate-sms.service";
 
-export const getLatestSync = createController(z.object({}), async ({}) => {});
+const rawSmsMessageSchema = z.object({
+  id: z.string().nullable(),
+  address: z.string(),
+  body: z.string(),
+  timestamp: z.number(),
+});
 
-export const migrateSMSTransactions = createController(
+export const migrateSMSTransactionsController = createController(
   z.object({
     body: z.object({
-      smsTransactions: z.array(
-        z.object({
-          id: z.string().nullable(),
-          address: z.string(),
-          body: z.string(),
-          timestamp: z.number(),
-          subscriptionId: z.number().nullable(),
-        }),
-      ),
+      mtnMomo: z.array(rawSmsMessageSchema),
+      bk: z.array(rawSmsMessageSchema),
     }),
   }),
   async ({ body }) => {
-    const {} = body;
+    const userId = 3;
+    const result = await migrateSmsTransactions({ userId, ...body });
+    return {
+      data: result,
+    };
   },
 );
