@@ -1,6 +1,7 @@
-import { z } from "zod";
-import { createController } from "../controllers/helpers/controller-factory";
-import { migrateSmsTransactions } from "./services/migrate-sms.service";
+import { z } from 'zod';
+
+import { createController } from '../controllers/helpers/controller-factory';
+import { migrateSmsTransactions } from './services/migrate-sms.service';
 
 const rawSmsMessageSchema = z.object({
   id: z.string().nullable(),
@@ -16,9 +17,11 @@ export const migrateSMSTransactionsController = createController(
       bk: z.array(rawSmsMessageSchema),
     }),
   }),
-  async ({ body }) => {
-    const userId = 3;
-    const result = await migrateSmsTransactions({ userId, ...body });
+  async ({ body, user }) => {
+    if (!user) {
+      throw new Error('migrateSMSTransactionsController requires an authenticated user');
+    }
+    const result = await migrateSmsTransactions({ userId: user.id, ...body });
     return {
       data: result,
     };
