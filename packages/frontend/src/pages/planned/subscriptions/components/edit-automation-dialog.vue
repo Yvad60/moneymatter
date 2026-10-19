@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { type SubscriptionDetail, updateSubscription } from '@/api/subscriptions';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
+import { isConnectedAccount } from '@/components/dialogs/manage-transaction/helpers';
 import AccountSelectField from '@/components/fields/account-select-field.vue';
 import Button from '@/components/lib/ui/button/Button.vue';
 import { Callout } from '@/components/lib/ui/callout';
@@ -9,7 +10,7 @@ import { useInvalidateSubscriptionQueries } from '@/composable/data-queries/subs
 import { ApiErrorResponseError } from '@/js/errors';
 import { cn } from '@/lib/utils';
 import { useAccountsStore } from '@/stores';
-import type { AccountModel, SubscriptionMatchingRule } from '@bt/shared/types';
+import { ACCOUNT_CATEGORIES, type AccountModel, type SubscriptionMatchingRule } from '@bt/shared/types';
 import { useMutation } from '@tanstack/vue-query';
 import { HandCoinsIcon, SearchCheckIcon, ZapIcon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
@@ -53,8 +54,6 @@ const MODE_OPTIONS = computed(() => [
   },
 ]);
 
-const allAccounts = computed(() => accountsStore.accounts ?? []);
-
 const mode = ref<AutomationMode>(AUTOMATION_MODES.manual);
 const rules = ref<SubscriptionMatchingRule[]>([]);
 const accountId = ref<string | null>(null);
@@ -79,6 +78,19 @@ const selectedAccount = computed(() =>
 );
 
 const isRecordMode = computed(() => mode.value === AUTOMATION_MODES.record);
+
+const accountOptions = computed(() =>
+  isRecordMode.value
+    ? accountsStore.txTargetableSourceAccountsActiveFirst
+    : (accountsStore.accounts ?? []).filter(
+        (account) =>
+          account.accountCategory !== ACCOUNT_CATEGORIES.vehicle && account.accountCategory !== ACCOUNT_CATEGORIES.loan,
+      ),
+);
+
+const isConnectedAccountForRecord = computed(
+  () => isRecordMode.value && !!selectedAccount.value && isConnectedAccount({ account: selectedAccount.value }),
+);
 
 /** The auto-record cron books a concrete amount, so a variable-amount subscription can't use it. */
 const isMissingAmountForRecord = computed(
@@ -117,6 +129,7 @@ const isSaveDisabled = computed(
   () =>
     isPending.value ||
     isMissingAmountForRecord.value ||
+    isConnectedAccountForRecord.value ||
     (isRecordMode.value && !accountId.value) ||
     isMatchWithoutRules.value,
 );
@@ -171,7 +184,7 @@ const handleSubmit = () => {
       <div class="grid gap-1.5">
         <AccountSelectField
           :model-value="selectedAccount"
-          :accounts="allAccounts"
+          :accounts="accountOptions"
           :label="$t('planned.subscriptions.form.accountLabel')"
           :placeholder="$t('planned.subscriptions.form.noAccount')"
           :required="isRecordMode"
@@ -189,6 +202,10 @@ const handleSubmit = () => {
 
       <Callout v-if="isMissingAmountForRecord" variant="warning">
         <span class="text-xs">{{ $t('planned.subscriptions.editors.automation.recordNeedsAmount') }}</span>
+      </Callout>
+
+      <Callout v-if="isConnectedAccountForRecord" variant="warning">
+        <span class="text-xs">{{ $t('planned.subscriptions.editors.automation.recordNeedsManualAccount') }}</span>
       </Callout>
 
       <div v-if="mode === AUTOMATION_MODES.match" class="grid gap-2">

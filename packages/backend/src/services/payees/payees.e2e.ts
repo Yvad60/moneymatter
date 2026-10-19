@@ -115,6 +115,24 @@ describe('Payees API', () => {
       expect(filtered.some((p) => p.name === 'Walmart')).toBe(false);
     });
 
+    it('matches payees by their aliases', async () => {
+      const silpo = await helpers.createPayee({
+        payload: helpers.buildPayeePayload({ name: 'Silpo' }),
+        raw: true,
+      });
+      await helpers.createPayee({
+        payload: helpers.buildPayeePayload({ name: 'Walmart' }),
+        raw: true,
+      });
+      await helpers.createPayeeAlias({ payeeId: silpo.id, rawName: 'SILPO MARKET KYIV 123', raw: true });
+
+      const filtered = await helpers.listPayees({ q: 'market kyiv', raw: true });
+      expect(filtered.map((p) => p.id)).toEqual([silpo.id]);
+
+      const noMatch = await helpers.listPayees({ q: 'nonexistent alias', raw: true });
+      expect(noMatch).toEqual([]);
+    });
+
     it('sorts by the number of default tags in both directions', async () => {
       const [tagA, tagB] = await Promise.all([
         helpers.createTag({ payload: helpers.buildTagPayload({ name: 'Sort Tag A' }), raw: true }),

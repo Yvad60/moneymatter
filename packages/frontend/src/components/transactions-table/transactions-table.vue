@@ -10,14 +10,16 @@
       <!-- `min-h-12` keeps the unselected and selected states the same height, so selecting
            a row does not shift the table. -->
       <div class="@container/bulk-toolbar flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2">
-        <span v-if="selectedCount > 0" class="hidden text-sm whitespace-nowrap @4xl/bulk-toolbar:inline">
-          {{ $t('transactions.bulkEdit.selectedCount', { count: selectedCount }) }}
-        </span>
+        <SelectionTotals v-if="selectedCount > 0" :totals="selectedTotals" :selected-count="selectedCount" />
+        <SelectionTotals
+          v-else-if="matching"
+          :totals="matching.summary"
+          :selected-count="matching.summary.count"
+          matching
+        />
         <span v-else class="text-muted-foreground text-sm">
           {{ $t('transactions.table.hint') }}
         </span>
-
-        <SelectionTotals v-if="selectedCount > 0" :totals="selectedTotals" :selected-count="selectedCount" />
 
         <!-- Narrow layout: collapse the action buttons to icon-only so they fit
              one row alongside "N selected" + Cancel. The Cancel control is always
@@ -51,7 +53,7 @@
                   <Button
                     variant="outline"
                     :size="isMobileMode ? 'icon-sm' : 'sm'"
-                    :disabled="isBulkLoading"
+                    :disabled="isBulkLoading || isGroupingBlocked"
                     :aria-label="
                       isMobileMode ? $t('transactions.transactionGroups.bulkActions.groupButton') : undefined
                     "
@@ -152,12 +154,11 @@
       with-horizontal-scrollbar
     >
       <!-- table-fixed: column widths come from the header only, so rows mounted
-           mid-scroll by the virtualizer can never widen the table (which used to
-           create transient horizontal overflow). min-width preserves the
-           horizontal-scroll fallback when columns genuinely don't fit. -->
+           mid-scroll by the virtualizer can never widen the table. The explicit
+           width overflows into horizontal scroll when columns don't fit. -->
       <table
-        class="w-full table-fixed border-separate border-spacing-0"
-        :style="{ minWidth: `${tableMinWidthPx}px` }"
+        class="table-fixed border-separate border-spacing-0"
+        :style="{ width: `${tableWidthPx}px` }"
         :data-always-show-locked-cells="alwaysShowLockedCells || undefined"
       >
         <thead class="sticky top-0 z-2">
@@ -168,13 +169,13 @@
               </label>
             </th>
             <th
-              v-for="column in visibleColumns"
+              v-for="(column, index) in renderedColumns"
               :key="column.id"
               :class="[
-                'bg-muted overflow-hidden border-b px-3 py-2 whitespace-nowrap',
+                'bg-muted relative overflow-hidden border-b px-3 py-2 whitespace-nowrap',
                 column.align === 'right' ? 'text-right' : 'text-left',
               ]"
-              :style="{ width: `${column.widthPx}px` }"
+              :style="{ width: `${columnLayout.widths[index]}px` }"
             >
               <component
                 :is="column.sortField ? 'button' : 'span'"
@@ -191,8 +192,23 @@
                   <ArrowDownIcon v-else class="size-3 shrink-0" />
                 </template>
               </component>
+              <!-- Drag to resize, double-click to return the column to its flexible default width. -->
+              <div
+                aria-hidden="true"
+                :class="
+                  cn(
+                    'hover:bg-primary/50 absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none',
+                    resizing?.id === column.id && 'bg-primary/50',
+                  )
+                "
+                @pointerdown.left.prevent="startResize({ event: $event, id: column.id })"
+                @pointermove="moveResize"
+                @pointerup="endResize"
+                @lostpointercapture="resizing = null"
+                @dblclick="emit('resize-column', { id: column.id, widthPx: null })"
+              />
             </th>
-            <th class="bg-muted sticky right-0 z-1 border-b" :style="{ width: `${DETAILS_COLUMN_WIDTH_PX}px` }" />
+            <th class="bg-muted sticky right-0 z-1 border-b" :style="{ width: `${detailsColumnWidthPx}px` }" />
           </tr>
         </thead>
 
@@ -306,9 +322,14 @@ import { PLANNED_HEADER, useCollapsedPlanned } from '@/components/transactions-l
 import { useManageTransactionDialog } from '@/components/transactions-list/use-manage-transaction-dialog';
 import { useTransactionsDisplay } from '@/components/transactions-list/use-transactions-display';
 import { usePayeeLookup } from '@/composable/data-queries/payees';
-import { useBulkTransactionActions } from '@/composable/use-bulk-transaction-actions';
-import { SORT_DIRECTIONS, TRANSACTION_SORT_FIELD, TransactionModel } from '@bt/shared/types';
-import type { UpdateTransactionBody } from '@bt/shared/types/endpoints';
+import { type MatchingTransactions, useBulkTransactionActions } from '@/composable/use-bulk-transaction-actions';
+import { cn } from '@/lib/utils';
+import {
+  SORT_DIRECTIONS,
+  TRANSACTION_SORT_FIELD,
+  TransactionModel,
+  type UpdateTransactionBody,
+} from '@bt/shared/types';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { useElementSize, useEventListener } from '@vueuse/core';
 import {
@@ -326,7 +347,13 @@ import type { ReferenceElement } from 'reka-ui';
 import { type ComputedRef, computed, defineAsyncComponent, nextTick, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import type { ColumnDefinition, TableSorting } from './columns';
+import {
+  type ColumnDefinition,
+  type TABLE_COLUMN,
+  type TableSorting,
+  clampColumnWidth,
+  fitColumnWidths,
+} from './columns';
 import InlineCellEditor from './inline-cell-editor.vue';
 import type { ClaimedCellMode, InlineEditableColumn } from './inline-cell-mode';
 import TableLoaderRow from './table-loader-row.vue';
@@ -355,6 +382,8 @@ const props = defineProps<{
    */
   isMobileMode: boolean;
   selectionScopeKey?: string;
+  /** Totals and filters of the whole result set; enables "select all" beyond the loaded rows. */
+  matching?: MatchingTransactions;
   alwaysShowLockedCells?: boolean;
   rowClickSelects?: boolean;
 }>();
@@ -363,14 +392,9 @@ const emit = defineEmits<{
   'fetch-next-page': [];
   'update:sorting': [value: TableSorting];
   'reset-filters': [];
+  /** `widthPx: null` returns the column to its flexible default width. */
+  'resize-column': [value: { id: TABLE_COLUMN; widthPx: number | null }];
 }>();
-
-const tableMinWidthPx = computed(
-  () =>
-    CHECKBOX_COLUMN_WIDTH_PX +
-    DETAILS_COLUMN_WIDTH_PX +
-    props.visibleColumns.reduce((sum, column) => sum + column.widthPx, 0),
-);
 
 // Table view always flattens groups (one row per record); passing
 // contentFiltersActive=true gives transfer dedup without group rows, so the
@@ -411,9 +435,12 @@ const {
 const bulkActions = useBulkTransactionActions({
   getTransactions: () => visibleItems.value,
   getScopeKey: () => props.selectionScopeKey,
+  getMatching: () => props.matching,
+  getHasNextPage: () => props.hasNextPage,
 });
 const {
   selectedCount,
+  isGroupingBlocked,
   getSelectedTransactionIds,
   isTransactionSelectable,
   isTransactionSelected,
@@ -454,7 +481,7 @@ const getScrollElement = () => scrollAreaRef.value?.viewportRef?.viewportElement
 
 // The virtualizer has nothing to render before the first fetch resolves, which
 // would leave a bare header row over empty space; skeleton rows fill the viewport instead.
-const { height: viewportHeight } = useElementSize(() => getScrollElement());
+const { width: viewportWidth, height: viewportHeight } = useElementSize(() => getScrollElement());
 const initialSkeletonRowCount = computed(() =>
   !props.isFetched && displayTransactions.value.length === 0 ? Math.ceil(viewportHeight.value / ROW_HEIGHT_PX) : 0,
 );
@@ -475,6 +502,46 @@ const paddingTop = computed(() => (virtualRows.value.length > 0 ? virtualRows.va
 const paddingBottom = computed(() =>
   virtualRows.value.length > 0 ? totalSize.value - virtualRows.value[virtualRows.value.length - 1]!.end : 0,
 );
+
+// Column resizing: the dragged width lives here until pointerup, then goes to the parent to persist.
+const resizing = ref<{ id: TABLE_COLUMN; startX: number; startWidthPx: number; widthPx: number } | null>(null);
+
+const renderedColumns = computed(() =>
+  props.visibleColumns.map((column) =>
+    resizing.value?.id === column.id ? { ...column, widthPx: resizing.value.widthPx, isResized: true } : column,
+  ),
+);
+const columnLayout = computed(() =>
+  fitColumnWidths({
+    columns: renderedColumns.value,
+    availablePx: viewportWidth.value - CHECKBOX_COLUMN_WIDTH_PX - DETAILS_COLUMN_WIDTH_PX,
+  }),
+);
+const detailsColumnWidthPx = computed(() => DETAILS_COLUMN_WIDTH_PX + columnLayout.value.leftoverPx);
+const tableWidthPx = computed(
+  () =>
+    CHECKBOX_COLUMN_WIDTH_PX + detailsColumnWidthPx.value + columnLayout.value.widths.reduce((sum, w) => sum + w, 0),
+);
+
+const startResize = ({ event, id }: { event: PointerEvent; id: TABLE_COLUMN }) => {
+  const handle = event.currentTarget as HTMLElement;
+  handle.setPointerCapture(event.pointerId);
+  const startWidthPx = Math.round(handle.parentElement!.getBoundingClientRect().width);
+  resizing.value = { id, startX: event.clientX, startWidthPx, widthPx: startWidthPx };
+};
+
+const moveResize = (event: PointerEvent) => {
+  if (!resizing.value) return;
+  const { startWidthPx, startX } = resizing.value;
+  resizing.value.widthPx = clampColumnWidth({ widthPx: startWidthPx + event.clientX - startX });
+};
+
+const endResize = () => {
+  if (!resizing.value) return;
+  const { id, widthPx, startWidthPx } = resizing.value;
+  if (widthPx !== startWidthPx) emit('resize-column', { id, widthPx });
+  resizing.value = null;
+};
 
 // One editor for the whole table, anchored by lookup: saves change updatedAt, which remounts the row's cells.
 const { t } = useI18n();

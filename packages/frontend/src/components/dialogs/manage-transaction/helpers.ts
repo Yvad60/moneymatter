@@ -1,5 +1,6 @@
 import { OUT_OF_WALLET_ACCOUNT_MOCK, VERBOSE_PAYMENT_TYPES } from '@/common/const';
 import type { FormattedCategory } from '@/common/types';
+import { buildDescendantMap } from '@/components/common/category-exclusions/helpers';
 import {
   isTwoLegTransfer,
   ACCOUNT_TYPES,
@@ -78,6 +79,10 @@ export const getOppositeTxType = (type: TRANSACTION_TYPES): TRANSACTION_TYPES =>
   type === TRANSACTION_TYPES.expense ? TRANSACTION_TYPES.income : TRANSACTION_TYPES.expense;
 
 export const isOutOfWalletAccount = (account: typeof OUT_OF_WALLET_ACCOUNT_MOCK) => account._isOutOfWallet;
+
+// Real rows on a bank-connected account come from the sync, so the Create form makes them plans.
+export const isConnectedAccount = ({ account }: { account: Pick<AccountModel, 'type'> }): boolean =>
+  !!account.type && account.type !== ACCOUNT_TYPES.system;
 
 /**
  * Transfer destinations for a given base transaction type. A loan payment is an
@@ -270,4 +275,27 @@ export const prepopulateForm = ({
     return initialFormValues;
   }
   return undefined;
+};
+
+/**
+ * Categories the picker leaves out of its default list: non-income ones for income, income ones
+ * otherwise. Returns undefined when that would leave the list empty or untouched.
+ */
+export const getUnlistedCategoryIds = ({
+  categories,
+  incomeCategoryIds,
+  isIncome,
+}: {
+  categories: FormattedCategory[];
+  incomeCategoryIds: string[] | undefined;
+  isIncome: boolean;
+}): Set<string> | undefined => {
+  if (!incomeCategoryIds?.length) return undefined;
+
+  const descendants = buildDescendantMap({ categories });
+  const allIds = Object.keys(descendants);
+  const income = new Set(incomeCategoryIds.flatMap((id) => [id, ...(descendants[id] ?? [])]));
+  const unlisted = new Set(allIds.filter((id) => income.has(id) !== isIncome));
+
+  return unlisted.size === 0 || unlisted.size === allIds.length ? undefined : unlisted;
 };

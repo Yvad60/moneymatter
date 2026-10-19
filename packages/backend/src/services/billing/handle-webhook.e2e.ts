@@ -1,6 +1,7 @@
 import { FEATURES, PLAN_FEATURES, SEATS_BY_PLAN, STRIPE_PRICE_IDS, SUBSCRIPTION_STATUSES } from '@bt/shared/types';
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import BillingSubscriptions from '@models/billing-subscriptions.model';
+import * as sendEmailModule from '@services/email/send-email';
 import * as helpers from '@tests/helpers';
 import { HttpResponse, http } from 'msw';
 
@@ -78,6 +79,78 @@ describe('Stripe billing webhook (POST /webhooks/billing)', () => {
       tier: 'essential',
       status: SUBSCRIPTION_STATUSES.active,
       currentPeriodEndsAt: currentPeriodEndsAt.toISOString(),
+    });
+  });
+
+  describe('welcome email', () => {
+    let sendSpy: jest.SpiedFunction<typeof sendEmailModule.sendEmail>;
+
+    beforeEach(() => {
+      sendSpy = jest.spyOn(sendEmailModule, 'sendEmail').mockResolvedValue(null);
+    });
+
+    afterEach(() => {
+      sendSpy.mockRestore();
+    });
+
+    it('is sent once when the subscription starts', async () => {
+      const userId = await getCurrentUserId();
+      const created = helpers.buildStripeSubscriptionEvent({ userId });
+
+      await helpers.sendBillingWebhook({ payload: created });
+      await helpers.sendBillingWebhook({ payload: created });
+      await helpers.sendBillingWebhook({
+        payload: helpers.buildStripeSubscriptionEvent({ userId, eventType: 'customer.subscription.updated' }),
+      });
+
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: expect.stringContaining('Plus'),
+          replyTo: 'support@moneymatter.app',
+        }),
+      );
+    });
+
+    it('is sent when an update activates an incomplete subscription', async () => {
+      const userId = await getCurrentUserId();
+      const createdAt = new Date();
+
+      await helpers.sendBillingWebhook({
+        payload: helpers.buildStripeSubscriptionEvent({ userId, createdAt, status: 'incomplete' }),
+      });
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      await helpers.sendBillingWebhook({
+        payload: helpers.buildStripeSubscriptionEvent({
+          userId,
+          createdAt,
+          eventType: 'customer.subscription.updated',
+          status: SUBSCRIPTION_STATUSES.active,
+        }),
+      });
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('is not sent for a subscription first seen unpaid', async () => {
+      const userId = await getCurrentUserId();
+
+      await helpers.sendBillingWebhook({
+        payload: helpers.buildStripeSubscriptionEvent({ userId, status: 'unpaid' }),
+      });
+
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('leaves the webhook processed when the send fails', async () => {
+      sendSpy.mockRejectedValue(new Error('Resend is down'));
+      const userId = await getCurrentUserId();
+
+      const res = await helpers.sendBillingWebhook({ payload: helpers.buildStripeSubscriptionEvent({ userId }) });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.outcome).toBe('processed');
+      expect(await BillingSubscriptions.count({ where: { userId } })).toBe(1);
     });
   });
 

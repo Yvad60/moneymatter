@@ -206,7 +206,7 @@
           <p class="mb-2">
             {{ t('pages.integrations.instructionsDialog.step3.intro') }}
           </p>
-          <ul class="list-inside list-disc space-y-1">
+          <ul class="list-disc space-y-1 pl-5">
             <li>
               <i18n-t keypath="pages.integrations.instructionsDialog.step3.appId" tag="span">
                 <template #strong>

@@ -17,7 +17,7 @@
       "viewTransactions": "View transactions",
       "viewAnalytics": "View analytics",
       "saving": "Saving...",
-      "saveChanges": "Save Changes",
+      "saveChanges": "Save changes",
       "done": "Done",
       "failed": "Failed",
       "viewAll": "View all",
@@ -54,7 +54,8 @@
       }
     },
     "errors": {
-      "copyToClipboardFailed": "Failed to copy to clipboard"
+      "copyToClipboardFailed": "Failed to copy to clipboard",
+      "settingsSaveFailed": "Couldn't save your settings. Please try again."
     },
     "notifications": {
       "subscriptionCurrencyNotConnected": "Subscriptions summary can't convert {currencies} to your base currency. Connect the currency in Settings → Currencies.",
@@ -96,13 +97,13 @@
       "vehicle": "Vehicle"
     },
     "paymentTypes": {
-      "creditCard": "Credit Card",
-      "bankTransfer": "Bank Transfer",
+      "creditCard": "Credit card",
+      "bankTransfer": "Bank transfer",
       "cash": "Cash",
-      "debitCard": "Debit Card",
-      "mobilePayment": "Mobile Payment",
+      "debitCard": "Debit card",
+      "mobilePayment": "Mobile payment",
       "voucher": "Voucher",
-      "webPayment": "Web Payment"
+      "webPayment": "Web payment"
     },
     "vehicleClasses": {
       "sedan": "Sedan",
@@ -122,12 +123,12 @@
     },
     "aiFeatures": {
       "categorization": {
-        "name": "Transaction Categorization",
+        "name": "Transaction categorization",
         "description": "Automatically categorize transactions based on their description and merchant"
       },
       "statementParsing": {
-        "name": "Statement Parser",
-        "description": "Extract transactions from bank statements (PDF, CSV, TXT) using AI"
+        "name": "Statement parser",
+        "description": "Extract transactions from bank statements (PDF, CSV, TXT), receipts and screenshots using AI"
       },
       "investmentTransactionsParsing": {
         "name": "Investment transactions import",
@@ -150,7 +151,7 @@
         "error": "Failed to unlink transactions!"
       },
       "record": {
-        "addedByTooltip": "This transaction was attached to the budget by {handle}",
+        "addedByTooltip": "This transaction was attached to the tracker by {handle}",
         "externalLinkTooltip": "Open external link",
         "locationTooltip": "Open location on the map",
         "attachmentsTooltip": "Has attachments",
@@ -161,7 +162,7 @@
         }
       }
     },
-    "outOfWallet": "Out of Wallet",
+    "outOfWallet": "Out of wallet",
     "dateSelector": {
       "dialogTitle": "Date range",
       "dueDate": "Due date",
@@ -286,6 +287,7 @@
     }
   },
   "validation": {
+    "required": "Field is required",
     "minLength": "Minimal length is {length}.",
     "emailInvalid": "Please enter a valid email address.",
     "passwordsNoMatch": "Passwords don't match"
@@ -383,7 +385,7 @@
     "featureNotAvailable": "This feature is not available in demo mode",
     "passwordChangeRestricted": "Password changes are not available in demo mode",
     "investmentsRestricted": {
-      "title": "Investments Unavailable in Demo",
+      "title": "Investments unavailable in demo",
       "description": "The investments feature is not available in demo mode. Please sign up for a full account to access investments tracking."
     },
     "banner": {
@@ -445,9 +447,42 @@
       "setByEndpoint": "Priced by your provider"
     }
   },
+  "aiUsage": {
+    "title": "Included AI usage",
+    "used": "used",
+    "percentUsed": "{percent}% used",
+    "resetsOn": "Resets on {date}",
+    "connectOwnModel": "Connect your own model",
+    "gotIt": "Got it",
+    "badge": {
+      "used": "{percent}% AI used",
+      "reached": "AI limit reached"
+    },
+    "dialog": {
+      "description": "Statement parsing, categorization, receipts and budget suggestions share this allowance.",
+      "status": {
+        "plusWarning": "You've used most of this month's included AI. When it runs out, AI features pause until {date}.",
+        "plusReached": "You've used this month's included AI. AI features are paused until {date}.",
+        "trialWarning": "You've used most of the AI included in your plan this month. When it runs out, AI features pause.",
+        "trialReached": "You've used the AI included in your plan this month. Subscribe to Plus or connect your own model to keep using AI features."
+      }
+    },
+    "options": {
+      "connectDescription": "Use your own Anthropic, OpenAI, Gemini or local model. It's never counted toward this limit.",
+      "subscribeTitle": "Subscribe to Plus",
+      "subscribeDescription": "Get more included AI every month.",
+      "waitTitle": "Wait for the reset",
+      "waitDescription": "Included AI comes back on {date}."
+    },
+    "meter": {
+      "ok": "Resets on {date}. Your own connected models are never counted.",
+      "warning": "When it runs out, AI features pause until {date} unless you connect your own model.",
+      "reached": "Used up until {date}. AI features are paused."
+    }
+  },
   "transactionGroups": {
     "groupDialog": {
-      "editTitle": "Edit Group",
+      "editTitle": "Edit group",
       "nameLabel": "Name",
       "noteLabel": "Note (optional)",
       "notePlaceholder": "Optional note...",
@@ -455,7 +490,7 @@
       "savingAction": "Save",
       "cancelButton": "Cancel",
       "editAction": "Edit",
-      "deleteAction": "Delete Group",
+      "deleteAction": "Delete group",
       "transactionsLabel": "Transactions",
       "deleteGroupTitle": "Delete group",
       "deleteGroupDescription": "Are you sure you want to delete \"{groupName}\"? The transactions will not be deleted.",
@@ -463,7 +498,7 @@
       "removeTransactionDescription": "This will leave fewer than 2 transactions in the group, so the group will be deleted. Continue?",
       "removeTransactionDescriptionNormal": "Are you sure you want to remove this transaction from the group?",
       "removeButtonText": "Remove",
-      "removeAndDeleteButtonText": "Remove & Delete Group",
+      "removeAndDeleteButtonText": "Remove & delete group",
       "summary": {
         "transactions": "Transactions",
         "net": "Net",

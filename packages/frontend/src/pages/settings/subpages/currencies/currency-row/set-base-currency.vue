@@ -56,12 +56,13 @@
             <p class="mb-2">
               {{ $t('settings.currencies.setBase.dialog.roundingIntro') }}
             </p>
-            <p class="mb-2">
+            <p class="mb-1">
               <strong>{{ $t('settings.currencies.setBase.dialog.roundingHow') }}</strong>
-              <br />
-              • {{ $t('settings.currencies.setBase.dialog.roundingRule1') }}<br />
-              • {{ $t('settings.currencies.setBase.dialog.roundingRule2') }}
             </p>
+            <ul class="mb-2 list-disc space-y-1 pl-5">
+              <li>{{ $t('settings.currencies.setBase.dialog.roundingRule1') }}</li>
+              <li>{{ $t('settings.currencies.setBase.dialog.roundingRule2') }}</li>
+            </ul>
             <p>
               {{ $t('settings.currencies.setBase.dialog.roundingStandard') }}
             </p>
@@ -127,14 +128,21 @@ const { t } = useI18n();
 const showBaseCurrencyDialog = ref(false);
 const showRoundingDetails = ref(false);
 
-const buildLockedMessage = ({ blockers }: { blockers: BaseCurrencyBlocker[] }) => {
-  const segments = blockers.map((b) =>
-    b.type === 'household'
-      ? t('settings.currencies.setBase.errors.lockedHousehold', { count: b.count }, b.count)
-      : t('settings.currencies.setBase.errors.lockedShares', { count: b.count }, b.count),
-  );
-  return segments.join(' ');
+// Exhaustive over the blocker union, so a new blocker type fails the type check
+// instead of silently borrowing another one's wording. The fallback covers a server
+// that sends a type this client build predates.
+const LOCKED_MESSAGE_KEYS: Record<BaseCurrencyBlocker['type'], string> = {
+  household: 'settings.currencies.setBase.errors.lockedHousehold',
+  share: 'settings.currencies.setBase.errors.lockedShares',
+  budget_plan: 'settings.currencies.setBase.errors.lockedBudgetPlan',
 };
+
+const buildLockedMessage = ({ blockers }: { blockers: BaseCurrencyBlocker[] }) =>
+  blockers
+    .map((b) =>
+      t(LOCKED_MESSAGE_KEYS[b.type] ?? 'settings.currencies.setBase.errors.changeFailed', { count: b.count }, b.count),
+    )
+    .join(' ');
 
 const makeBaseCurrency = async () => {
   // ResponsiveAlertDialog leaves closing to the parent; close before the async work
@@ -160,7 +168,8 @@ const makeBaseCurrency = async () => {
       }
       if (
         code === API_ERROR_CODES.baseCurrencyLockedByHousehold ||
-        code === API_ERROR_CODES.baseCurrencyLockedByShares
+        code === API_ERROR_CODES.baseCurrencyLockedByShares ||
+        code === API_ERROR_CODES.baseCurrencyLockedByBudgetPlan
       ) {
         const blockers = (details?.blockers as BaseCurrencyBlocker[] | undefined) ?? [];
         addErrorNotification(

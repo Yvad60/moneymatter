@@ -175,6 +175,19 @@ describe('CreateAccountForm', () => {
     });
   });
 
+  describe('1a. Name is required', () => {
+    it.each(['', '   '])('does not call the API when name is %j', async (name) => {
+      const { wrapper } = await mountComponent();
+
+      const nameInput = wrapper.find<HTMLInputElement>('input:not([type="number"])');
+      await nameInput.setValue(name);
+
+      await submitForm({ wrapper });
+
+      expect(createAccountMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('2. User enters edge-case data — API is still called as-is', () => {
     it('sends negative initialBalance without blocking', async () => {
       const { wrapper } = await mountComponent();
@@ -207,16 +220,6 @@ describe('CreateAccountForm', () => {
       const payload = createAccountMock.mock.calls[0]![0];
       expect(payload.initialBalance).toBe(99999999.99);
       expect(typeof payload.initialBalance).toBe('number');
-    });
-
-    it('sends empty name (no frontend validation blocks it)', async () => {
-      const { wrapper } = await mountComponent();
-
-      await submitForm({ wrapper });
-
-      expect(createAccountMock).toHaveBeenCalledTimes(1);
-      const payload = createAccountMock.mock.calls[0]![0];
-      expect(payload.name).toBe('');
     });
   });
 
@@ -306,6 +309,8 @@ describe('CreateAccountForm', () => {
       const { wrapper, queryClient } = await mountComponent();
       const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
+      await wrapper.find<HTMLInputElement>('input:not([type="number"])').setValue('Test');
+
       await submitForm({ wrapper });
 
       expect(invalidateQueriesSpy).toHaveBeenCalledWith({
@@ -337,6 +342,7 @@ describe('CreateAccountForm', () => {
       );
 
       const { wrapper } = await mountComponent();
+      await wrapper.find<HTMLInputElement>('input:not([type="number"])').setValue('Test');
 
       // First submit
       await wrapper.find('form').trigger('submit');

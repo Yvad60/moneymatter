@@ -15,9 +15,6 @@ import { useCssVarFromElementSize } from '@/composable/use-css-var-from-element-
 import NavigationLinks from './sidebar/navigation-links.vue';
 
 const { elementRef: navbarRef } = useCssVarFromElementSize({
-  cssVars: [
-    { cssVarName: '--bottom-navbar-height', sizeSource: 'borderBoxSize' },
-    { cssVarName: '--bottom-navbar-height-content-rect', sizeSource: 'contentRect' },
-  ],
+  cssVars: [{ cssVarName: '--bottom-navbar-height', sizeSource: 'borderBoxSize' }],
 });
 </script>

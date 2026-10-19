@@ -134,10 +134,11 @@ const hasLoadError = computed(() => isError.value && !subscriptions.value?.lengt
 const groupLabel = ({ group }: { group: SubscriptionGroup }): string =>
   t(group.labelKey, { count: group.items.length });
 
-const navigateToDetail = ({ subscription }: { subscription: SubscriptionListItem }) => {
+const navigateToDetail = ({ subscription, hash }: { subscription: SubscriptionListItem; hash?: string }) => {
   router.push({
     name: ROUTES_NAMES.plannedSubscriptionDetails,
     params: { id: subscription.id },
+    hash,
   });
 };
 
@@ -233,6 +234,7 @@ function payPeriod({ subscription }: { subscription: SubscriptionListItem }) {
             :is-marking-paid="isMarkingPaid"
             :now="now"
             @select="navigateToDetail({ subscription: $event })"
+            @select-linked="navigateToDetail({ subscription: $event, hash: '#linked-transactions' })"
             @pay="payPeriod({ subscription: $event })"
             @toggle-active="handleToggleActive({ subscription: $event })"
             @delete="deleteTarget = $event"

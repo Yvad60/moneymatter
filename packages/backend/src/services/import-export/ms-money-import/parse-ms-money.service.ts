@@ -37,6 +37,8 @@ import {
   type MsMoneyParseWarning,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
+import { requestContext } from '@common/request-context';
+import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import MDBReader from 'mdb-reader';
 
@@ -148,11 +150,16 @@ function createTableReader({ reader }: { reader: MDBReader }) {
 export function describeSchemaGaps({ gaps }: { gaps: SchemaGap[] }): string {
   const details = gaps
     .map((gap) =>
-      gap.tableMissing ? `${gap.table} (missing)` : `${gap.table} (missing columns: ${gap.missingColumns.join(', ')})`,
+      gap.tableMissing
+        ? t({ key: 'importExport.msMoney.schemaGapTableMissing', variables: { table: gap.table } })
+        : t({
+            key: 'importExport.msMoney.schemaGapColumnsMissing',
+            variables: { table: gap.table, columns: gap.missingColumns.join(', ') },
+          }),
     )
     .join('; ');
 
-  return `Parts of this file are not laid out the way Microsoft Money usually writes them, so some data could not be read: ${details}.`;
+  return t({ key: 'importExport.msMoney.warnings.fileSchemaUnexpected', variables: { details } });
 }
 
 interface AccountIndex {
@@ -175,9 +182,11 @@ interface AccountIndex {
 export function buildAccountIndex({
   rows,
   currencyById,
+  fallbackCurrency,
 }: {
   rows: AcctRow[];
   currencyById: Map<number, string>;
+  fallbackCurrency: string;
 }): AccountIndex {
   const accountById = new Map<number, MsMoneyParseAccount>();
   const knownAcctIds = new Set<number>();
@@ -215,7 +224,8 @@ export function buildAccountIndex({
 
     accountById.set(row.hacct, {
       originalName,
-      currency: currency ?? 'USD',
+      currency: currency ?? fallbackCurrency,
+      currencyDefaulted: !currency,
       accountType: row.at,
       transactionCount: 0,
       netImportedAmount: 0,
@@ -256,31 +266,27 @@ function buildCategoryIndex({ rows }: { rows: CatRow[] }) {
 export function parseMsMoneyFile({
   buffer,
   password = null,
+  fallbackCurrency,
 }: {
   buffer: Buffer;
   password?: string | null;
+  /** Currency given to accounts the file carries none for. */
+  fallbackCurrency: string;
 }): MsMoneyParseResult {
   const { buffer: plaintext, encryption } = decryptMsisam({ buffer, password });
 
   let reader: MDBReader;
   try {
     reader = new MDBReader(plaintext);
-  } catch (err) {
-    throw new ValidationError({
-      message: `This Microsoft Money file could not be read — it may be damaged or saved by an unsupported version. (${
-        err instanceof Error ? err.message : 'unknown error'
-      })`,
-    });
+  } catch {
+    throw new ValidationError({ message: t({ key: 'importExport.msMoney.unreadableFile' }) });
   }
 
   // Without these two the parser would return an empty result and no warnings,
   // walking the user through a wizard that imports nothing.
   const tableNames = new Set(reader.getTableNames());
   if (!tableNames.has('ACCT') || !tableNames.has('TRN')) {
-    throw new ValidationError({
-      message:
-        'This Microsoft Money file is missing the account or transaction tables — it may be damaged or saved by an unsupported version.',
-    });
+    throw new ValidationError({ message: t({ key: 'importExport.msMoney.missingTables' }) });
   }
 
   const warnings: MsMoneyParseWarning[] = [];
@@ -305,30 +311,27 @@ export function parseMsMoneyFile({
     buildAccountIndex({
       rows: tables.read<AcctRow>({ name: 'ACCT', columns: ['hacct', 'szFull', 'at', 'hcrnc'] }),
       currencyById,
+      fallbackCurrency,
     });
 
   addWarning({
     code: 'account-type-unsupported',
-    message:
-      'Investment and loan accounts were skipped. Investments belong to portfolios, and loans use a dedicated flow that does not accept imported transactions.',
+    message: t({ key: 'importExport.msMoney.warnings.accountTypeUnsupported' }),
     count: unsupportedAccounts,
   });
   addWarning({
     code: 'account-currency-defaulted',
-    message:
-      'Some accounts carry no currency this file could resolve, so they are imported as US dollars. Change their currency after the import if that is wrong.',
+    message: t({ key: 'importExport.msMoney.warnings.accountCurrencyDefaulted' }),
     count: defaultedCurrencies,
   });
   addWarning({
     code: 'account-name-missing',
-    message:
-      'Some accounts carry no name in this file and are imported as "Account <number>". Rename them after the import.',
+    message: t({ key: 'importExport.msMoney.warnings.accountNameMissing' }),
     count: synthesizedNames,
   });
   addWarning({
     code: 'account-name-duplicated',
-    message:
-      'Several accounts share one name in this file. The repeats are numbered — "Savings (2)" and so on — so they stay separate accounts.',
+    message: t({ key: 'importExport.msMoney.warnings.accountNameDuplicated' }),
     count: duplicateNames,
   });
 
@@ -586,33 +589,34 @@ export function parseMsMoneyFile({
   // reads always matches the transactions in the preview.
   addWarning({
     code: 'transfer-counterpart-not-imported',
-    message:
-      'Some transfers moved money to an account that is not part of this import. Those rows are imported as transfers out of your tracked accounts.',
+    message: t({ key: 'importExport.msMoney.warnings.transferCounterpartNotImported' }),
     count: transactions.filter((transaction) => transaction.outOfWallet).length,
   });
 
   addWarning({
     code: 'row-limit-reached',
-    message: `This file holds more than ${MS_MONEY_MAX_ROWS.toLocaleString('en-US')} transactions. The excess rows were not imported.`,
+    message: t({
+      key: 'importExport.msMoney.warnings.rowLimitReached',
+      variables: { max: MS_MONEY_MAX_ROWS.toLocaleString(requestContext.getLocale()) },
+    }),
     count: droppedForRowLimit,
   });
 
   addWarning({
     code: 'row-missing-date',
-    message: 'Some rows had no readable date and were skipped.',
+    message: t({ key: 'importExport.msMoney.warnings.rowMissingDate' }),
     count: datelessRows,
   });
 
   addWarning({
     code: 'row-amount-unreadable',
-    message:
-      'Some rows carried no readable amount. They were skipped rather than imported at zero, which would have posted a transaction that moves nothing.',
+    message: t({ key: 'importExport.msMoney.warnings.rowAmountUnreadable' }),
     count: unreadableAmountRows,
   });
 
   addWarning({
     code: 'orphan-row-skipped',
-    message: 'Some transactions referenced an account that no longer exists in the file and were skipped.',
+    message: t({ key: 'importExport.msMoney.warnings.orphanRowSkipped' }),
     count: orphanRows,
   });
 

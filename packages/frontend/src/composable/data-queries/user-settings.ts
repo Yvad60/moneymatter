@@ -1,12 +1,17 @@
 import { type UserSettingsSchema, getUserSettings, patchUserSettings, updateUserSettings } from '@/api/user-settings';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useNotificationCenter } from '@/components/notification-center';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 export const useUserSettings = (
   queryOptions: Partial<Parameters<typeof useQuery<UserSettingsSchema, Error>>[0]> = {},
 ) => {
   const queryArray = [...VUE_QUERY_CACHE_KEYS.userSettings];
   const queryClient = useQueryClient();
+  const { t } = useI18n();
+  const { addErrorNotification } = useNotificationCenter();
   const query = useQuery({
     queryFn: getUserSettings,
     queryKey: queryArray,
@@ -18,7 +23,12 @@ export const useUserSettings = (
     queryClient.invalidateQueries({ queryKey: queryArray });
   };
 
+  // The full update sends the whole settings object, so `isUpdating` is shared
+  // across every caller: two in flight at once would overwrite each other.
+  const updateMutationKey = [...queryArray, 'update'];
+  const updatesInFlight = useIsMutating({ mutationKey: updateMutationKey });
   const mutation = useMutation({
+    mutationKey: updateMutationKey,
     mutationFn: updateUserSettings,
     onSuccess: (data) => queryClient.setQueryData(queryArray, () => data),
     onError: invalidate,
@@ -30,14 +40,17 @@ export const useUserSettings = (
   const patchMutation = useMutation({
     mutationFn: patchUserSettings,
     onSuccess: (data) => queryClient.setQueryData(queryArray, () => data),
-    onError: invalidate,
+    onError: () => {
+      addErrorNotification(t('common.errors.settingsSaveFailed'));
+      invalidate();
+    },
   });
 
   return {
     invalidate,
     mutate: mutation.mutate,
     mutateAsync: mutation.mutateAsync,
-    isUpdating: mutation.isPending,
+    isUpdating: computed(() => updatesInFlight.value > 0),
     patch: patchMutation.mutate,
     patchAsync: patchMutation.mutateAsync,
     isPatching: patchMutation.isPending,

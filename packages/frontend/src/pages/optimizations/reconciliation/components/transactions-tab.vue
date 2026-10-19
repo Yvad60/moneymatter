@@ -36,7 +36,7 @@ const {
 const applyFiltersDebounced = useDebounceFn(applyFilters, FILTER_AUTO_APPLY_DEBOUNCE_MS);
 watch(filters, applyFiltersDebounced);
 
-const { visibleColumns } = useTableColumns();
+const { visibleColumns, setColumnWidth } = useTableColumns();
 
 const transactions = computed(() => transactionsPages.value?.pages.flat() ?? []);
 const selectionScopeKey = computed(() => JSON.stringify({ filters: appliedFilters.value, sorting: sorting.value }));
@@ -89,6 +89,7 @@ const onSortingChange = (value: TableSorting) => {
           class="min-h-0 flex-1"
           :transactions="transactions"
           :visible-columns="visibleColumns"
+          @resize-column="setColumnWidth"
           :sorting="sorting"
           :has-next-page="hasNextPage"
           :is-fetching-next-page="isFetchingNextPage"

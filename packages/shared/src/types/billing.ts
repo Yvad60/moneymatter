@@ -49,6 +49,7 @@ export const FEATURES = {
   attachments: 'attachments',
   invoice_matching: 'invoice_matching',
   fire_planner: 'fire_planner',
+  budget_plan: 'budget_plan',
 } as const;
 export type Feature = (typeof FEATURES)[keyof typeof FEATURES];
 
@@ -75,6 +76,7 @@ const ESSENTIAL_FEATURES: readonly Feature[] = [
   FEATURES.backup_restore,
   FEATURES.data_export,
   FEATURES.attachments,
+  FEATURES.budget_plan,
 ];
 const PLUS_FEATURES: readonly Feature[] = [
   ...ESSENTIAL_FEATURES,
@@ -83,9 +85,12 @@ const PLUS_FEATURES: readonly Feature[] = [
   FEATURES.invoice_matching,
   FEATURES.fire_planner,
 ];
-/** Plus as of launch (2026-09-15). Deliberately not a reference to PLUS_FEATURES: features added later are paid for early adopters. */
+/** Plus as of launch (2026-09-15), inlined: a feature added to ESSENTIAL_FEATURES later is paid for early adopters. */
 const EARLY_ADOPTER_FEATURES: readonly Feature[] = [
-  ...ESSENTIAL_FEATURES,
+  FEATURES.backup_export,
+  FEATURES.backup_restore,
+  FEATURES.data_export,
+  FEATURES.attachments,
   FEATURES.bank_providers,
   FEATURES.operator_ai,
 ];
@@ -111,6 +116,9 @@ export const TRIAL_EXCLUDED_FEATURES: readonly Feature[] = [FEATURES.backup_rest
 
 export const TRIAL_DAYS = 40;
 
+/** How long early adopters get `budget_plan`, counted from their first budget plan. */
+export const EARLY_ADOPTER_BUDGET_TRIAL_DAYS = 40;
+
 export interface ScheduledChange {
   action: 'cancel' | 'resume';
   effectiveAt: string;
@@ -132,6 +140,8 @@ export interface Entitlements {
   /** Non-null means a lifetime grant of that plan. */
   plan: Plan | null;
   trialEndsAt: string | null;
+  /** End of the early adopter budget trial, past or future, once a first plan started it. Null outside that trial. */
+  budgetPlanTrialEndsAt: string | null;
   subscriptions: BillingSubscriptionSummary[];
   /** Tries already spent against `FEATURE_TRIAL_LIMITS`. Absent key means zero. */
   trialUsage: Partial<Record<Feature, number>>;

@@ -1,6 +1,7 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { currencyCode, recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
+import { nonNegativeAmountSchema, positiveAmountSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { serializeTransactionTuple } from '@root/serializers/transactions.serializer';
@@ -12,7 +13,9 @@ import { assertOriginalCurrencyArgs, getUserId, jsonContent, requireScope } from
 const inputSchema = {
   id: recordId().describe('ID of the transaction to update'),
   accountId: recordId().optional().describe('Move transaction to a different account'),
-  amount: z.number().optional().describe('New amount as a decimal (e.g. 12.50)'),
+  amount: nonNegativeAmountSchema()
+    .optional()
+    .describe('New amount as an unsigned decimal (e.g. 12.50). Never negative: transactionType sets the direction'),
   transactionType: z
     .enum([TRANSACTION_TYPES.income, TRANSACTION_TYPES.expense])
     .optional()
@@ -40,11 +43,11 @@ const inputSchema = {
   categoryId: recordId().optional().describe('New category ID'),
   time: z.string().optional().describe('New date/time as ISO 8601 string'),
   note: z.string().optional().nullable().describe('New note. Pass null to clear'),
+  payeeId: recordId().nullable().optional().describe('Payee ID to assign. Pass null to clear'),
   destinationAccountId: recordId().optional().describe('For transfers: new destination account ID'),
-  destinationAmount: z
-    .number()
+  destinationAmount: positiveAmountSchema()
     .optional()
-    .describe('For transfers: new amount received in destination account (decimal)'),
+    .describe('For transfers: new amount received in destination account (decimal, greater than 0)'),
   destinationTransactionId: z
     .string()
     .uuid()
@@ -54,7 +57,7 @@ const inputSchema = {
     .array(
       z.object({
         categoryId: recordId().describe('Category ID for this split portion'),
-        amount: z.number().describe('Amount for this split portion (decimal)'),
+        amount: positiveAmountSchema().describe('Amount for this split portion (decimal, greater than 0)'),
         note: z.string().optional().nullable().describe('Optional note for this split'),
       }),
     )
@@ -88,7 +91,7 @@ export function registerUpdateTransaction(server: McpServer) {
     'update_transaction',
     {
       description:
-        'Update an existing transaction by ID. All fields except id are optional — only provide what you want to change. Pass tagIds: null to clear all tags, or tagIds: [] to do the same. Pass splits: null to clear all splits. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
+        'Update an existing transaction by ID. All fields except id are optional — only provide what you want to change. Pass tagIds: null to clear all tags, or tagIds: [] to do the same. Pass splits: null to clear all splits. Pass payeeId: null to clear the payee. Use originalAmount + originalCurrencyCode to record what the purchase cost in its invoice currency when that differs from the account currency.',
       inputSchema,
     },
     async (args, extra) => {
@@ -109,6 +112,7 @@ export function registerUpdateTransaction(server: McpServer) {
         categoryId: args.categoryId,
         time: args.time ? new Date(args.time) : undefined,
         note: args.note,
+        payeeId: args.payeeId,
         destinationAccountId: args.destinationAccountId,
         destinationAmount: args.destinationAmount !== undefined ? Money.fromDecimal(args.destinationAmount) : undefined,
         destinationTransactionId: args.destinationTransactionId,

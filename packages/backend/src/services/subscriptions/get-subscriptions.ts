@@ -52,6 +52,7 @@ interface SubscriptionBase extends Pick<
   | 'payeeId'
   | 'matchingRules'
   | 'isActive'
+  | 'autoRecord'
   | 'transactionType'
   | 'completedAt'
   | 'maxOccurrences'

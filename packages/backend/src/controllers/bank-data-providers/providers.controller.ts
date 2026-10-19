@@ -6,8 +6,8 @@ import { z } from 'zod';
  * GET /api/bank-data-providers
  * List all available bank data providers with their metadata
  */
-export const listProviders = createController(z.object({}), async () => {
-  const providers = await listSupportedProviders();
+export const listProviders = createController(z.object({}), async ({ user }) => {
+  const providers = await listSupportedProviders({ userId: user.id });
 
   return {
     data: { providers },

@@ -12,13 +12,8 @@
           'z-(--z-navbar)',
           isEditMode && 'max-md:hidden',
           'max-md:right-0 max-md:left-0',
-          'sticky md:top-(--header-height)',
-          isSafariMobile
-            ? isPWA
-              ? 'max-md:bottom-[calc(var(--bottom-navbar-height)-env(safe-area-inset-bottom)-1px)]'
-              : 'max-md:bottom-[calc(var(--bottom-navbar-height-content-rect)-env(safe-area-inset-bottom)-1px)]'
-            : 'max-md:bottom-[calc(env(safe-area-inset-bottom)-1px)]',
-          'md:order-first md:mx-0 md:mt-0 md:mb-3 md:border-t-0 md:py-0',
+          'sticky max-md:-bottom-px max-md:-mb-8 md:top-(--header-height)',
+          'md:order-first md:mx-0 md:-mt-1 md:mb-2 md:border-t-0 md:py-1',
         ])
       "
     >
@@ -47,12 +42,12 @@
         @enter="gridRef?.enterEditMode()"
       />
 
-      <DashboardGrid ref="gridRef" :current-period="currentPeriod" />
+      <DashboardGrid ref="gridRef" class="max-md:mb-4" :current-period="currentPeriod" />
 
       <!-- Mobile: sticky "Done/Cancel" bar at bottom during edit mode -->
       <DashboardEditToolbar
         v-if="gridRef?.isEditMode"
-        class="bg-background/90 sticky bottom-0 z-(--z-navbar) -mx-6 justify-center border-t px-6 py-3 backdrop-blur-sm md:hidden"
+        class="bg-background/90 sticky bottom-0 z-(--z-navbar) -mx-6 -mb-8 justify-center border-t px-6 py-3 backdrop-blur-sm md:hidden"
         :is-edit-mode="true"
         @save="gridRef?.saveLayout()"
         @cancel="gridRef?.cancelEdit()"
@@ -65,7 +60,6 @@
 import RecoveryMethodBanner from '@/components/banners/recovery-method-banner.vue';
 import PageWrapper from '@/components/common/page-wrapper.vue';
 import DashboardOnboarding from '@/components/widgets/dashboard-onboarding.vue';
-import { useSafariDetection } from '@/composable/detect-safari';
 import { cn } from '@/lib/utils';
 import { useAccountsStore } from '@/stores';
 import { endOfMonth, parseISO, startOfMonth } from 'date-fns';
@@ -77,8 +71,6 @@ import DashboardEditToolbar from './components/dashboard-edit-toolbar.vue';
 import DashboardGrid from './components/dashboard-grid.vue';
 import PeriodSelector from './components/period-selector.vue';
 import { type Period } from './types';
-
-const { isSafariMobile, isPWA } = useSafariDetection();
 
 const route = useRoute();
 

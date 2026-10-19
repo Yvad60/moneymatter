@@ -2,7 +2,6 @@ import {
   type AutomationAction,
   type AutomationConditionField,
   type AutomationConditions,
-  type BackupFileName,
   type FireSettings,
   getPortfolioIdFromIndicatorId,
   isPortfolioIndicatorId,
@@ -12,6 +11,7 @@ import {
 import AccountGroup from '@models/accounts-groups/account-groups.model';
 import Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
+import BudgetLines from '@models/budget-lines.model';
 import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
@@ -26,6 +26,7 @@ import Transactions from '@models/transactions.model';
 import VentureEventLinks from '@models/venture/venture-event-links.model';
 import { Model, type ModelStatic, type Transaction } from 'sequelize';
 
+import type { BackupFileName } from '../registry';
 import type { ParsedArchive } from './load-archive';
 
 type AnyModel = ModelStatic<Model>;
@@ -301,6 +302,17 @@ export async function remapEmbeddedReferences({
     transaction,
     mutate: mutateOriginalTransactionState,
   });
+
+  // 9. BudgetLines.archivedCategoryIds[] → Categories.
+  await rewriteColumn({
+    model: BudgetLines,
+    fileName: 'budget-lines',
+    column: 'archivedCategoryIds',
+    archive,
+    insertedIds,
+    transaction,
+    mutate: ({ draft }) => remapIdArrayInPlace({ arr: draft, targetTable: tables.categories, insertedIds }),
+  });
 }
 
 /**
@@ -321,6 +333,33 @@ export function remapSavedPivotViewIds({ views, insertedIds }: { views: unknown;
     remapIdArrayInPlace({ arr: config.accountIds, targetTable: accounts, insertedIds });
     remapIdArrayInPlace({ arr: config.categoryIds, targetTable: categories, insertedIds });
     remapIdArrayInPlace({ arr: config.payeeIds, targetTable: payees, insertedIds });
+  }
+}
+
+/** Remap the owned-id arrays inside each saved Transactions view's filters, in place. */
+export function remapSavedTransactionViewIds({
+  views,
+  insertedIds,
+}: {
+  views: unknown;
+  insertedIds: InsertedIds;
+}): void {
+  if (!Array.isArray(views)) return;
+  const targets = {
+    accountIds: Accounts,
+    categoryIds: Categories,
+    tagIds: Tags,
+    payeeIds: Payees,
+    budgetIds: Budgets,
+    excludedBudgetIds: Budgets,
+  };
+
+  for (const view of views) {
+    const filters = view?.filters;
+    if (typeof filters !== 'object' || filters === null) continue;
+    for (const [key, model] of Object.entries(targets)) {
+      remapIdArrayInPlace({ arr: filters[key], targetTable: String(model.getTableName()), insertedIds });
+    }
   }
 }
 
@@ -346,4 +385,17 @@ export function remapFireSettingsIds({
     if (portfolioId) fire.returnIndicatorId = makePortfolioIndicatorId({ portfolioId });
     else delete fire.returnIndicatorId;
   }
+}
+
+/** Remap `settings.incomeCategoryIds` in place, dropping ids the restore did not insert. */
+export function remapIncomeCategoryIds({
+  settings,
+  insertedIds,
+}: {
+  settings: { incomeCategoryIds?: string[] };
+  insertedIds: InsertedIds;
+}): void {
+  if (!settings.incomeCategoryIds) return;
+  const categories = insertedIds.get(String(Categories.getTableName()));
+  settings.incomeCategoryIds = settings.incomeCategoryIds.flatMap((id) => categories?.get(id) ?? []);
 }

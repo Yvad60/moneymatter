@@ -114,6 +114,7 @@ const PARSE_RESULT: MsMoneyParseResult = {
     {
       originalName: 'Cash',
       currency: 'USD',
+      currencyDefaulted: false,
       accountType: MsMoneyAccountType.banking,
       transactionCount: 2,
       netImportedAmount: -10,
@@ -121,6 +122,7 @@ const PARSE_RESULT: MsMoneyParseResult = {
     {
       originalName: 'Unmatched Bank',
       currency: 'USD',
+      currencyDefaulted: false,
       accountType: MsMoneyAccountType.banking,
       transactionCount: 1,
       netImportedAmount: 5,
@@ -214,6 +216,43 @@ describe('useImportMsMoneyStore – wire mapping guards', () => {
         }),
       }),
     );
+  });
+});
+
+describe('useImportMsMoneyStore – setAccountCurrency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mountWithPlugins();
+  });
+
+  it('changes only accounts the file carries no currency for', () => {
+    const store = useImportMsMoneyStore();
+    store.parsedResult = structuredClone(PARSE_RESULT);
+    store.parsedResult.accounts[0]!.currencyDefaulted = true;
+    store.accountMapping = {
+      Cash: { action: 'create-new', currencyCode: 'USD', currentBalance: 5 },
+      'Unmatched Bank': { action: 'create-new', currencyCode: 'USD', currentBalance: null },
+    };
+
+    store.setAccountCurrency({ name: 'Cash', currencyCode: 'EUR' });
+    store.setAccountCurrency({ name: 'Unmatched Bank', currencyCode: 'EUR' });
+
+    expect(store.parsedResult.accounts.map((a) => a.currency)).toEqual(['EUR', 'USD']);
+    expect(store.accountMapping).toEqual({
+      Cash: { action: 'create-new', currencyCode: 'EUR', currentBalance: 5 },
+      'Unmatched Bank': { action: 'create-new', currencyCode: 'USD', currentBalance: null },
+    });
+  });
+
+  it('clears a link target, which was filtered by the previous currency', () => {
+    const store = useImportMsMoneyStore();
+    store.parsedResult = structuredClone(PARSE_RESULT);
+    store.parsedResult.accounts[0]!.currencyDefaulted = true;
+    store.accountMapping = { Cash: { action: 'link-existing', accountId: '1' } };
+
+    store.setAccountCurrency({ name: 'Cash', currencyCode: 'EUR' });
+
+    expect(store.accountMapping).toEqual({ Cash: { action: 'link-existing', accountId: undefined } });
   });
 });
 

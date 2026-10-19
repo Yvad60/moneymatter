@@ -16,6 +16,7 @@ interface BetterAuthConfig {
   account?: { modelName?: string };
   emailAndPassword?: {
     enabled?: boolean;
+    sendResetPassword?: unknown;
     password?: {
       hash?: (password: string) => Promise<string>;
       verify?: (params: { password: string; hash: string }) => Promise<boolean>;
@@ -264,6 +265,17 @@ export function betterAuth(config: BetterAuthConfig): AuthInstance {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
+      }
+
+      if (
+        path === '/request-password-reset' &&
+        request.method === 'POST' &&
+        !config.emailAndPassword?.sendResetPassword
+      ) {
+        return new Response(
+          JSON.stringify({ message: "Reset password isn't enabled", code: 'RESET_PASSWORD_DISABLED' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        );
       }
 
       if (path === '/sign-out' && request.method === 'POST') {

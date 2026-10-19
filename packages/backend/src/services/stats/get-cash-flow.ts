@@ -1,5 +1,12 @@
-import type { RecordId } from '@bt/shared/types';
-import { TRANSACTION_TYPES, endpointsTypes } from '@bt/shared/types';
+import {
+  type CashFlowGranularity,
+  type CashFlowPeriodData,
+  type GetCashFlowResponse,
+  type RecordId,
+  TRANSACTION_TYPES,
+} from '@bt/shared/types';
+import { t } from '@i18n/index';
+import { ValidationError } from '@js/errors';
 import { expandCategoryIdsWithDescendants, getRootCategoryId } from '@services/categories/category-hierarchy';
 import {
   AccessibleCategoryInfo,
@@ -15,11 +22,13 @@ import { Op } from 'sequelize';
 import { computeCategoryAllocations } from './category-allocation';
 import { findBucketIndex, generatePeriodBuckets } from './utils';
 
+const MAX_DAILY_BUCKETS = 366;
+
 interface GetCashFlowParams extends StatsScopeFilters {
   userId: number;
   from: string;
   to: string;
-  granularity: endpointsTypes.CashFlowGranularity;
+  granularity: CashFlowGranularity;
   categoryIds?: RecordId[];
   /**
    * Categories the caller has hidden. Expanded to descendants here, because the list is a snapshot
@@ -112,9 +121,15 @@ export const getCashFlow = withTransaction(
     categoryIds,
     excludedCategoryIds,
     excludePlanned,
-  }: GetCashFlowParams): Promise<endpointsTypes.GetCashFlowResponse> => {
-    // Generate period buckets
+  }: GetCashFlowParams): Promise<GetCashFlowResponse> => {
     const buckets = generatePeriodBuckets({ from, to, granularity });
+
+    if (granularity === 'daily' && buckets.length > MAX_DAILY_BUCKETS) {
+      throw new ValidationError({
+        message: t({ key: 'stats.netWorthHistoryTooManyPoints' }),
+        details: { maxPoints: MAX_DAILY_BUCKETS, requestedPoints: buckets.length },
+      });
+    }
 
     // Initialize period data
     const periodDataMap: Map<number, PeriodCategoryData> = new Map();
@@ -298,10 +313,10 @@ export const getCashFlow = withTransaction(
     });
 
     // Build response periods
-    const periods: endpointsTypes.CashFlowPeriodData[] = buckets.map((bucket, index) => {
+    const periods: CashFlowPeriodData[] = buckets.map((bucket, index) => {
       const data = periodDataMap.get(index)!;
 
-      const period: endpointsTypes.CashFlowPeriodData = {
+      const period: CashFlowPeriodData = {
         periodStart: format(bucket.periodStart, 'yyyy-MM-dd'),
         periodEnd: format(bucket.periodEnd, 'yyyy-MM-dd'),
         income: data.income,

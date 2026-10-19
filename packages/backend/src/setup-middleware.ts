@@ -211,6 +211,7 @@ export function setupMiddleware(app: Express) {
     express.urlencoded({ extended: false })(req, res, next);
   });
   if (process.env.NODE_ENV !== 'test') {
+    morgan.token<Request>('url', (req) => req.originalUrl.replace(/(\/reset-password\/)[^/?]+/, '$1[redacted]'));
     app.use(morgan('dev'));
   }
   app.use(sessionMiddleware);

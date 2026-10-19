@@ -121,6 +121,15 @@ describe('Accounts controller', () => {
       expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
     });
 
+    it.each(['', '   '])('rejects empty name %j on creation', async (name) => {
+      const res = await helpers.createAccount({
+        payload: { ...helpers.buildAccountPayload(), name },
+        raw: false,
+      });
+
+      expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+    });
+
     it('accepts balances above the legacy 32-bit INTEGER ceiling', async () => {
       // Regression: SequelizeDatabaseError "value … is out of range for type integer".
       // 25_000_000 decimal → 2_500_000_000 cents, comfortably above the old
@@ -152,6 +161,14 @@ describe('Accounts controller', () => {
 
       expect(res.statusCode).toEqual(ERROR_CODES.NotFoundError);
       expect(helpers.extractResponse(res).code).toEqual(API_ERROR_CODES.notFound);
+    });
+
+    it.each(['', '   '])('rejects empty name %j on update', async (name) => {
+      const account = await helpers.createAccount({ raw: true });
+      const res = await helpers.updateAccount<helpers.ErrorResponse>({ id: account.id, payload: { name } });
+
+      expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+      expect((await helpers.getAccount({ id: account.id, raw: true })).name).toBe(account.name);
     });
 
     it('should just ignore if no data passed', async () => {

@@ -19,9 +19,10 @@
     "planned": {
       "planned": "Plánované",
       "subscriptions": "Opakujúce sa platby",
-      "budgets": "Rozpočty"
+      "budgets": "Sledovače"
     },
-    "venture": "Rizikový kapitál"
+    "venture": "Rizikový kapitál",
+    "budget": "Rozpočet"
   },
   "sidebar": {
     "collapse": "Zbaliť bočný panel",
@@ -79,12 +80,12 @@
     "categorization": {
       "title": "Kategorizácia pomocou AI",
       "categorizing": "Kategorizovanie...",
-      "completed": "AI zaradila {count} transakciu | AI zaradila {count} transakcií",
+      "completed": "AI zaradila {count} transakciu | AI zaradila {count} transakcie | AI zaradila {count} transakcií",
       "completedShort": "Kategorizácia dokončená",
-      "completedWithSkipped": "Zaradená {count} transakcia (preskočených: {skipped}) | Zaradených {count} transakcií (preskočených: {skipped})",
+      "completedWithSkipped": "Zaradená {count} transakcia (preskočené: {skipped}) | Zaradené {count} transakcie (preskočené: {skipped}) | Zaradených {count} transakcií (preskočené: {skipped})",
       "failed": "Kategorizácia zlyhala",
       "failedShort": "Zlyhalo",
-      "allSkipped": "AI nedokázala transakciu spoľahlivo zaradiť | AI nedokázala spoľahlivo zaradiť žiadnu z {count} transakcií",
+      "allSkipped": "AI nedokázala transakciu spoľahlivo zaradiť | AI nedokázala spoľahlivo zaradiť žiadnu z {count} transakcií | AI nedokázala spoľahlivo zaradiť žiadnu z {count} transakcií",
       "queued": "Čaká sa na spustenie...",
       "transactions": "transakcie"
     }
@@ -145,16 +146,16 @@
     "needsReauthTitle": "Pripojenia je potrebné obnoviť",
     "needsReauthDescription": "Platnosť týchto bankových relácií vypršala. Ak chcete obnoviť synchronizáciu, pripojte sa znova.",
     "reconnectButton": "Pripojiť znova",
-    "affectedAccounts": "1 účet | {count} účtov",
+    "affectedAccounts": "1 účet | {count} účty | {count} účtov",
     "timeAgo": {
       "justNow": "Práve teraz",
-      "secondsAgo": "pred {count} sekundou | pred {count} sekundami",
-      "minutesAgo": "pred {count} minútou | pred {count} minútami",
-      "hoursAgo": "pred {count} hodinou | pred {count} hodinami",
-      "daysAgo": "pred {count} dňom | pred {count} dňami",
-      "weeksAgo": "pred {count} týždňom | pred {count} týždňami",
-      "monthsAgo": "pred {count} mesiacom | pred {count} mesiacmi",
-      "yearsAgo": "pred {count} rokom | pred {count} rokmi"
+      "secondsAgo": "pred {count} sekundou | pred {count} sekundami | pred {count} sekundami",
+      "minutesAgo": "pred {count} minútou | pred {count} minútami | pred {count} minútami",
+      "hoursAgo": "pred {count} hodinou | pred {count} hodinami | pred {count} hodinami",
+      "daysAgo": "pred {count} dňom | pred {count} dňami | pred {count} dňami",
+      "weeksAgo": "pred {count} týždňom | pred {count} týždňami | pred {count} týždňami",
+      "monthsAgo": "pred {count} mesiacom | pred {count} mesiacmi | pred {count} mesiacmi",
+      "yearsAgo": "pred {count} rokom | pred {count} rokmi | pred {count} rokmi"
     }
   },
   "banners": {
@@ -165,7 +166,7 @@
     }
   },
   "relinkWarning": {
-    "buttonLabel": "{count} účet vyžaduje pozornosť | {count} účtov vyžaduje pozornosť",
+    "buttonLabel": "{count} účet vyžaduje pozornosť | {count} účty vyžadujú pozornosť | {count} účtov vyžaduje pozornosť",
     "title": "Enable Banking: Vyžaduje sa akcia",
     "description": "Tieto účty Enable Banking je potrebné aktualizovať kvôli zmene dátovej schémy. Ide o jednorazovú akciu, ktorá zlepší spoľahlivosť synchronizácie.",
     "step1Full": "Ak chcete ušetriť čas, skúste najprv obnoviť celé bankové pripojenie. Tlačidlo {reconnect} nájdete v sekcii {connectionValidity} na stránke každého pripojenia:",
@@ -270,7 +271,7 @@
             "description": "Pridajte štítky a zoskupte súvisiace transakcie"
           },
           "create-budget": {
-            "title": "Nastavte si rozpočet",
+            "title": "Nastavte si sledovač",
             "description": "Vytvorte limity výdavkov pre kategórie"
           },
           "create-subscription": {

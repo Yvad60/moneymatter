@@ -171,6 +171,15 @@ export default class Accounts extends Model {
   static async updateAccountBalanceAfterCreate(instance: Accounts) {
     await Balances.handleAccountChange({ account: instance });
   }
+
+  // A hook, not a call inside `createAccount`: bank sync inserts accounts with
+  // `Accounts.create()` directly. Lazy import, because a static one would close
+  // a model -> service -> model cycle at load time.
+  @AfterCreate
+  static async attachAccountToBudgetPlans(instance: Accounts) {
+    const { attachEligibleAccounts } = await import('@services/budget-plans/auto-attach-account');
+    await attachEligibleAccounts({ userId: instance.userId, accountIds: [instance.id] });
+  }
 }
 
 export interface GetAccountsPayload {
@@ -283,6 +292,13 @@ export async function updateAccountById({ id, userId, ...payload }: UpdateAccoun
 
 export const deleteAccountById = ({ id, userId }: { id: string; userId: number }) => {
   return Accounts.destroy({ where: { id, userId } });
+};
+
+/** Reads the account's current `type`: a transaction's `accountType` is a snapshot of it. */
+export const isBankLinkedAccount = async ({ id }: { id: string }) => {
+  const account = await Accounts.findByPk(id, { attributes: ['type'] });
+
+  return Boolean(account) && account!.type !== ACCOUNT_TYPES.system;
 };
 
 export const getAccountCurrency = async ({ userId, id }: { userId: number; id: string }) => {

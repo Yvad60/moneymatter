@@ -5,6 +5,7 @@ import {
   type ExternalMonobankTransactionResponse,
   type LinkResidualTarget,
   type RecordId,
+  SUBSCRIPTION_FREQUENCIES,
   TRANSACTION_TRANSFER_NATURE,
   TRANSACTION_TYPES,
   VEHICLE_CLASS,
@@ -359,6 +360,34 @@ describe('Balance reconciliation when linking account to a bank connection', () 
     expect(updatedAccount.initialBalance.toCents() + sumSignedCents(transactions)).toBe(
       updatedAccount.currentBalance.toCents(),
     );
+  });
+
+  it('turns off auto-record on subscriptions booked to the linked account', async () => {
+    let subscriptionId = '';
+    await setupLinkedScenario({
+      initialBalance: 1000,
+      bankBalance: 1000,
+      bankTransactions: { transactions: [], total: 0 },
+      beforeLink: async ({ accountId }) => {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const subscription = await helpers.createSubscription({
+          name: 'Auto-recorded',
+          frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+          startDate: today,
+          dueDate: today,
+          accountId,
+          expectedAmount: 10,
+          expectedCurrencyCode: 'USD',
+          autoRecord: true,
+          raw: true,
+        });
+        expect(subscription.autoRecord).toBe(true);
+        subscriptionId = subscription.id;
+      },
+    });
+
+    const subscription = await helpers.getSubscriptionById({ id: subscriptionId, raw: true });
+    expect(subscription.autoRecord).toBe(false);
   });
 
   describe("residualTarget: 'adjustment'", () => {

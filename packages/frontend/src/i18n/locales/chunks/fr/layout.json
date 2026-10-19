@@ -1,7 +1,7 @@
 {
   "navigation": {
     "dashboard": "Dashboard",
-    "accounts": "Accounts",
+    "accounts": "Comptes",
     "accountsList": "All Accounts",
     "investments": "Investments",
     "loans": "Loans",
@@ -19,9 +19,10 @@
     "planned": {
       "planned": "Planned",
       "subscriptions": "Recurring Payments",
-      "budgets": "Budgets"
+      "budgets": "Trackers"
     },
-    "venture": "Venture"
+    "venture": "Venture",
+    "budget": "Budget"
   },
   "sidebar": {
     "collapse": "Collapse sidebar",
@@ -39,7 +40,7 @@
       }
     },
     "accountsView": {
-      "title": "Accounts",
+      "title": "Comptes",
       "bankAccounts": "Bank Accounts",
       "newAccount": "New account",
       "newAccountsGroup": "New accounts group",
@@ -47,7 +48,7 @@
       "newPortfolio": "New portfolio",
       "noPortfolios": "No portfolios yet",
       "ventures": "Ventures",
-      "cars": "Cars",
+      "cars": "Véhicules",
       "loans": "Loans",
       "collapseNavigation": "Collapse navigation",
       "viaHousehold": "Partagé via le foyer de {handle}",
@@ -270,7 +271,7 @@
             "description": "Add tags to group related transactions"
           },
           "create-budget": {
-            "title": "Set up a budget",
+            "title": "Set up a tracker",
             "description": "Create spending limits for categories"
           },
           "create-subscription": {

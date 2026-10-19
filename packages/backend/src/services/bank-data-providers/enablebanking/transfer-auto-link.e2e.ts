@@ -3,11 +3,14 @@ import { ACCOUNT_TYPES, BANK_PROVIDER_TYPE, TRANSACTION_TRANSFER_NATURE, TRANSAC
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { DOMAIN_EVENTS, type TransactionsSyncedPayload, eventBus } from '@root/services/common/event-bus';
 import * as helpers from '@tests/helpers';
+import { useSelfHost } from '@tests/helpers/self-host';
 import {
   FixedTransaction,
   MOCK_IDENTIFICATION_HASH_1,
   MOCK_IDENTIFICATION_HASH_2,
 } from '@tests/mocks/enablebanking/data';
+
+useSelfHost();
 
 describe('Enable Banking transfer auto-linking (E2E)', () => {
   beforeEach(() => {

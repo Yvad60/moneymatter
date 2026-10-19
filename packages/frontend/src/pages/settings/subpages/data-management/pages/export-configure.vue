@@ -155,13 +155,18 @@
             {{ $t('common.actions.cancel') }}
           </Button>
         </RouterLink>
-        <Button :disabled="noneSelected || isPending || isFeatureGated(FEATURES.data_export)" @click="handleConfirm">
-          {{
-            isPending
-              ? $t('settings.dataManagement.export.form.confirmLoading')
-              : $t('settings.dataManagement.export.form.confirmLabel')
-          }}
-        </Button>
+        <DemoRestricted feature="data_export">
+          <Button
+            :disabled="noneSelected || isPending || userStore.isDemo || isFeatureGated(FEATURES.data_export)"
+            @click="handleConfirm"
+          >
+            {{
+              isPending
+                ? $t('settings.dataManagement.export.form.confirmLoading')
+                : $t('settings.dataManagement.export.form.confirmLabel')
+            }}
+          </Button>
+        </DemoRestricted>
       </div>
     </CardContent>
   </Card>
@@ -169,6 +174,7 @@
 
 <script setup lang="ts">
 import PlanRestricted from '@/components/billing/plan-restricted.vue';
+import DemoRestricted from '@/components/demo/demo-restricted.vue';
 import AccountMultiSelectField from '@/components/fields/account-multi-select-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/lib/ui/card';
@@ -214,7 +220,8 @@ defineOptions({
 const router = useRouter();
 const { t } = useI18n();
 const { addSuccessNotification, addErrorNotification } = useNotificationCenter();
-const { isFeatureGated } = useUserStore();
+const userStore = useUserStore();
+const { isFeatureGated } = userStore;
 
 const format = ref<ExportFormat>('json');
 const selectedGroups = ref<Set<ExportGroup>>(new Set(ALL_EXPORT_GROUPS));
@@ -266,10 +273,10 @@ const { mutate, isPending } = useDataExport();
 
 const resolveErrorMessage = (e: unknown): string => {
   if (e instanceof ApiErrorResponseError) {
-    if (e.data?.message) return e.data.message;
     if (e.data?.code === API_ERROR_CODES.payloadTooLarge) {
       return t('settings.dataManagement.export.notifications.tooLarge');
     }
+    if (e.data?.message) return e.data.message;
   }
   if (e instanceof DataExportDownloadFailedError) {
     return t('settings.dataManagement.export.notifications.downloadBlocked');
@@ -296,6 +303,8 @@ const handleConfirm = () => {
         router.push({ name: ROUTES_NAMES.settingsDataManagementExport });
       },
       onError: (e) => {
+        // The API client already toasted the 402 with a "See plans" action.
+        if (e instanceof ApiErrorResponseError && e.data?.code === API_ERROR_CODES.planRequired) return;
         addErrorNotification(resolveErrorMessage(e));
         const isExpected =
           e instanceof DataExportDownloadFailedError ||

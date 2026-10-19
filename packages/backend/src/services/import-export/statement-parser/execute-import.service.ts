@@ -1,3 +1,4 @@
+import { parseImportDate } from '@bt/shared/import-export/date-engine';
 import type {
   ExtractedTransaction,
   StatementImportError,
@@ -14,12 +15,16 @@ import {
 } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { ValidationError } from '@js/errors';
+import { logger } from '@js/utils';
 import { trackImportCompleted } from '@js/utils/posthog';
 import * as Accounts from '@models/accounts.model';
+import { getCurrencies } from '@models/currencies.model';
 import * as Users from '@models/users.model';
+import { assertNotDerivedBalanceAccount } from '@services/accounts/derived-balance-guard';
 import { CATEGORIZATION_SCOPE, queueCategorizationJob } from '@services/ai-categorization';
 import { assertImportTargetNotBankLinked } from '@services/import-export/core/assert-import-target-not-bank-linked';
 import { type OpenImportBatch, withImportBatchRecord } from '@services/import-export/core/import-batch-record';
+import { anchorImportDate } from '@services/import-export/core/parse/anchor-import-date';
 import { createTransaction } from '@services/transactions';
 import { accountHasPlannedRows } from '@services/transactions/planned-matching';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +34,8 @@ interface ExecuteImportParams {
   accountId: string;
   transactions: ExtractedTransaction[];
   skipIndices: number[];
+  /** IANA timezone of the importing user's browser; extracted wall-clock times are read in it. */
+  timezone?: string;
   /**
    * Called with the cumulative `processedCount` after every row the loop visits
    * (imported, merged, skipped or failed alike) so the worker can fan progress out
@@ -53,6 +60,7 @@ async function executeImportImpl({
   accountId,
   transactions,
   skipIndices,
+  timezone,
   onProgress,
   openImportBatch,
 }: ExecuteImportParams & { openImportBatch: OpenImportBatch }): Promise<StatementImportSummary> {
@@ -83,14 +91,14 @@ async function executeImportImpl({
   }
 
   // Verify account exists and belongs to user. The service-layer
-  // createTransaction below derives currency from the account on its own;
-  // we only need the existence check here.
+  // createTransaction below derives currency from the account on its own.
   const account = await Accounts.getAccountById({ userId, id: accountId });
   if (!account) {
     throw new ValidationError({
       message: `Account with ID ${accountId} not found`,
     });
   }
+  assertNotDerivedBalanceAccount({ account, actionPhrase: 'be an import target' });
   assertImportTargetNotBankLinked({ account });
 
   // Get user's default category
@@ -98,6 +106,16 @@ async function executeImportImpl({
 
   // One probe for the whole run instead of one per row.
   const matchPlanned = await accountHasPlannedRows({ accountId });
+
+  // A code missing from Currencies would fail the row on its foreign key, so its pair is dropped instead.
+  const originalCurrencyCodes = [
+    ...new Set(transactionsToImport.flatMap((tx) => (tx.originalCurrencyCode ? [tx.originalCurrencyCode] : []))),
+  ];
+  const knownOriginalCurrencyCodes = new Set(
+    originalCurrencyCodes.length
+      ? (await getCurrencies({ codes: originalCurrencyCodes })).map((currency) => currency.code)
+      : [],
+  );
 
   // Create transactions
   const errors: StatementImportError[] = [];
@@ -122,49 +140,46 @@ async function executeImportImpl({
     const tx = transactions[i]!;
 
     try {
-      // Parse the date - handle both YYYY-MM-DD and YYYY-MM-DD HH:MM:SS formats
-      const txDate = new Date(tx.date.replace(' ', 'T'));
-      if (isNaN(txDate.getTime())) {
-        errors.push({
-          transactionIndex: i,
-          error: `Invalid date format: "${tx.date}"`,
-        });
+      // The extraction prompt only emits ISO dates, so the field order is never consulted.
+      const parsedDate = parseImportDate({ value: tx.date, format: { fieldOrder: 'day-first' } });
+      if (!parsedDate) {
+        errors.push({ transactionIndex: i, code: 'INVALID_DATE', params: { date: tx.date } });
         continue;
       }
+      const txDate = anchorImportDate({ parsed: parsedDate, timezone });
 
       // Validate: no future dates (with 1-day tolerance for timezone differences)
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(23, 59, 59, 999);
       if (txDate > tomorrow) {
-        errors.push({
-          transactionIndex: i,
-          error: `Transaction date "${tx.date}" is in the future`,
-        });
+        errors.push({ transactionIndex: i, code: 'FUTURE_DATE', params: { date: tx.date } });
         continue;
       }
 
       // Validate: amount must be positive (type determines income/expense direction)
       if (tx.amount <= 0) {
-        errors.push({
-          transactionIndex: i,
-          error: `Amount must be positive, got: ${tx.amount}`,
-        });
+        errors.push({ transactionIndex: i, code: 'AMOUNT_NOT_POSITIVE', params: { amount: tx.amount } });
         continue;
       }
 
       // Validate: amount should not exceed reasonable threshold (1 billion)
       const MAX_AMOUNT = 1_000_000_000;
       if (tx.amount > MAX_AMOUNT) {
-        errors.push({
-          transactionIndex: i,
-          error: `Amount ${tx.amount} exceeds maximum allowed value of ${MAX_AMOUNT}`,
-        });
+        errors.push({ transactionIndex: i, code: 'AMOUNT_TOO_LARGE', params: { amount: tx.amount, max: MAX_AMOUNT } });
         continue;
       }
 
       // Note: tx.amount is in decimal format from AI extraction (e.g., 35 means 35.00)
       const amount = Money.fromDecimal(tx.amount);
+
+      const original =
+        tx.originalAmount !== undefined &&
+        tx.originalCurrencyCode !== undefined &&
+        tx.originalCurrencyCode !== account.currencyCode &&
+        knownOriginalCurrencyCodes.has(tx.originalCurrencyCode)
+          ? { originalAmount: Money.fromDecimal(tx.originalAmount), originalCurrencyCode: tx.originalCurrencyCode }
+          : {};
 
       // Service-layer createTransaction handles refAmount, payee extraction
       // (via `rawMerchantName`), and inline `payee_rule` auto-categorization.
@@ -187,6 +202,8 @@ async function executeImportImpl({
           importDetails,
         },
         rawMerchantName: tx.merchant?.trim() || null,
+        externalReference: tx.externalReference?.trim() || null,
+        ...original,
         matchPlanned,
       });
       const [transaction] = createResult;
@@ -199,10 +216,11 @@ async function executeImportImpl({
         newTransactionIds.push(transaction.id);
       }
     } catch (error) {
-      errors.push({
+      logger.warn('[Statement Parser] Import row failed', {
         transactionIndex: i,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        reason: error instanceof Error ? error.message : String(error),
       });
+      errors.push({ transactionIndex: i, code: 'ROW_FAILED' });
     } finally {
       // `finally`, not a trailing call: the per-row validation branches above
       // `continue` out of the loop body.

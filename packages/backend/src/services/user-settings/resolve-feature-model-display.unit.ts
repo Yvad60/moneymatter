@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import type { StoredConnection } from '@models/user-settings.model';
 
 import type { ModelProfile } from '../ai/model-catalog';
-import { SERVER_MODELS } from '../ai/resolution-ladder';
+import { FALLBACK_SERVER_MODELS, PRIMARY_SERVER_MODEL } from '../ai/resolution-ladder';
 import { resolveFeatureStatus } from './resolve-feature-model-display';
 
 const mockSonnetProfile: ModelProfile = {
@@ -21,10 +21,10 @@ jest.mock('../ai/model-catalog', () => ({
   ),
 }));
 
-const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY'] as const;
+const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'] as const;
 
 const FEATURE = AI_FEATURE.categorization;
-const SERVER_MODEL = SERVER_MODELS[FEATURE];
+const SERVER_MODEL = FALLBACK_SERVER_MODELS[FEATURE];
 const NOW = new Date().toISOString();
 
 const OLLAMA: StoredConnection = {
@@ -81,6 +81,17 @@ describe('resolveFeatureStatus', () => {
       if (value === undefined) delete process.env[envVar];
       else process.env[envVar] = value;
     }
+  });
+
+  it('names the primary model while ANTHROPIC_API_KEY is set, and the Gemini model otherwise', async () => {
+    process.env.GEMINI_API_KEY = 'server-key';
+    expect(await status()).toMatchObject({ modelName: SERVER_MODEL.model, serverModelName: SERVER_MODEL.model });
+
+    process.env.ANTHROPIC_API_KEY = 'anthropic-key';
+    expect(await status()).toMatchObject({
+      modelName: PRIMARY_SERVER_MODEL.model,
+      serverModelName: PRIMARY_SERVER_MODEL.model,
+    });
   });
 
   it('names the configured connection with its catalog model name and price', async () => {

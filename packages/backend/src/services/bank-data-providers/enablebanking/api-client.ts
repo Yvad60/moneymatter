@@ -4,6 +4,7 @@
  *
  * API Documentation: https://enablebanking.com/docs/api/reference
  */
+import { requestContext } from '@common/request-context';
 import { t } from '@i18n/index';
 import { BadGateway, BadRequestError, ForbiddenError, TooManyRequests, ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
@@ -24,17 +25,6 @@ import {
   HalTransactions,
 } from './types';
 import { generateJWT } from './utils/jwt-utils';
-
-/**
- * PSU (Payment Service User) context headers
- * Required for certain operations to comply with PSD2
- */
-interface PSUContext {
-  /** PSU IP address */
-  ipAddress?: string;
-  /** PSU user agent */
-  userAgent?: string;
-}
 
 /**
  * JSON.stringify that falls back to `String(value)` when serialization throws
@@ -121,7 +111,7 @@ export function classifyAspspError({
  * Match: concept anchor + limit verb + time window, all three required.
  *   concept    – datefrom/dateto/date OR range/period/window/lookback/history/interval/transactions
  *   limit verb – within/exceed/maximum/limited to/older than/less than/more than
- *   time       – N day/week/month/year
+ *   time       – N (digits or one..twelve) day/week/month/year
  * Each alone is too permissive (e.g. "account opened within last 30 days" hits
  * limit + time but has no concept anchor). Bare "date" is an anchor because
  * BNP Paribas rejects with "The date must be equal or less than 13 months".
@@ -146,7 +136,11 @@ export function isAspspDateRangeRejection(error: unknown): boolean {
 
   const hasLimitVerb =
     /\b(?:within|exceed|exceeds|maximum|max|limited?\s+to|older\s+than|less\s+than|more\s+than)\b/.test(haystack);
-  const hasTimeWindow = /\b\d+\s*(?:day|week|month|year)s?\b/.test(haystack);
+  // SNS (NL): "One or more date fields are more than two years in the past."
+  const hasTimeWindow =
+    /\b(?:\d+|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(?:day|week|month|year)s?\b/.test(
+      haystack,
+    );
   if (!hasLimitVerb || !hasTimeWindow) return false;
 
   const hasFieldName = /\b(?:datefrom|dateto|dates?)\b/.test(haystack);
@@ -201,18 +195,17 @@ export class EnableBankingApiClient {
   /**
    * Get authorization headers with JWT token
    */
-  private getAuthHeaders(psuContext?: PSUContext): Record<string, string> {
+  private getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.generateAuthToken()}`,
       'Content-Type': 'application/json',
     };
 
-    // Add PSU context headers if provided
-    if (psuContext?.ipAddress) {
-      headers['psu-ip-address'] = psuContext.ipAddress;
-    }
-    if (psuContext?.userAgent) {
-      headers['psu-user-agent'] = psuContext.userAgent;
+    // PSD2: banks treat requests without PSU headers as unattended and cap them (often 4/day).
+    const psu = requestContext.getContext()?.psu;
+    if (psu) {
+      headers['psu-ip-address'] = psu.ipAddress;
+      headers['psu-user-agent'] = psu.userAgent;
     }
 
     return headers;
@@ -271,7 +264,7 @@ export class EnableBankingApiClient {
       // would deactivate the connection until the user redoes the bank consent.
       if (status === 429) {
         throw new TooManyRequests({
-          message: t({ key: 'bankDataProviders.enableBanking.apiBadRequestError', variables: { message } }),
+          message: t({ key: 'bankDataProviders.enableBanking.rateLimitExceeded' }),
           details: errorDetails,
         });
       }
@@ -356,13 +349,10 @@ export class EnableBankingApiClient {
    * Returns URL for user to authorize access
    * @link https://enablebanking.com/docs/api/reference#auth-post
    */
-  async startAuthorization(
-    request: StartAuthorizationRequest,
-    psuContext?: PSUContext,
-  ): Promise<StartAuthorizationResponse> {
+  async startAuthorization(request: StartAuthorizationRequest): Promise<StartAuthorizationResponse> {
     try {
       const response = await this.client.post<StartAuthorizationResponse>('/auth', request, {
-        headers: this.getAuthHeaders(psuContext),
+        headers: this.getAuthHeaders(),
       });
       return response.data;
     } catch (error) {
@@ -385,10 +375,10 @@ export class EnableBankingApiClient {
    * Create session from authorization code
    * @link https://enablebanking.com/docs/api/reference#sessions-post
    */
-  async createSession(request: CreateSessionRequest, psuContext?: PSUContext): Promise<CreateSessionResponse> {
+  async createSession(request: CreateSessionRequest): Promise<CreateSessionResponse> {
     try {
       const response = await this.client.post<CreateSessionResponse>('/sessions', request, {
-        headers: this.getAuthHeaders(psuContext),
+        headers: this.getAuthHeaders(),
       });
       return response.data;
     } catch (error) {
@@ -415,10 +405,10 @@ export class EnableBankingApiClient {
    * Delete session (revoke consent)
    * @link https://enablebanking.com/docs/api/reference#sessions-sessionid-delete
    */
-  async deleteSession(sessionId: string, psuContext?: PSUContext): Promise<void> {
+  async deleteSession(sessionId: string): Promise<void> {
     try {
       await this.client.delete(`/sessions/${sessionId}`, {
-        headers: this.getAuthHeaders(psuContext),
+        headers: this.getAuthHeaders(),
       });
     } catch (error) {
       // Already-closed = nothing to revoke. Swallow the 400 so handleApiError
@@ -456,10 +446,10 @@ export class EnableBankingApiClient {
    * Get account balances
    * @link https://enablebanking.com/docs/api/reference#accounts-accountid-balances-get
    */
-  async getAccountBalances(accountId: string, psuContext?: PSUContext): Promise<EnableBankingBalance[]> {
+  async getAccountBalances(accountId: string): Promise<EnableBankingBalance[]> {
     try {
       const response = await this.client.get<{ balances: EnableBankingBalance[] }>(`/accounts/${accountId}/balances`, {
-        headers: this.getAuthHeaders(psuContext),
+        headers: this.getAuthHeaders(),
       });
       return response.data.balances;
     } catch (error) {
@@ -471,16 +461,12 @@ export class EnableBankingApiClient {
    * Get account transactions with pagination support
    * @link https://enablebanking.com/docs/api/reference#accounts-accountid-transactions-get
    */
-  async getAccountTransactions(
-    accountId: string,
-    query?: TransactionsQuery,
-    psuContext?: PSUContext,
-  ): Promise<HalTransactions> {
+  async getAccountTransactions(accountId: string, query?: TransactionsQuery): Promise<HalTransactions> {
     let lastError: unknown;
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
       try {
         const response = await this.client.get<HalTransactions>(`/accounts/${accountId}/transactions`, {
-          headers: this.getAuthHeaders(psuContext),
+          headers: this.getAuthHeaders(),
           params: query,
         });
         return response.data;
@@ -503,20 +489,15 @@ export class EnableBankingApiClient {
   async getAllTransactions(
     accountId: string,
     query?: Omit<TransactionsQuery, 'continuation_key'>,
-    psuContext?: PSUContext,
   ): Promise<HalTransactions['transactions']> {
     const allTransactions: HalTransactions['transactions'] = [];
     let continuationKey: string | undefined;
 
     do {
-      const response = await this.getAccountTransactions(
-        accountId,
-        {
-          ...query,
-          continuation_key: continuationKey,
-        },
-        psuContext,
-      );
+      const response = await this.getAccountTransactions(accountId, {
+        ...query,
+        continuation_key: continuationKey,
+      });
 
       allTransactions.push(...response.transactions);
       continuationKey = response.continuation_key;

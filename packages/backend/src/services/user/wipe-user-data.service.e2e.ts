@@ -3,26 +3,22 @@ import { API_ERROR_CODES, API_RESPONSE_STATUS } from '@bt/shared/types/api';
 import { VENTURE_CASH_FLOW_MODE, VENTURE_EVENT_TYPE } from '@bt/shared/types/venture';
 import { describe, expect, it } from '@jest/globals';
 import Accounts from '@models/accounts.model';
+import BudgetLineGoals from '@models/budget-line-goals.model';
+import BudgetLineGroups from '@models/budget-line-groups.model';
+import BudgetLines from '@models/budget-lines.model';
+import BudgetPlans from '@models/budget-plans.model';
 import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
 import { connection } from '@models/index';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
-import Portfolios from '@models/investments/portfolios.model';
 import MerchantCategoryCodes from '@models/merchant-category-codes.model';
-import PayeeIgnoredNames from '@models/payee-ignored-names.model';
-import Payees from '@models/payees.model';
 import ResourceShares from '@models/resource-shares.model';
 import Tags from '@models/tags.model';
 import TransactionTemplateTags from '@models/transaction-template-tags.model';
-import TransactionTemplates from '@models/transaction-templates.model';
 import Transactions from '@models/transactions.model';
 import UserMerchantCategoryCodes from '@models/user-merchant-category-codes.model';
-import UserSettings from '@models/user-settings.model';
-import UsersCurrencies from '@models/users-currencies.model';
 import Users from '@models/users.model';
-import VentureDeals from '@models/venture/venture-deals.model';
-import VentureEvents from '@models/venture/venture-events.model';
-import VenturePlatforms from '@models/venture/venture-platforms.model';
+import { BACKUP_TABLES, type BackupFileName } from '@services/backup/registry';
 import * as helpers from '@tests/helpers';
 import { randomUUID } from 'crypto';
 
@@ -45,7 +41,23 @@ describe('User data wipe (POST /user/wipe-data)', () => {
       raw: true,
     });
     const budget = await helpers.createCustomBudget({ name: 'Wipe budget', limitAmount: 500, raw: true });
-    const portfolio = await helpers.createPortfolio({ payload: { name: 'Wipe portfolio' }, raw: true });
+    // Soft-deleted on purpose: a paranoid row must be hard-deleted by the wipe too.
+    const budgetPlan = await helpers.createBudgetPlan({ raw: true });
+    const planId = budgetPlan.plan.id;
+    const lineGroup = await helpers.createBudgetLineGroup({ planId, name: 'Wipe group', raw: true });
+    const planLine = await helpers.createBudgetPlanLine({
+      planId,
+      payload: { name: 'Wipe line', categoryIds: [category.id], groupId: lineGroup.id },
+      raw: true,
+    });
+    await helpers.setBudgetLineGoal({
+      planId,
+      lineId: planLine.id,
+      payload: { frequency: 'every_period', behavior: 'budget_another', amount: 100 },
+      raw: true,
+    });
+    await helpers.deleteBudgetPlan({ planId });
+    await helpers.createPortfolio({ payload: { name: 'Wipe portfolio' }, raw: true });
     const tag = await helpers.createTag({ payload: { name: 'wipe-tag', color: '#123456' }, raw: true });
     const template = await helpers.createTransactionTemplate({
       payload: {
@@ -61,15 +73,14 @@ describe('User data wipe (POST /user/wipe-data)', () => {
     await helpers.addUserCurrencies({ currencyCodes: ['USD'], raw: true });
     await helpers.updateUserSettings({ settings: { locale: 'uk' } });
 
-    // Venture chain: platform → deal → event. All three use paranoid soft-delete OR have
-    // SET-NULL FKs back to their parent, so a naive .destroy() leaves rows behind. The
-    // wipe must explicitly hard-delete each layer.
+    // Venture chain: platform → deal → event. Paranoid soft-delete plus SET-NULL FKs
+    // back to the parent make these the rows most likely to survive a wipe.
     const platform = await helpers.createVenturePlatform({ payload: { name: 'Wipe platform' }, raw: true });
     const deal = await helpers.createVentureDeal({
       payload: { name: 'Wipe deal', platformId: platform.id, currencyCode: 'USD' },
       raw: true,
     });
-    const event = await helpers.createVentureEvent({
+    await helpers.createVentureEvent({
       dealId: deal.id,
       payload: {
         type: VENTURE_EVENT_TYPE.nav_update,
@@ -84,18 +95,24 @@ describe('User data wipe (POST /user/wipe-data)', () => {
     expect(wipeRes.statusCode).toBe(200);
     expect(wipeRes.body.status).toBe(API_RESPONSE_STATUS.success);
 
-    expect(await Accounts.findAll({ where: { userId } })).toHaveLength(0);
-    expect(await TransactionTemplates.findAll({ where: { userId } })).toHaveLength(0);
+    // Every owner-scoped table in the backup registry must be empty, including
+    // paranoid ones (`paranoid: false` surfaces soft-deleted leftovers). Categories
+    // and tags are reseeded below, so they are checked by id instead; the reseed also
+    // writes a fresh settings row pointing at the new income category.
+    const reseeded = new Set<BackupFileName>(['categories', 'tags', 'user-settings']);
+    const leftovers: string[] = [];
+    for (const def of BACKUP_TABLES) {
+      if (def.scope.strategy !== 'userColumn' || reseeded.has(def.fileName)) continue;
+      if (await def.model.count({ where: { [def.scope.column]: userId }, paranoid: false }))
+        leftovers.push(def.fileName);
+    }
+    expect(leftovers).toEqual([]);
+    expect(await BudgetPlans.findAll({ where: { userId }, paranoid: false })).toHaveLength(0);
+    expect(await BudgetLineGroups.findAll({ where: { planId } })).toHaveLength(0);
+    expect(await BudgetLines.findAll({ where: { planId } })).toHaveLength(0);
+    expect(await BudgetLineGoals.findAll({ where: { lineId: planLine.id } })).toHaveLength(0);
     expect(await TransactionTemplateTags.findAll({ where: { templateId: template.id } })).toHaveLength(0);
-    expect(await Transactions.findAll({ where: { userId } })).toHaveLength(0);
     expect(await Budgets.findAll({ where: { id: budget.id } })).toHaveLength(0);
-    expect(await UsersCurrencies.findAll({ where: { userId } })).toHaveLength(0);
-    expect(await UserSettings.findAll({ where: { userId } })).toHaveLength(0);
-
-    // Payee library is part of "everything the user owns" — the wipe is a clean slate,
-    // so learned payees and the ignore-list must not survive it.
-    expect(await Payees.findAll({ where: { userId } })).toHaveLength(0);
-    expect(await PayeeIgnoredNames.findAll({ where: { userId } })).toHaveLength(0);
 
     // Custom category is gone but defaults are reseeded. The user gets a fresh-start state,
     // not an empty-state — opening the app after a wipe shouldn't force them to recreate
@@ -109,20 +126,9 @@ describe('User data wipe (POST /user/wipe-data)', () => {
     const tagsAfter = await Tags.findAll({ where: { userId } });
     expect(tagsAfter.length).toBeGreaterThan(0);
 
-    // Paranoid models — must be hard-deleted, not soft-deleted. `paranoid: false` bypasses
-    // the default `deletedAt IS NULL` scope so any leftover rows surface. Scope by userId
-    // so the assertion catches every owned row regardless of how each helper shaped its
-    // response — and so a future model addition that the wipe forgets to handle is caught
-    // without needing a hand-rolled per-row check.
-    expect(await Portfolios.findAll({ where: { userId }, paranoid: false })).toHaveLength(0);
-    expect(await VenturePlatforms.findAll({ where: { userId }, paranoid: false })).toHaveLength(0);
-    expect(await VentureDeals.findAll({ where: { userId }, paranoid: false })).toHaveLength(0);
-    expect(await VentureEvents.findAll({ where: { userId } })).toHaveLength(0);
-    // Avoid unused-var lint on the seeded handles — kept around for debug breakpoints.
-    void portfolio;
-    void platform;
-    void deal;
-    void event;
+    const settingsAfter = await helpers.getUserSettings({ raw: true });
+    expect(settingsAfter.locale).toBe('en');
+    expect(settingsAfter.incomeCategoryIds).toStrictEqual([categoriesAfter.find((item) => item.key === 'income')!.id]);
 
     const userAfter = await Users.findByPk(userId);
     expect(userAfter).not.toBeNull();
@@ -278,6 +284,44 @@ describe('User data wipe (POST /user/wipe-data)', () => {
     expect(secondaryLegAfter!.transferNature).toBe(TRANSACTION_TRANSFER_NATURE.transfer_out_wallet);
     expect(secondaryLegAfter!.transferId).toBeNull();
     expect(secondaryLegAfter!.note).toContain('Primary A');
+  });
+
+  it("keeps rows the wiper created on another user's shared account", async () => {
+    // Transactions carry the creator's userId. Secondary's expense on primary's account is
+    // primary's financial data, so secondary wiping their own data must leave it alone.
+    const primaryAccount = await helpers.createAccount({ raw: true });
+    const primaryUser = await helpers.findAppUserByEmail({ email: 'test1@test.local' });
+    const primaryCategoryId = (await helpers.getCategoriesList())[0]!.id;
+
+    const secondary = await helpers.provisionSecondUserWithBaseCurrency();
+    const householdInvite = await helpers.createHouseholdInvitation({
+      ownerUserId: primaryUser.id,
+      inviteeEmail: secondary.email,
+    });
+    const tx = await helpers.asUser({
+      cookies: secondary.cookies,
+      fn: async () => {
+        await helpers.acceptShareInvitation({ token: householdInvite.token, raw: true });
+        const [created] = await helpers.createTransaction({
+          payload: helpers.buildTransactionPayload({
+            accountId: primaryAccount.id,
+            amount: 700,
+            transactionType: TRANSACTION_TYPES.expense,
+            categoryId: primaryCategoryId,
+          }),
+          raw: true,
+        });
+        const wipeRes = await helpers.wipeUserData();
+        expect(wipeRes.statusCode).toBe(200);
+        return created!;
+      },
+    });
+
+    const secondaryUser = await helpers.findAppUserByEmail({ email: secondary.email });
+    const txAfter = await Transactions.findByPk(tx.id);
+    expect(txAfter).not.toBeNull();
+    expect(txAfter!.accountId).toBe(primaryAccount.id);
+    expect(txAfter!.userId).toBe(secondaryUser.id);
   });
 
   it('returns 409 when user owns shared resources and acknowledgeSharing is false', async () => {

@@ -1,3 +1,4 @@
+import { VUE_QUERY_GLOBAL_PREFIXES } from '@/common/const';
 import {
   ACCOUNT_CATEGORIES,
   ACCOUNT_STATUSES,
@@ -44,9 +45,10 @@ const buildAccount = (id: string, overrides: Partial<AccountWithRelinkStatus> = 
 
 describe('useAccountsStore – accountsRecord mirrors the live accounts list', () => {
   let store: ReturnType<typeof useAccountsStore>;
+  let queryClient: QueryClient;
 
   const mountStore = () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const pinia = createPinia();
     setActivePinia(pinia);
 
@@ -172,6 +174,36 @@ describe('useAccountsStore – accountsRecord mirrors the live accounts list', (
       ]);
 
       expect(ids).toEqual(['acc-active', 'acc-archived']);
+    });
+  });
+
+  describe('editAccount', () => {
+    const statsKey = [VUE_QUERY_GLOBAL_PREFIXES.transactionChange, 'stats'];
+
+    it.each([
+      { field: 'currentBalance', data: { currentBalance: 10 } },
+      { field: 'creditLimit', data: { creditLimit: 500 } },
+      { field: 'excludeFromStats', data: { excludeFromStats: true } },
+    ])('refreshes balance-derived stats after editing $field', async ({ data }) => {
+      mockLoadAccounts.mockResolvedValue([buildAccount('acc-1')]);
+      mountStore();
+      await flushPromises();
+      queryClient.setQueryData(statsKey, 1);
+
+      await store.editAccount({ id: 'acc-1', ...data });
+
+      expect(queryClient.getQueryState(statsKey)?.isInvalidated).toBe(true);
+    });
+
+    it('leaves stats alone after a rename', async () => {
+      mockLoadAccounts.mockResolvedValue([buildAccount('acc-1')]);
+      mountStore();
+      await flushPromises();
+      queryClient.setQueryData(statsKey, 1);
+
+      await store.editAccount({ id: 'acc-1', name: 'Renamed' });
+
+      expect(queryClient.getQueryState(statsKey)?.isInvalidated).toBe(false);
     });
   });
 

@@ -1,8 +1,11 @@
 import { BANK_PROVIDER_TYPE } from '@bt/shared/types';
+import { t } from '@i18n/index';
+import { NotAllowedError } from '@js/errors';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
 import { withTransaction } from '@root/services/common/with-transaction';
 
 import { EnableBankingProvider } from '../enablebanking';
+import { isProviderAvailableForUser } from '../provider-availability';
 import { bankProviderRegistry } from '../registry';
 
 export const connectProvider = withTransaction(
@@ -17,6 +20,10 @@ export const connectProvider = withTransaction(
     credentials: Record<string, unknown>;
     providerName?: string;
   }): Promise<{ connectionId: string; authUrl?: string; message: string }> => {
+    if (!(await isProviderAvailableForUser({ userId, providerType }))) {
+      throw new NotAllowedError({ message: t({ key: 'bankDataProviders.providerNotAvailable' }) });
+    }
+
     const provider = bankProviderRegistry.get(providerType);
 
     // Create connection (stores encrypted credentials)

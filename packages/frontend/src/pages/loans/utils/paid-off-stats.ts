@@ -9,7 +9,6 @@ import { addMonths, differenceInCalendarMonths } from 'date-fns';
  */
 
 const MONTHS_PER_YEAR = 12;
-const CENTS_PER_UNIT = 100;
 
 interface LoanDurationParts {
   /** Whole calendar months the loan was open, floored at 0. */
@@ -60,10 +59,10 @@ interface LoanCostSplit {
   /** 0..100 — interest's share of total. */
   interestPercent: number;
   /**
-   * Cents of interest paid per $1 borrowed (estimatedInterest / principal × 100),
-   * rounded. Null when there is no interest or no principal to divide by.
+   * Interest as a fraction of the amount borrowed (estimatedInterest / principal).
+   * Null when there is no interest or no principal to divide by.
    */
-  interestPerDollarCents: number | null;
+  interestToPrincipalRatio: number | null;
 }
 
 /**
@@ -83,8 +82,7 @@ export function getLoanCostSplit({
   const total = principal + interest;
   const principalPercent = total > 0 ? (principal / total) * 100 : 100;
   const interestPercent = total > 0 ? (interest / total) * 100 : 0;
-  const interestPerDollarCents =
-    hasInterest && principal > 0 ? Math.round((interest / principal) * CENTS_PER_UNIT) : null;
+  const interestToPrincipalRatio = hasInterest && principal > 0 ? interest / principal : null;
 
   return {
     total,
@@ -93,6 +91,6 @@ export function getLoanCostSplit({
     hasInterest,
     principalPercent,
     interestPercent,
-    interestPerDollarCents,
+    interestToPrincipalRatio,
   };
 }

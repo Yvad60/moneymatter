@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it, jest } from '@jest/globals';
 import { ConflictError, NotFoundError } from '@js/errors';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
@@ -274,15 +274,24 @@ describe('createExpiringUploadCache', () => {
   });
 
   it('deletes expired entries from disk when it sweeps', async () => {
-    const { cache, directory } = makeCache({ idleTtlMs: 40, maxLifetimeMs: 240_000 });
+    const { cache, directory } = makeCache({ idleTtlMs: 1_000, maxLifetimeMs: 240_000 });
 
     const expired = await cache.store({ userId: 1, payload: { label: 'expired' } });
-    await wait({ ms: 90 });
-    const live = await cache.store({ userId: 1, payload: { label: 'live' } });
 
-    // `store` fires the sweep in the background and at most once a minute, so
-    // driving it here is what makes the assertions below deterministic.
-    await cache.sweepExpired();
+    // Jumping the clock instead of sleeping keeps a slow CI runner from aging the
+    // live entry past its idle window too. Under a minute, so `store` does not
+    // fire a second background sweep.
+    const realNow = Date.now;
+    const clock = jest.spyOn(Date, 'now').mockImplementation(() => realNow() + 5_000);
+    let live: Awaited<ReturnType<typeof cache.store>>;
+    try {
+      live = await cache.store({ userId: 1, payload: { label: 'live' } });
+      // `store` fires the sweep in the background and at most once a minute, so
+      // driving it here is what makes the assertions below deterministic.
+      await cache.sweepExpired();
+    } finally {
+      clock.mockRestore();
+    }
 
     const remaining = await fs.readdir(directory);
     expect(remaining.filter((entry) => entry.includes(expired.id))).toEqual([]);

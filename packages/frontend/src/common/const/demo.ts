@@ -14,6 +14,8 @@ export type DemoEndReason = 'signup_clicked' | 'logout' | 'expired';
 export type DemoBlockedFeature =
   | 'add_passkey'
   | 'attach_file'
+  | 'backup_export'
+  | 'backup_restore'
   | 'bank_connect_enablebanking'
   | 'bank_connect_enablebanking_import_accounts'
   | 'bank_connect_lunchflow'
@@ -28,6 +30,7 @@ export type DemoBlockedFeature =
   | 'connect_oauth_provider'
   | 'create_portfolio_empty_state'
   | 'create_portfolio_header'
+  | 'data_export'
   | 'delete_portfolio'
   | 'household_cancel_invite'
   | 'household_change_permission'

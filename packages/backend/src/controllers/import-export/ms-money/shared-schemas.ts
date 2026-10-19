@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { boundedImportBalance } from '../shared-schemas';
 
 // `create-new` branch: the importer creates a fresh account.
-// `currencyCode` is required — it comes from the currency the parser read out of
-// the Money file. `currentBalance` is the desired post-import balance; null means
+// `currencyCode` is required — it is the currency the parser read out of the
+// Money file, or the user's pick when the file carries none. `currentBalance` is the desired post-import balance; null means
 // "sum of imported rows". Bounded to the INTEGER-cents storage cap so an over-cap
 // value fails request validation instead of the balance write at the end of the job.
 const createNewSchema = z.object({

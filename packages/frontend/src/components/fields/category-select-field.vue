@@ -124,6 +124,9 @@
                   <InfoIcon class="text-muted-foreground size-3.5 shrink-0 cursor-help" />
                 </ResponsiveTooltip>
               </div>
+              <div v-if="unlistedIds" class="text-muted-foreground border-b px-3 py-2 text-xs" role="note">
+                {{ $t('fields.categorySelect.unlistedNotice') }}
+              </div>
               <!-- Search input -->
               <input
                 ref="inputRef"
@@ -216,6 +219,10 @@
           </ResponsiveTooltip>
         </div>
 
+        <div v-if="unlistedIds" class="text-muted-foreground mb-3 text-xs" role="note">
+          {{ $t('fields.categorySelect.unlistedNotice') }}
+        </div>
+
         <!-- Search input in drawer -->
         <div
           class="border-input bg-input-background mb-3 flex h-10 w-full items-center gap-2 rounded-md border px-3 py-2 text-sm md:h-9"
@@ -254,7 +261,8 @@ import { type FormattedCategory } from '@/common/types';
 import { truncateOwnerUsername } from '@/common/utils/account-display';
 import CategoryCircle from '@/components/common/category-circle.vue';
 import ResponsiveTooltip from '@/components/common/responsive-tooltip.vue';
-import { FieldError, FieldLabel } from '@/components/fields';
+import FieldError from '@/components/fields/components/field-error.vue';
+import FieldLabel from '@/components/fields/components/field-label.vue';
 import * as Drawer from '@/components/lib/ui/drawer';
 import * as Popover from '@/components/lib/ui/popover';
 import { CUSTOM_BREAKPOINTS, useWindowBreakpoints } from '@/composable/window-breakpoints';
@@ -292,6 +300,8 @@ const props = withDefaults(
      */
     sharedOwnerUsername?: string;
     popoverClassName?: string;
+    /** Left out of the default list, still found by search. */
+    unlistedIds?: Set<string>;
   }>(),
   {
     label: undefined,
@@ -302,6 +312,7 @@ const props = withDefaults(
     categoriesMap: undefined,
     sharedOwnerUsername: undefined,
     popoverClassName: undefined,
+    unlistedIds: undefined,
   },
 );
 
@@ -385,7 +396,7 @@ const isSearching = computed(() => searchQuery.value.length > 0);
 
 const filteredItems = computed(() => {
   if (!searchQuery.value) {
-    return allFlatCategories.value;
+    return allFlatCategories.value.filter((category) => !props.unlistedIds?.has(category.id));
   }
 
   const query = searchQuery.value.toLowerCase();

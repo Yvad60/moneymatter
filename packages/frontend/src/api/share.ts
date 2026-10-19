@@ -11,7 +11,7 @@ import {
 } from '@bt/shared/types';
 
 /** Hydrated invitation row used by the received-list endpoint. */
-interface InvitationListItem extends ShareInvitationModel {
+export interface InvitationListItem extends ShareInvitationModel {
   resourceName: string | null;
   owner: { id: number; username: string; avatar: string | null } | null;
   invitee: { id: number; username: string; avatar: string | null } | null;

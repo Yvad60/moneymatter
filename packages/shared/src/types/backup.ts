@@ -16,76 +16,6 @@
 export const BACKUP_FORMAT_VERSION = 1;
 
 /**
- * Base names of the per-table files written under `data/` in the zip (one
- * `data/<name>.json` each). Mirrors `EXPORT_FILE_NAMES`: the registry's
- * module-load drift check compares its registered file names against this
- * array so a table added to the registry without a name here (or vice versa)
- * throws on load. Ordered by restore tier for readability only.
- */
-export const BACKUP_FILE_NAMES = [
-  // tier 1
-  'user',
-  // tier 2
-  'user-settings',
-  'users-currencies',
-  'categories',
-  'tags',
-  'payees',
-  'tag-reminders',
-  'payee-ignored-names',
-  'notifications',
-  'venture-platforms',
-  'bank-data-provider-connections',
-  'account-groups',
-  'transaction-automations',
-  // tier 3
-  'accounts',
-  'account-groupings',
-  'subscriptions',
-  'transaction-templates',
-  'payee-aliases',
-  'payee-tags',
-  'user-merchant-category-codes',
-  'user-exchange-rates',
-  'portfolios',
-  'venture-deals',
-  'vehicles',
-  'loan-details',
-  'transaction-groups',
-  'budgets',
-  'import-batches',
-  // tier 4
-  'transactions',
-  'balances',
-  'holdings',
-  'investment-transactions',
-  'portfolio-balances',
-  'portfolio-transfers',
-  'venture-events',
-  'subscription-candidates',
-  'import-batch-account-effects',
-  // tier 5
-  'transaction-splits',
-  'transaction-tags',
-  'transaction-group-items',
-  'budget-transactions',
-  'budget-categories',
-  'refund-transactions',
-  'subscription-transactions',
-  'subscription-tags',
-  'transaction-template-tags',
-  'subscription-periods',
-  'transfer-suggestion-dismissals',
-  'venture-event-links',
-  // tier 6
-  'subscription-period-notifications',
-  // exported but skipped on restore (counterpart users don't exist cross-instance)
-  'resource-shares',
-  'share-invitations',
-] as const;
-export type BackupFileName = (typeof BACKUP_FILE_NAMES)[number];
-
-/**
  * Global-catalog subset embedded under `reference/`. Only the security
  * *identity* travels — restore resolves each backup security to the target
  * catalog by natural key (or creates it) so restored holdings/investment
@@ -143,17 +73,27 @@ export type BackupRestoreWarningCode =
   // hand-edited archive aiming a child row at another user's row); the whole row
   // was dropped rather than attached to foreign data.
   | 'foreign_reference_dropped'
+  // A row broke an app-level rule the DB doesn't enforce (e.g. a budget plan cadence
+  // the period enumerator can't serve); the row was dropped.
+  | 'invalid_row_dropped'
   // A nullable foreign-key column pointed at data outside this backup; the column
   // was reset to null and the row kept.
   | 'foreign_reference_nulled';
 
+/**
+ * Built inside the restore worker, which has no request locale, so it carries
+ * only a code plus params and the frontend renders the translated text.
+ */
 export interface BackupRestoreWarning {
   code: BackupRestoreWarningCode;
   /** Table the warning applies to, when table-scoped. */
   table?: string;
-  message: string;
   /** How many rows/columns the warning covers, when countable. */
   count?: number;
+  /** Foreign-key column, for `foreign_reference_dropped` / `foreign_reference_nulled`. */
+  column?: string;
+  /** Dropped column names, for `unknown_column_dropped`. */
+  columns?: string[];
 }
 
 /** Coarse restore phases reported through job progress and the poll fallback. */
@@ -181,8 +121,10 @@ export interface BackupRestoreStatusResponse {
   status: BackupRestoreJobStatus;
   progress?: BackupRestoreProgress;
   summary?: BackupRestoreSummary;
-  /** Human-readable failure reason when status is `failed`. */
+  /** Translated failure reason when status is `failed`. */
   error?: string;
+  /** Untranslated technical diagnostics (table, constraint) for support, when available. */
+  errorDetail?: string;
 }
 
 /**

@@ -1,6 +1,50 @@
+import { API_PREFIX } from '@root/config';
 import * as Sentry from '@sentry/node';
 
 const SENTRY_DSN = process.env.SENTRY_DSN;
+
+const DEFAULT_TRACES_SAMPLE_RATE = 0.01;
+const MAX_TRACES_SAMPLE_RATE = 0.2;
+
+/** Caps the env-provided rate: at full sampling the monthly span quota lasts about 12 days. */
+export function resolveTracesSampleRate({ raw }: { raw: string | undefined }): number {
+  const rate = Number(raw);
+  if (!Number.isFinite(rate) || rate <= 0) return DEFAULT_TRACES_SAMPLE_RATE;
+
+  return Math.min(rate, MAX_TRACES_SAMPLE_RATE);
+}
+
+const UNTRACED_POLLING_TRANSACTIONS = new Set(
+  [
+    '/sse/events',
+    '/notifications/unread-count',
+    '/bank-data-providers/sync/status',
+    '/user/ai/categorization/status',
+    '/user/backup/restore/status',
+    '/user/currencies/change-base/status',
+    '/import/batch-delete/status',
+  ].map((path) => `GET ${API_PREFIX}${path}`),
+);
+
+/** `name` is the root span name at sampling time: `<METHOD> <path>`, without the query string. */
+export function isUntracedPollingTransaction({ name }: { name: string }): boolean {
+  return UNTRACED_POLLING_TRANSACTIONS.has(name.replace(/^(\w+ )https?:\/\/[^/]+/, '$1').replace(/\/$/, ''));
+}
+
+/**
+ * Matched against span descriptions. A match on a child span drops that span
+ * and reparents its children; a match on a root span drops the whole
+ * transaction, so every pattern must stay clear of `<METHOD> /api/v1/...`.
+ */
+export const IGNORED_SPAN_PATTERNS: RegExp[] = [
+  // better-auth session/user/jwks reads. The `ba_*` patterns match on description
+  // alone, so they drop those reads in every trace, not only get-session.
+  /^(GET|handler|hook (before|after)) \/get-session( |$)/,
+  /^db find(One|Many) ba_(jwks|session|user)$/,
+  /^\s*select\b.*\bfrom "ba_(jwks|session|user)"/i,
+  /^(START TRANSACTION|COMMIT);?$/,
+  /^SET client_min_messages/,
+];
 
 /**
  * Check if Sentry should be enabled.
@@ -22,18 +66,23 @@ export function initSentry(): void {
     return;
   }
 
+  const tracesSampleRate = resolveTracesSampleRate({ raw: process.env.SENTRY_TRACES_SAMPLE_RATE });
+
   Sentry.init({
     dsn: SENTRY_DSN,
     release: process.env.SENTRY_RELEASE,
     environment: process.env.NODE_ENV,
     debug: process.env.SENTRY_DEBUG === 'true',
-    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE) || 0.01,
+    tracesSampler: ({ name, inheritOrSampleWith }) =>
+      isUntracedPollingTransaction({ name }) ? 0 : inheritOrSampleWith(tracesSampleRate),
+    ignoreSpans: IGNORED_SPAN_PATTERNS,
     // Integrations
     integrations: [
       // HTTP integration for tracing requests
       Sentry.httpIntegration(),
       // Express integration
       Sentry.expressIntegration(),
+      Sentry.postgresIntegration({ ignoreConnectSpans: true }),
     ],
   });
 }

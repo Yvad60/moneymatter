@@ -2,7 +2,7 @@
 import { DEACTIVATION_REASON, type DeactivationReason, type RecordId } from '@bt/shared/types';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
-import { ForbiddenError } from '@js/errors';
+import { ForbiddenError, ServiceUnavailableError } from '@js/errors';
 import { logger } from '@js/utils';
 import Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
@@ -294,7 +294,16 @@ export abstract class BaseBankDataProvider implements IBankDataProvider {
 
       return result;
     } catch (error) {
-      logger.error({ message: errorLogMessage, error: error as Error });
+      if (error instanceof ServiceUnavailableError) {
+        // An unreachable bank provider is an expected outage, so it stays out of Sentry.
+        logger.info('[Bank Sync] Bank provider unavailable, sync skipped', {
+          accountId: systemAccountId,
+          connectionId,
+          reason: error.message,
+        });
+      } else {
+        logger.error({ message: errorLogMessage, error: error as Error });
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
       await setAccountSyncStatus({
         accountId: systemAccountId,

@@ -2,13 +2,13 @@
   "pages": {
     "statementParser": {
       "pageTitle": "Statement Parser",
-      "pageDescription": "Upload a bank statement (PDF, CSV, or TXT) to extract transactions using AI. Add your own AI model in settings for unlimited access.",
+      "pageDescription": "Upload a bank statement (PDF, CSV or TXT), a receipt photo or a banking app screenshot to extract transactions using AI. Add your own AI model in settings for unlimited access.",
       "stepper": {
         "steps": {
           "upload": "Upload",
           "account": "Account",
           "review": "Xem xét",
-          "results": "Import"
+          "results": "Nhập"
         }
       },
       "steps": {
@@ -21,7 +21,7 @@
       "selectAccount": "Select an account",
       "searchAccounts": "Search accounts...",
       "uploadExtract": {
-        "supportedFormats": "Supported formats: PDF, CSV, TXT (max 10MB)",
+        "supportedFormats": "Supported formats: PDF, CSV, TXT, JPG, PNG, WebP (max 10MB)",
         "clickOrDragStatements": "Click or drag statement files here",
         "filesLabel": "Files",
         "analyzingFiles": "Analyzing files...",
@@ -32,7 +32,12 @@
         "progressFile": "Parsing {name} ({current} of {total})",
         "acrossFiles": "across {count} files",
         "currencyConflict": "The selected statements report different currencies ({currencies}). They will all be imported into one account, using that account's currency.",
-        "unsupportedFileNamed": "{name} is not a PDF, CSV or TXT file",
+        "unsupportedFileNamed": "{name} is not a PDF, CSV, TXT, JPG, PNG or WebP file",
+        "unreadableImageNamed": "{name} could not be read as an image",
+        "pasteImageButton": "Paste image",
+        "pasteShortcutHint": "or press {shortcut}",
+        "clipboardNoImage": "No image found in the clipboard.",
+        "clipboardReadFailed": "Couldn't read the clipboard. Allow clipboard access or paste with the keyboard shortcut.",
         "unreadableFiles": "Could not read: {files}",
         "fileStatus": {
           "pending": "Not analyzed",
@@ -40,11 +45,11 @@
           "estimated": "Ready",
           "estimateFailed": "Could not analyze",
           "extracting": "Parsing...",
-          "extracted": "{count} transaction | {count} transactions",
+          "extracted": "{count} giao dịch | {count} giao dịch",
           "failed": "Failed"
         },
         "analyzeButton": "Analyze File | Analyze {count} Files",
-        "tryAgain": "Try Again",
+        "tryAgain": "Thử lại",
         "modelLabel": "Mô hình",
         "estimatedCostLabel": "Estimated Cost",
         "estimatedTokensLabel": "Estimated Tokens",
@@ -114,7 +119,7 @@
         "title": "Create Account for Import",
         "description": "Create a new account to import your statement transactions.",
         "accountNameLabel": "Account name",
-        "currencyLabel": "Currency",
+        "currencyLabel": "Đơn vị tiền tệ",
         "fromStatement": "(from statement)",
         "currencyLocked": "Currency is locked to match the statement ({currency}).",
         "currencyWillBeAdded": "Note: {currency} will be added to your currencies.",
@@ -140,7 +145,7 @@
         "legendDuplicate": "Duplicate",
         "legendExisting": "Already in account",
         "statusDup": "Duplicate",
-        "statusImport": "Import",
+        "statusImport": "Nhập",
         "statusExists": "In account",
         "duplicateInfoSkipped": "{count} transactions will be skipped as duplicates.",
         "duplicateInfoOverridden": "{count} duplicates have been overridden and will be imported.",
@@ -165,7 +170,7 @@
         "failedTitle": "Import Failed",
         "failedDescription": "Nothing was imported. The details below come from the server.",
         "jobFailedDescription": "The import stopped before it finished. Some transactions may already have been created. Check your transactions before importing this statement again.",
-        "tryAgainButton": "Try Again",
+        "tryAgainButton": "Thử lại",
         "completeTitle": "Import Complete!",
         "completeWithIssuesTitle": "Import Completed with Issues",
         "successDescription": "Your transactions have been successfully imported.",

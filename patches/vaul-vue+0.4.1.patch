@@ -1,0 +1,22 @@
+diff --git a/node_modules/vaul-vue/dist/index.js b/node_modules/vaul-vue/dist/index.js
+index 264e0d2..9336243 100644
+--- a/node_modules/vaul-vue/dist/index.js
++++ b/node_modules/vaul-vue/dist/index.js
+@@ -70,7 +70,9 @@ function dt(e, n) {
+   });
+ }
+ function ie(e, n) {
++  if (!e) return null;
+   const s = window.getComputedStyle(e), i = s.transform || s.webkitTransform || s.mozTransform;
++  if (!i) return null;
+   let t = i.match(/^matrix3d\((.+)\)$/);
+   return t ? Number.parseFloat(t[1].split(", ")[_(n) ? 13 : 12]) : (t = i.match(/^matrix\((.+)\)$/), t ? Number.parseFloat(t[1].split(", ")[_(n) ? 5 : 4]) : null);
+ }
+@@ -553,6 +555,7 @@ function yt(e) {
+     }), !o && ((E = g.value) != null && E.$el) && (G.value = window.setTimeout(() => {
+       var k, X;
+       const A = ie((k = g.value) == null ? void 0 : k.$el, u.value);
++      if (A === null) return;
+       C((X = g.value) == null ? void 0 : X.$el, {
+         transition: "none",
+         transform: _(u.value) ? `translate3d(0, ${A}px, 0)` : `translate3d(${A}px, 0, 0)`

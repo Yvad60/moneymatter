@@ -2,6 +2,8 @@ import {
   CATEGORIZATION_MODE,
   type EntityLogoPayload,
   type PayeeLookupItem,
+  type PayeeSortBy,
+  type PayeeSortDir,
   RESOURCE_TYPES,
   SHARE_PERMISSIONS,
   type RecordId,
@@ -26,6 +28,7 @@ import {
   resolveManualLogoFields,
 } from '@services/brand-logos';
 import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
+import { assertTagsOwnedByUser } from '@services/tags/assert-tags-owned-by-user';
 import { pauseAutomationsReferencing, rewriteAutomationRef } from '@services/transaction-automations/references';
 import { Op, QueryTypes } from 'sequelize';
 
@@ -37,9 +40,6 @@ import { getPayeeStatsMap, PayeeStatsRow } from './payee-stats';
 const MAX_LIST_LIMIT = 200;
 const DEFAULT_LIST_LIMIT = 50;
 const AUTOCOMPLETE_LIMIT = 20;
-
-type PayeeSortBy = 'lastSeen' | 'name' | 'netFlow' | 'transactionCount' | 'defaultTagsCount';
-type PayeeSortDir = 'asc' | 'desc';
 
 async function assertCategoryOwnedByUser({
   userId,
@@ -54,14 +54,6 @@ async function assertCategoryOwnedByUser({
   });
   if (!category) {
     throw new ValidationError({ message: t({ key: 'payees.defaultCategoryNotOwned' }) });
-  }
-}
-
-async function assertTagsOwnedByUser({ userId, tagIds }: { userId: number; tagIds: string[] }): Promise<void> {
-  if (tagIds.length === 0) return;
-  const ownedCount = await Tags.count({ where: { id: tagIds, userId } });
-  if (ownedCount !== tagIds.length) {
-    throw new ValidationError({ message: t({ key: 'payees.defaultTagsNotOwned' }) });
   }
 }
 
@@ -189,7 +181,12 @@ export const listPayees = withTransaction(
     // p.id ASC as a tiebreaker keeps the order deterministic across pages
     // when two rows share the same primary sort key.
     const orderBy = `${sortColumn} ${sortDirSql} NULLS LAST, p.id ASC`;
-    const nameWhere = normalizedQuery !== null ? 'AND p."normalizedName" LIKE :nameLike' : '';
+    const nameWhere =
+      normalizedQuery !== null
+        ? `AND (p."normalizedName" LIKE :nameLike
+                OR EXISTS (SELECT 1 FROM "PayeeAliases" pa
+                            WHERE pa."payeeId" = p.id AND pa."normalizedName" LIKE :nameLike))`
+        : '';
     // Scoping to a shared account narrows the stats subquery to that account, so the
     // sort keys and shown stats reflect only shared-account activity. The join stays
     // LEFT so the owner's full payee namespace still surfaces (payees unused on the
@@ -435,8 +432,7 @@ export const updatePayee = withTransaction(
     }
 
     if (defaultTagIds !== undefined) {
-      await assertTagsOwnedByUser({ userId, tagIds: defaultTagIds });
-      await payee.$set('defaultTags', defaultTagIds);
+      await payee.$set('defaultTags', await assertTagsOwnedByUser({ userId, tagIds: defaultTagIds }));
     }
 
     if (name !== undefined) {

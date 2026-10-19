@@ -1,20 +1,25 @@
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { passkey } from '@better-auth/passkey';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@bt/shared/const/auth';
 import { OAUTH_PROVIDERS_LIST } from '@bt/shared/types';
 import { EnvVar, isEnvConfigured } from '@common/utils/env';
 import { createSessionHooks } from '@config/auth-hooks/session-hooks';
 import { shouldUseSecureCookies } from '@config/should-use-secure-cookies';
 import { isAuthApiError } from '@controllers/helpers/error-handler';
+import { t } from '@i18n/index';
 import { logger } from '@js/utils/logger';
 import { identifyUser, trackSignup } from '@js/utils/posthog';
 import { captureException } from '@js/utils/sentry';
 import { redisClient } from '@root/redis-client';
+import { appName, fromEmail, isEmailEnabled } from '@services/email';
 import { sendEmail } from '@services/email/send-email';
 import { createAppUserWithUniqueUsername, seedUserDefaults } from '@services/user/create-user-with-defaults.service';
+import { sendPasswordResetEmail } from '@services/user/send-password-reset-email';
 import { areSignupsOpen } from '@services/user/signups-open.service';
 import bcrypt from 'bcryptjs';
 import { APIError, betterAuth } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 
 // Fail-fast: AUTH_ORIGIN must be set in production. Without it, OAuth error
@@ -49,6 +54,9 @@ pool.on('error', (error) => logger.error({ message: 'better-auth pg pool idle cl
 // Longest better-auth rate-limit window (core + plugins) is 60s; the limiter
 // resets from `lastRequest` itself, so a longer TTL only affects storage.
 const AUTH_RATE_LIMIT_TTL_SECONDS = 120;
+const SESSION_COOKIE_CACHE_MAX_AGE = 5 * 60;
+const DEFAULT_SESSION_CACHE_VERSION = '1';
+const sessionCacheVersionKey = ({ userId }: { userId: string }) => `auth:session-cache-version:${userId}`;
 
 const DEV_TRUSTED_ORIGINS =
   process.env.NODE_ENV === 'development'
@@ -82,7 +90,17 @@ export const auth = betterAuth({
     // Reduces ba_user queries from ~3.7k/week to ~100-200 (once per 5min per session).
     cookieCache: {
       enabled: true,
-      maxAge: 5 * 60, // 5 minutes
+      maxAge: SESSION_COOKIE_CACHE_MAX_AGE,
+      // Bumped on password reset so cached cookies minted before it stop being trusted immediately.
+      // On Redis failure, return a version no cookie carries so the session is re-read from the DB.
+      version: async (_session, user) => {
+        try {
+          return (await redisClient.get(sessionCacheVersionKey({ userId: user.id }))) ?? DEFAULT_SESSION_CACHE_VERSION;
+        } catch (error) {
+          logger.warn('Failed to read session cache version', { error: (error as Error).message });
+          return randomUUID();
+        }
+      },
     },
   },
   account: {
@@ -102,7 +120,9 @@ export const auth = betterAuth({
   // Email and password authentication
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: isEnvConfigured(EnvVar.RESEND_API_KEY, process.env.RESEND_API_KEY),
+    requireEmailVerification: isEmailEnabled,
+    minPasswordLength: PASSWORD_MIN_LENGTH,
+    maxPasswordLength: PASSWORD_MAX_LENGTH,
     // Cost 12 follows OWASP 2026 guidance.
     password: {
       hash: async (password: string) => {
@@ -113,6 +133,53 @@ export const auth = betterAuth({
         return bcrypt.compareSync(password, hash);
       },
     },
+    revokeSessionsOnPasswordReset: true,
+    ...(isEmailEnabled && {
+      sendResetPassword: async ({ user, url }) => {
+        // Not awaited: a send round-trip only for existing accounts would reveal which emails are registered.
+        void sendPasswordResetEmail({ email: user.email, url, userId: user.id });
+      },
+    }),
+    // Holding the reset link proves inbox ownership; without this, requireEmailVerification would block sign-in.
+    // Steps never throw: better-auth's own deleteUserSessions runs after this hook as a backstop.
+    onPasswordReset: async ({ user }) => {
+      const steps: [string, () => Promise<unknown>][] = [
+        ['delete sessions', () => pool.query('DELETE FROM ba_session WHERE "userId" = $1', [user.id])],
+        [
+          'revoke OAuth access tokens',
+          () => pool.query('DELETE FROM ba_oauth_access_token WHERE "userId" = $1', [user.id]),
+        ],
+        [
+          'revoke OAuth refresh tokens',
+          () => pool.query('DELETE FROM ba_oauth_refresh_token WHERE "userId" = $1', [user.id]),
+        ],
+        // Only needs to outlive cookies minted before the reset; after expiry the default version is harmless.
+        [
+          'bump session cache version',
+          () =>
+            redisClient.set(
+              sessionCacheVersionKey({ userId: user.id }),
+              String(Date.now()),
+              'EX',
+              SESSION_COOKIE_CACHE_MAX_AGE,
+            ),
+        ],
+        [
+          'mark email verified',
+          () =>
+            pool.query('UPDATE ba_user SET "emailVerified" = true WHERE id = $1 AND "emailVerified" = false', [
+              user.id,
+            ]),
+        ],
+      ];
+      for (const [step, run] of steps) {
+        try {
+          await run();
+        } catch (error) {
+          logger.error({ message: `Password reset: failed to ${step}`, error: error as Error }, { userId: user.id });
+        }
+      }
+    },
   },
 
   // Email verification via Resend
@@ -120,9 +187,6 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const appName = process.env.AUTH_RP_NAME || 'MoneyMatter';
-
       try {
         const result = await sendEmail({
           from: `${appName} <${fromEmail}>`,
@@ -180,6 +244,9 @@ export const auth = betterAuth({
     // jwt() must be loaded because @better-auth/oauth-provider references it
     // internally even when disableJwtPlugin is true (unguarded getJwtPlugin calls).
     jwt({
+      // Nothing reads the `set-auth-jwt` header; leaving it on costs a ba_jwks
+      // query and a JWT signature on every getSession call.
+      disableSettingJwtHeader: true,
       schema: {
         jwks: { modelName: 'ba_jwks' },
       },
@@ -286,7 +353,7 @@ export const auth = betterAuth({
         before: async (user) => {
           if (!(await areSignupsOpen())) {
             throw new APIError('FORBIDDEN', {
-              message: 'Signups are disabled by the administrator',
+              message: t({ key: 'auth.errors.signupsDisabled' }),
               code: 'SIGNUPS_DISABLED',
             });
           }

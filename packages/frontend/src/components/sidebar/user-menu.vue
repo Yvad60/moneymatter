@@ -11,7 +11,7 @@ import { storeToRefs } from 'pinia';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-defineProps<{ compact?: boolean }>();
+defineProps<{ compact?: boolean; elevated?: boolean }>();
 
 const { t } = useI18n();
 const { user } = storeToRefs(useUserStore());
@@ -24,7 +24,7 @@ const isRealCommit = /^[0-9a-f]{40}$/.test(commitHash);
 </script>
 
 <template>
-  <div class="flex items-center gap-1">
+  <div :class="cn('flex items-center gap-1', elevated && 'bg-card border-border rounded-md border pr-1.5')">
     <Popover.Popover v-model:open="isOpen">
       <Popover.PopoverTrigger as-child>
         <button

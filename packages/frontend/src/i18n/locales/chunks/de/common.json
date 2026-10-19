@@ -17,7 +17,7 @@
       "viewTransactions": "Transaktionen anzeigen",
       "viewAnalytics": "Analysen anzeigen",
       "saving": "Speichern...",
-      "saveChanges": "Änderungen speichern",
+      "saveChanges": "Speichern",
       "done": "Fertig",
       "failed": "Fehlgeschlagen",
       "viewAll": "Alle anzeigen",
@@ -54,7 +54,8 @@
       }
     },
     "errors": {
-      "copyToClipboardFailed": "Kopieren in die Zwischenablage fehlgeschlagen"
+      "copyToClipboardFailed": "Kopieren in die Zwischenablage fehlgeschlagen",
+      "settingsSaveFailed": "Couldn't save your settings. Please try again."
     },
     "notifications": {
       "subscriptionCurrencyNotConnected": "Die Abo-Übersicht kann {currencies} nicht in deine Basiswährung umrechnen. Verbinde die Währung unter Einstellungen → Währungen.",
@@ -150,7 +151,7 @@
         "error": "Fehler beim Aufheben der Transaktionsverknüpfung!"
       },
       "record": {
-        "addedByTooltip": "Diese Transaktion wurde dem Budget hinzugefügt von {handle}",
+        "addedByTooltip": "Diese Transaktion wurde dem Tracker von {handle} hinzugefügt",
         "externalLinkTooltip": "Externen Link öffnen",
         "locationTooltip": "Standort auf Karte öffnen",
         "attachmentsTooltip": "Enthält Anhänge",
@@ -161,7 +162,7 @@
         }
       }
     },
-    "outOfWallet": "Aus eigener Tasche",
+    "outOfWallet": "Extern",
     "dateSelector": {
       "dialogTitle": "Datumsbereich",
       "dueDate": "Fälligkeitsdatum",
@@ -286,6 +287,7 @@
     }
   },
   "validation": {
+    "required": "Dieses Feld ist erforderlich",
     "minLength": "Mindestlänge beträgt {length}.",
     "emailInvalid": "Bitte gib eine gültige E-Mail-Adresse ein.",
     "passwordsNoMatch": "Passwörter stimmen nicht überein"

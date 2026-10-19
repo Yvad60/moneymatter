@@ -1,12 +1,35 @@
-import { PAYMENT_TYPES } from '@bt/shared/types';
+import { MAX_SAVED_TRANSACTION_VIEWS, PAYMENT_TYPES } from '@bt/shared/types';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
-import { describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
 import UserSettings, { SettingsSchema } from '@models/user-settings.model';
 import * as helpers from '@tests/helpers';
 
+// Signup seeds a settings row; the lazy-creation paths need a user without one.
+const dropSeededSettingsRow = async () => {
+  const { id: userId } = await helpers.getUserInfo({ raw: true });
+  await UserSettings.destroy({ where: { userId } });
+};
+
 describe('Patch user settings', () => {
+  it('seeds the default income category into incomeCategoryIds and lets it be cleared', async () => {
+    const categories = await helpers.getCategoriesList();
+    const income = categories.find((category) => category.key === 'income');
+
+    const seeded = await helpers.getUserSettings({ raw: true });
+    expect(seeded.incomeCategoryIds).toStrictEqual([income!.id]);
+
+    const patched = await helpers.patchUserSettings({ raw: true, patch: { incomeCategoryIds: [] } });
+    expect(patched.incomeCategoryIds).toStrictEqual([]);
+  });
+
+  it('rejects incomeCategoryIds that are not uuids', async () => {
+    const res = await helpers.patchUserSettings({ patch: { incomeCategoryIds: ['nope'] } });
+    expect(res.statusCode).toBe(ERROR_CODES.ValidationError);
+  });
+
   it('creates settings from defaults when the user has none stored yet', async () => {
+    await dropSeededSettingsRow();
     const patched = await helpers.patchUserSettings({
       raw: true,
       patch: { ui: { transactionsTable: { mobileView: 'list' } } },
@@ -64,6 +87,38 @@ describe('Patch user settings', () => {
       columnOrder: ['date'],
       mobileView: 'table',
     });
+  });
+
+  it('replaces columnWidths wholesale so a reset column stays reset, and rejects invalid widths', async () => {
+    await helpers.patchUserSettings({
+      raw: true,
+      patch: {
+        ui: {
+          transactionsTable: {
+            columnWidths: [
+              { id: 'note', widthPx: 300 },
+              { id: 'payee', widthPx: 90 },
+            ],
+          },
+        },
+      },
+    });
+    const patched = await helpers.patchUserSettings({
+      raw: true,
+      patch: { ui: { transactionsTable: { columnWidths: [{ id: 'payee', widthPx: 90 }] } } },
+    });
+    expect(patched.ui?.transactionsTable?.columnWidths).toStrictEqual([{ id: 'payee', widthPx: 90 }]);
+
+    const cleared = await helpers.patchUserSettings({
+      raw: true,
+      patch: { ui: { transactionsTable: { columnWidths: [] } } },
+    });
+    expect(cleared.ui?.transactionsTable?.columnWidths).toStrictEqual([]);
+
+    const invalid = await helpers.patchUserSettings({
+      patch: { ui: { transactionsTable: { columnWidths: [{ id: 'note', widthPx: -5 }] } } },
+    });
+    expect(invalid.statusCode).toBe(ERROR_CODES.ValidationError);
   });
 
   it('persists currencyDisplay in both directions and keeps it through a rejected patch', async () => {
@@ -135,6 +190,29 @@ describe('Patch user settings', () => {
     });
     expect(rejected.statusCode).toBe(ERROR_CODES.ValidationError);
     expect((await helpers.getUserSettings({ raw: true })).ui?.transactionForm?.mapPicker).toBe(true);
+  });
+
+  it('persists ui.transactionForm.filterCategoriesByType and rejects a non-boolean', async () => {
+    const patched = await helpers.patchUserSettings({
+      raw: true,
+      patch: { ui: { transactionForm: { filterCategoriesByType: false } } },
+    });
+    expect(patched.ui?.transactionForm?.filterCategoriesByType).toBe(false);
+
+    const rejected = await helpers.patchUserSettings({
+      patch: { ui: { transactionForm: { filterCategoriesByType: 'no' } } },
+    });
+    expect(rejected.statusCode).toBe(ERROR_CODES.ValidationError);
+  });
+
+  it('persists sidebarNav per key, leaves unset keys absent, rejects a non-boolean', async () => {
+    await helpers.patchUserSettings({ raw: true, patch: { sidebarNav: { venture: false } } });
+    const patched = await helpers.patchUserSettings({ raw: true, patch: { sidebarNav: { loans: false } } });
+    expect(patched.sidebarNav).toStrictEqual({ venture: false, loans: false });
+
+    const rejected = await helpers.patchUserSettings({ patch: { sidebarNav: { venture: 'no' } } });
+    expect(rejected.statusCode).toBe(ERROR_CODES.ValidationError);
+    expect((await helpers.getUserSettings({ raw: true })).sidebarNav).toStrictEqual({ venture: false, loans: false });
   });
 
   it('persists ui.transactionForm.defaultPaymentType and rejects an unknown type', async () => {
@@ -214,6 +292,25 @@ describe('Patch user settings', () => {
     expect(fetched.savedPivotViews).toStrictEqual(patched.savedPivotViews);
   });
 
+  it('persists, replaces and clears saved transaction views', async () => {
+    const view = {
+      id: generateRandomRecordId(),
+      name: 'Groceries',
+      filters: { accountIds: ['a1'], noteIncludes: 'lidl' },
+      sorting: { sortBy: 'time', order: 'DESC' },
+      datePreset: 'last3Months',
+    };
+
+    const patched = await helpers.patchUserSettings({ raw: true, patch: { savedTransactionViews: [view] } });
+    expect(patched.savedTransactionViews).toStrictEqual([view]);
+
+    const fetched = await helpers.getUserSettings({ raw: true });
+    expect(fetched.savedTransactionViews).toStrictEqual([view]);
+
+    const cleared = await helpers.patchUserSettings({ raw: true, patch: { savedTransactionViews: [] } });
+    expect(cleared.savedTransactionViews).toStrictEqual([]);
+  });
+
   it('rejects invalid patch payloads', async () => {
     const validPivotConfig = {
       rowDimension: 'category' as const,
@@ -226,6 +323,21 @@ describe('Patch user settings', () => {
     const invalidPatches: Record<string, unknown>[] = [
       { savedPivotViews: [{ id: generateRandomRecordId(), name: '', config: validPivotConfig }] },
       { savedPivotViews: [{ id: generateRandomRecordId(), name: 'a'.repeat(121), config: validPivotConfig }] },
+      { savedTransactionViews: [{ id: generateRandomRecordId(), name: '', filters: {} }] },
+      {
+        savedTransactionViews: [
+          { id: generateRandomRecordId(), name: 'Bad preset', filters: {}, datePreset: 'lastWeek' },
+        ],
+      },
+      {
+        savedTransactionViews: Array.from({ length: MAX_SAVED_TRANSACTION_VIEWS + 1 }, () => ({
+          id: 'v',
+          name: 'v',
+          filters: {},
+        })),
+      },
+      { savedTransactionViews: [{ id: 'v', name: 'v', filters: {}, sorting: { sortBy: 'time', order: 'UP' } }] },
+      { savedTransactionViews: [{ id: 'v', name: 'a'.repeat(121), filters: {} }] },
       { import: { recalculateAccountBalance: 'yes' } },
       { accounts: { defaultAccountId: 'not-a-uuid' } },
       { accounts: { showArchivedInDropdowns: 'yes' } },
@@ -346,6 +458,8 @@ describe('Patch user settings', () => {
    * The race tests below assert only that a losing racer stays below a 500.
    */
   describe('UserSettings — one row per user', () => {
+    beforeEach(dropSeededSettingsRow);
+
     it('keeps exactly one row per user when different create-or-fetch endpoints run sequentially', async () => {
       // Every endpoint below get-or-creates the settings row; a dropped unique
       // `userId` index would leave more than one.

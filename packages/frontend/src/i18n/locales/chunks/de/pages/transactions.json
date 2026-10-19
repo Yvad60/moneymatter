@@ -6,7 +6,7 @@
       "reset": "Zurücksetzen",
       "apply": "Anwenden",
       "dateRange": {
-        "placeholder": "Datum oder Bereich",
+        "placeholder": "Datum oder Zeitraum",
         "presets": {
           "thisMonth": "Diesen Monat",
           "last3Months": "Letzte 3 Monate",
@@ -18,7 +18,7 @@
         "label": "Transaktionstyp:",
         "income": "Einnahmen",
         "expense": "Ausgaben",
-        "allTypes": "Alle Typen"
+        "allTypes": "Alle Arten"
       },
       "amountRange": {
         "from": "Betrag von (>=)",
@@ -42,12 +42,12 @@
       },
       "filterOperation": {
         "all": "Alle",
-        "exclude": "Ausschließen",
+        "exclude": "Ohne",
         "only": "Nur"
       },
       "noteIncludes": {
-        "label": "Notiz enthält (kommagetrennt):",
-        "placeholder": "Amazon,nike",
+        "label": "Notiz enthält (kommagetrennt)",
+        "placeholder": "Amazon, Nike",
         "compactPlaceholder": "In Notizen suchen"
       },
       "tags": {
@@ -67,17 +67,17 @@
       "menu": {
         "type": "Typ",
         "tags": "Tags",
-        "budgets": "Budgets",
+        "budgets": "Tracker",
         "amount": "Betragsbereich",
         "note": "Notizen"
       },
       "transferNature": {
-        "label": "Umbuchungsarten",
+        "label": "Alle Umbuchungsarten",
         "disabledTooltip": "Umbuchungen sind durch den obigen Filter ausgeschlossen, daher haben Umbuchungsarten keine Auswirkung.",
         "commonTransfer": "Zwischen Konten",
         "outOfWallet": "Extern",
-        "toPortfolio": "Zielportfolio",
-        "toVenture": "Zur Beteiligung",
+        "toPortfolio": "Portfolio",
+        "toVenture": "Beteiligung",
         "selectedCount": "{n} ausgewählt"
       }
     },
@@ -89,9 +89,11 @@
     },
     "bulkEdit": {
       "selectAll": "Alles auswählen",
+      "selectAllShort": "Alle",
       "cancelSelection": "Auswahl aufheben",
       "editButton": "Bearbeiten",
       "selectedCount": "{count} ausgewählt",
+      "matchingCount": "Gesamt: {count}",
       "dialogTitle": "{count} Transaktionen bearbeiten",
       "dialogDescription": "Änderungen werden auf alle ausgewählten Transaktionen angewendet. Nur ausgefüllte Felder werden aktualisiert.",
       "categoryLabel": "Kategorie",
@@ -245,6 +247,31 @@
       "gotIt": "Verstanden",
       "openDetails": "Details öffnen",
       "tooManyTags": "Bis zu {max} Tags pro Transaktion"
+    },
+    "savedViews": {
+      "trigger": "Ansichten",
+      "empty": "Noch keine gespeicherten Ansichten. Richte Filter ein und speichere sie dann als Ansicht.",
+      "modified": "Filter geändert",
+      "update": "\"{name}\" mit aktuellen Filtern aktualisieren",
+      "updateShort": "Ansicht aktualisieren",
+      "revert": "Zurücksetzen",
+      "saveNew": "Als neue Ansicht speichern",
+      "actions": "Aktionen für Ansicht",
+      "rename": "Umbenennen",
+      "moveUp": "Nach oben verschieben",
+      "moveDown": "Nach unten verschieben",
+      "saveTitle": "Ansicht speichern",
+      "renameTitle": "Ansicht umbenennen",
+      "dialogDescription": "Eine Ansicht speichert die aktuellen Filter und die Sortierung, damit du sie mit einem Klick wieder anwenden kannst.",
+      "nameLabel": "Name",
+      "namePlaceholder": "z.B. Lebensmittel, letzte 3 Monate",
+      "savedToast": "Ansicht gespeichert",
+      "updatedToast": "Ansicht aktualisiert",
+      "deletedToast": "Ansicht gelöscht",
+      "saveError": "Deine Ansichten konnten nicht gespeichert werden. Versuche es erneut.",
+      "deleteTitle": "Ansicht \"{name}\" löschen?",
+      "deleteDescription": "Deine Transaktionen sind davon nicht betroffen. Dies kann nicht rückgängig gemacht werden.",
+      "filtersCount": "{count} Filter | {count} Filter"
     }
   },
   "records": {

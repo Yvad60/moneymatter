@@ -7,20 +7,27 @@ import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { NotificationType, useNotificationCenter } from '@/components/notification-center';
 import { useAllCurrencies } from '@/composable/data-queries/currencies';
 import { CUSTOM_BREAKPOINTS, useWindowBreakpoints } from '@/composable/window-breakpoints';
-import type { InvestmentImportHolding, InvestmentImportTransaction } from '@bt/shared/types/investments';
+import { extractApiErrorMessage } from '@/js/errors';
+import {
+  type InvestmentImportHolding,
+  type InvestmentImportTransaction,
+  type InvestmentImportWarning,
+  isCashInCategory,
+} from '@bt/shared/types/investments';
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import { CircleDollarSignIcon, CoinsIcon, InfoIcon, Loader2Icon } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import HoldingCard from './holding-card.vue';
+import { formatInvestmentImportWarning } from './import-warning-message';
 
 const TOOLTIP_CLASS = 'max-w-xs';
 
 const props = defineProps<{
   portfolioId: string;
   initialHoldings: InvestmentImportHolding[];
-  initialWarnings: string[];
+  initialWarnings: InvestmentImportWarning[];
 }>();
 
 const emit = defineEmits<{
@@ -36,7 +43,9 @@ const isMobile = useWindowBreakpoints(CUSTOM_BREAKPOINTS.uiMobile);
 const holdings = ref<InvestmentImportHolding[]>(
   props.initialHoldings.map((h) => ({ ...h, transactions: h.transactions.map((tx) => ({ ...tx })) })),
 );
-const warnings = ref<string[]>([...props.initialWarnings]);
+const warningMessages = computed(() =>
+  props.initialWarnings.map((warning) => formatInvestmentImportWarning({ warning, t })),
+);
 const skipTempIds = ref<Set<string>>(new Set());
 const expandedHoldings = ref<Set<string>>(new Set());
 
@@ -71,6 +80,7 @@ function isTransactionValid(tx: InvestmentImportTransaction): boolean {
   // consideration. The source's BUY/SELL classification is authoritative.
   if (!Number.isFinite(price) || price < 0) return false;
   if (!Number.isFinite(fees) || fees < 0) return false;
+  if (isCashInCategory({ category: tx.side }) && fees > qty * price) return false;
   return tx.side === 'buy' || tx.side === 'sell' || tx.side === 'dividend';
 }
 
@@ -107,7 +117,7 @@ function computeAmount(tx: InvestmentImportTransaction): string {
   const price = Number(tx.price || '0');
   const fees = Number(tx.fees || '0');
   if (!Number.isFinite(qty) || !Number.isFinite(price) || !Number.isFinite(fees)) return '0';
-  return (qty * price + fees).toFixed(10);
+  return (isCashInCategory({ category: tx.side }) ? qty * price - fees : qty * price + fees).toFixed(10);
 }
 
 watch(
@@ -182,7 +192,7 @@ const execute = useMutation({
       if (result.failedTransactions > 0) {
         lines.push(t('investmentsImport.notifications.failedTransactions', { count: result.failedTransactions }));
       }
-      if (result.warnings && result.warnings.length > 0) lines.push(...result.warnings);
+      for (const warning of result.warnings ?? []) lines.push(formatInvestmentImportWarning({ warning, t }));
       addNotification({
         text: lines.join('\n'),
         type: NotificationType.warning,
@@ -193,7 +203,7 @@ const execute = useMutation({
   },
   onError: (err: Error) => {
     addNotification({
-      text: err.message || t('investmentsImport.notifications.importFailed'),
+      text: extractApiErrorMessage(err) || t('investmentsImport.notifications.importFailed'),
       type: NotificationType.error,
     });
   },
@@ -202,9 +212,9 @@ const execute = useMutation({
 
 <template>
   <div class="space-y-4">
-    <Callout v-if="warnings.length > 0" :title="$t('investmentsImport.review.warningsTitle')">
-      <ul class="list-inside list-disc space-y-0.5">
-        <li v-for="(w, i) in warnings" :key="i">{{ w }}</li>
+    <Callout v-if="warningMessages.length > 0" :title="$t('investmentsImport.review.warningsTitle')">
+      <ul class="list-disc space-y-0.5 pl-5">
+        <li v-for="(w, i) in warningMessages" :key="i">{{ w }}</li>
       </ul>
     </Callout>
 

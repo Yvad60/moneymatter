@@ -35,8 +35,12 @@
       </div>
 
       <p class="text-muted-foreground mt-4 text-xs">{{ $t('loans.detail.paidOff.cost.estimateFootnote') }}</p>
-      <p v-if="costSplit.interestPerDollarCents !== null" class="text-muted-foreground mt-1 text-xs">
-        {{ $t('loans.detail.paidOff.cost.effectiveCost', { cents: costSplit.interestPerDollarCents }) }}
+      <p v-if="costSplit.interestToPrincipalRatio !== null" class="text-muted-foreground mt-1 text-xs">
+        {{
+          $t('loans.detail.paidOff.cost.effectiveCost', {
+            percent: $n(costSplit.interestToPrincipalRatio, { style: 'percent', maximumFractionDigits: 1 }),
+          })
+        }}
       </p>
     </CardContent>
   </Card>

@@ -1,17 +1,28 @@
 <template>
   <div class="@container/statement-upload space-y-6">
-    <MultiFileDropzone
-      :model-value="dropzoneFiles"
-      accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain"
-      :max-size="MAX_FILE_SIZE"
-      :validator="validateExtension"
-      :disabled="isBusy"
-      :idle-text="$t('pages.statementParser.uploadExtract.clickOrDragStatements')"
-      @update:model-value="handleSelectionChange"
-      @error="(msg) => (dropzoneError = msg)"
-    >
-      <template #hint>{{ $t('pages.statementParser.uploadExtract.supportedFormats') }}</template>
-    </MultiFileDropzone>
+    <div class="space-y-3">
+      <MultiFileDropzone
+        :model-value="dropzoneFiles"
+        accept=".pdf,.csv,.txt,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,text/plain,image/jpeg,image/png,image/webp"
+        :validator="validateSizeAndExtension"
+        :disabled="isBusy"
+        :idle-text="$t('pages.statementParser.uploadExtract.clickOrDragStatements')"
+        @update:model-value="handleSelectionChange"
+        @error="(msg) => (dropzoneError = msg)"
+      >
+        <template #hint>{{ $t('pages.statementParser.uploadExtract.supportedFormats') }}</template>
+      </MultiFileDropzone>
+
+      <div v-if="canReadClipboard" class="flex items-center justify-end gap-3">
+        <span class="text-muted-foreground hidden text-xs [@media(hover:hover)]:inline">
+          {{ $t('pages.statementParser.uploadExtract.pasteShortcutHint', { shortcut: pasteShortcut }) }}
+        </span>
+        <Button variant="outline" size="sm" :disabled="isBusy" @click="handlePasteFromClipboard">
+          <ClipboardPasteIcon class="size-4" />
+          {{ $t('pages.statementParser.uploadExtract.pasteImageButton') }}
+        </Button>
+      </div>
+    </div>
 
     <Callout v-if="dropzoneError || fileError" variant="destructive">
       <p v-if="dropzoneError">{{ dropzoneError }}</p>
@@ -93,7 +104,7 @@
           total: store.fileEntries.length,
         })
       }}
-      <ul class="mt-1 list-inside list-disc">
+      <ul class="mt-1 list-disc pl-5">
         <li v-for="entry in store.estimateFailures" :key="entry.id">
           {{ entry.file.name }} — {{ entry.estimateError }}
         </li>
@@ -104,10 +115,7 @@
     </Callout>
 
     <div v-if="totals" class="space-y-4">
-      <CostEstimateWarnings
-        :estimated-input-tokens="totals.estimatedInputTokens"
-        :using-user-key="totals.usingUserKey"
-      />
+      <CostEstimateWarnings :estimated-input-tokens="totals.estimatedInputTokens" />
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="bg-muted rounded-lg p-3">
@@ -140,8 +148,12 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <Button class="flex-1" :disabled="isBusy || !pendingExtractionCount" @click="store.extractAll()">
+      <div class="flex flex-wrap items-center gap-3">
+        <Button
+          class="flex-1"
+          :disabled="isBusy || !pendingExtractionCount || isReached({ feature: AI_FEATURE.statementParsing })"
+          @click="store.extractAll()"
+        >
           <template v-if="store.isExtracting">
             <Loader2Icon class="size-4 animate-spin" />
             {{ extractionStatus }}
@@ -152,6 +164,7 @@
           </template>
         </Button>
         <ApiKeySourceBadge :using-user-key="totals.usingUserKey" />
+        <AiUsageBadge :feature="AI_FEATURE.statementParsing" />
       </div>
 
       <!-- Extraction Progress -->
@@ -187,12 +200,18 @@
           total: store.fileEntries.length,
         })
       }}
-      <ul class="mt-1 list-inside list-disc">
+      <ul class="mt-1 list-disc pl-5">
         <li v-for="entry in store.extractionFailures" :key="entry.id">
           {{ entry.file.name }} — {{ entry.extractionError }}
         </li>
       </ul>
-      <Button v-if="!store.isExtracting" variant="ghost" size="sm" class="mt-2" @click="handleRetryFailed">
+      <Button
+        v-if="!store.isExtracting && !isReached({ feature: AI_FEATURE.statementParsing })"
+        variant="ghost"
+        size="sm"
+        class="mt-2"
+        @click="handleRetryFailed"
+      >
         {{ $t('pages.statementParser.uploadExtract.retryFailed') }}
       </Button>
     </Callout>
@@ -245,35 +264,52 @@
 </template>
 
 <script setup lang="ts">
+import { logClientEvent } from '@/api/client-logs';
+import { formatBytes } from '@/common/utils/format-bytes';
+import { isMacPlatform } from '@/common/utils/platform';
 import AiEstimatedCost from '@/components/common/ai-estimated-cost.vue';
+import AiUsageBadge from '@/components/common/ai-usage/ai-usage-badge.vue';
 import ApiKeySourceBadge from '@/components/common/api-key-source-badge.vue';
 import { MultiFileDropzone } from '@/components/common/dropzone';
 import InputField from '@/components/fields/input-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Callout } from '@/components/lib/ui/callout';
+import { useAiAllowance } from '@/composable/use-ai-allowance';
 import {
   type StatementFileEntry,
   type StatementFileStatus,
   entryStatus,
   useStatementParserStore,
 } from '@/stores/statement-parser';
+import { AI_FEATURE } from '@bt/shared/types';
 import {
   AlertCircleIcon,
   ArrowRightIcon,
   CalculatorIcon,
   CheckCircleIcon,
+  ClipboardPasteIcon,
   FileTextIcon,
   Loader2Icon,
   SparklesIcon,
 } from '@lucide/vue';
+import { useEventListener } from '@vueuse/core';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { MAX_FILE_SIZE, SUPPORTED_EXTENSIONS, validateStatementFile } from '../utils/file-validation';
+import { imageFilesFromClipboardEvent, readClipboardImages } from '../utils/clipboard-images';
+import {
+  type FileRejectionReason,
+  MAX_FILE_SIZE,
+  SUPPORTED_EXTENSIONS,
+  isImageFile,
+  validateStatementFile,
+} from '../utils/file-validation';
+import { fitImageForUpload } from '../utils/fit-image-for-upload';
 import CostEstimateWarnings from './cost-estimate-warnings.vue';
 
 const { t } = useI18n();
 const store = useStatementParserStore();
+const { isReached } = useAiAllowance();
 
 /** Sync rejections from the dropzone (size/extension); `fileError` holds our async content checks. */
 const dropzoneError = ref('');
@@ -286,6 +322,8 @@ const isIngesting = ref(false);
 
 const dropzoneFiles = computed(() => store.fileEntries.map((entry) => entry.file));
 const isBusy = computed(() => isIngesting.value || store.isEstimating || store.isExtracting);
+const canReadClipboard = typeof navigator.clipboard?.read === 'function';
+const pasteShortcut = isMacPlatform() ? '⌘V' : 'Ctrl+V';
 const totals = computed(() => store.costEstimateTotals);
 
 const pendingEstimateCount = computed(() => store.pendingEstimateEntries.length);
@@ -406,13 +444,66 @@ function scheduleStatusMessages() {
   );
 }
 
-/** Sync extension gate for the dropzone; the async magic-byte check runs in `handleSelectionChange`. */
-function validateExtension(file: File): string | null {
+/** Sync size and extension gate for the dropzone; the async magic-byte check runs in `handleSelectionChange`. */
+function validateSizeAndExtension(file: File): string | null {
+  if (file.size > MAX_FILE_SIZE) {
+    logFileRejection({ file, reason: 'too_large' });
+    return t('fileDropzone.fileTooLargeNamed', { name: file.name, max: formatBytes({ bytes: MAX_FILE_SIZE }) });
+  }
   const ext = '.' + (file.name.toLowerCase().split('.').pop() || '');
   if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+    logFileRejection({ file, reason: 'unsupported_extension' });
     return t('pages.statementParser.uploadExtract.unsupportedFileNamed', { name: file.name });
   }
   return null;
+}
+
+function fileRejectionMessage({ file, reason }: { file: File; reason: FileRejectionReason }): string {
+  const name = file.name;
+  switch (reason) {
+    case 'unsupported_extension':
+      return t('pages.statementParser.uploadExtract.unsupportedFileNamed', { name });
+    case 'too_large':
+      return t('fileDropzone.fileTooLargeNamed', { name, max: formatBytes({ bytes: MAX_FILE_SIZE }) });
+    case 'invalid_pdf':
+      return t('pages.statementParser.uploadExtract.invalidPdfNamed', { name });
+    case 'invalid_image':
+      return t('pages.statementParser.uploadExtract.invalidImageNamed', { name });
+    case 'invalid_text':
+      return t('pages.statementParser.uploadExtract.invalidTextNamed', {
+        name,
+        ext: (name.split('.').pop() ?? '').toUpperCase(),
+      });
+    case 'unreadable_image':
+      return t('pages.statementParser.uploadExtract.unreadableImageNamed', { name });
+    case 'unreadable':
+      return t('pages.statementParser.uploadExtract.unreadableFiles', { files: name });
+    default:
+      reason satisfies never;
+      return t('pages.statementParser.uploadExtract.unsupportedFileNamed', { name });
+  }
+}
+
+function logFileRejection({
+  file,
+  reason,
+  headerHex,
+}: {
+  file: File;
+  reason: FileRejectionReason;
+  headerHex?: string;
+}) {
+  logClientEvent({
+    event: 'statement_import.file_rejected',
+    level: 'warn',
+    context: {
+      reason,
+      fileName: file.name.slice(0, 200),
+      sizeBytes: file.size,
+      mimeType: file.type.slice(0, 200) || null,
+      headerHex: headerHex ?? null,
+    },
+  });
 }
 
 async function handleSelectionChange(files: File[]) {
@@ -429,19 +520,69 @@ async function handleSelectionChange(files: File[]) {
         continue;
       }
       const validation = await validateStatementFile({ file });
-      if (validation.valid) accepted.push(file);
-      else rejections.push(`${file.name} — ${validation.error!}`);
+      if (!validation.valid) {
+        rejections.push(fileRejectionMessage({ file, reason: validation.reason }));
+        logFileRejection({ file, reason: validation.reason, headerHex: validation.headerHex });
+        continue;
+      }
+      if (!isImageFile({ file })) {
+        accepted.push(file);
+        continue;
+      }
+      try {
+        accepted.push(await fitImageForUpload({ file }));
+      } catch {
+        rejections.push(t('pages.statementParser.uploadExtract.unreadableImageNamed', { name: file.name }));
+        logFileRejection({ file, reason: 'unreadable_image' });
+      }
     }
 
     const { unreadable } = await store.setFiles({ files: accepted });
+    for (const file of unreadable) logFileRejection({ file, reason: 'unreadable' });
     if (unreadable.length) {
-      rejections.push(t('pages.statementParser.uploadExtract.unreadableFiles', { files: unreadable.join(', ') }));
+      rejections.push(
+        t('pages.statementParser.uploadExtract.unreadableFiles', {
+          files: unreadable.map((file) => file.name).join(', '),
+        }),
+      );
     }
 
     if (rejections.length) fileError.value = rejections.join(' · ');
   } finally {
     isIngesting.value = false;
   }
+}
+
+function isEditableTarget({ target }: { target: EventTarget | null }): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
+}
+
+function handlePaste(event: ClipboardEvent) {
+  if (isBusy.value || isEditableTarget({ target: event.target })) return;
+  const pasted = imageFilesFromClipboardEvent({ event });
+  if (!pasted.length) return;
+  event.preventDefault();
+  void handleSelectionChange([...dropzoneFiles.value, ...pasted]);
+}
+
+useEventListener(document, 'paste', handlePaste);
+
+async function handlePasteFromClipboard() {
+  let pasted: File[];
+  try {
+    pasted = await readClipboardImages();
+  } catch {
+    fileError.value = t('pages.statementParser.uploadExtract.clipboardReadFailed');
+    return;
+  }
+  if (!pasted.length) {
+    fileError.value = t('pages.statementParser.uploadExtract.clipboardNoImage');
+    return;
+  }
+  await handleSelectionChange([...dropzoneFiles.value, ...pasted]);
 }
 
 async function handlePasswordSubmit({ id }: { id: string }) {

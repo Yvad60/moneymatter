@@ -1,5 +1,6 @@
 import { BANK_PROVIDER_TYPE, type RecordId } from '@bt/shared/types';
-import { LockedError } from '@js/errors';
+import { type PsuContext, requestContext } from '@common/request-context';
+import { LockedError, ServiceUnavailableError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import { SentryTraceData, withQueueProcessSpan, withQueuePublishSpan } from '@js/utils/sentry';
 import { Job, Queue, Worker } from 'bullmq';
@@ -13,6 +14,7 @@ interface AccountSyncJobData extends SentryTraceData {
   connectionId: RecordId;
   providerType: BANK_PROVIDER_TYPE;
   accountIds: RecordId[];
+  psu?: PsuContext;
 }
 
 // Mirrors the resilient settings of the main redisClient. BullMQ requires
@@ -92,10 +94,21 @@ async function processAccountSync({
     const message =
       error instanceof LockedError ? 'A sync for this account is already running.' : (error as Error).message;
 
-    logger.error({
-      message: `[Account Sync Worker] Transaction sync failed for accounts ${accountIds.join(', ')}`,
-      error: error as Error,
-    });
+    if (error instanceof ServiceUnavailableError) {
+      // An unreachable bank provider is an expected outage: the accounts are marked FAILED
+      // below and the next scheduled sync retries, so it stays out of Sentry.
+      logger.info('[Account Sync Worker] Bank provider unavailable, sync skipped', {
+        accountIds,
+        connectionId,
+        providerType,
+        reason: message,
+      });
+    } else {
+      logger.error({
+        message: `[Account Sync Worker] Transaction sync failed for accounts ${accountIds.join(', ')}`,
+        error: error as Error,
+      });
+    }
     try {
       await markAccountsFailed({ accountIds, message, userId });
     } catch (statusError) {
@@ -111,7 +124,10 @@ async function processAccountSync({
 
 export const accountSyncWorker = new Worker<AccountSyncJobData>(
   queueName,
-  (job: Job<AccountSyncJobData>) => withQueueProcessSpan({ queueName, job, fn: () => processAccountSync(job.data) }),
+  (job: Job<AccountSyncJobData>) =>
+    requestContext.run({ locale: 'en', psu: job.data.psu }, () =>
+      withQueueProcessSpan({ queueName, job, fn: () => processAccountSync(job.data) }),
+    ),
   {
     connection: connectionOptions,
     concurrency: 5,
@@ -120,7 +136,11 @@ export const accountSyncWorker = new Worker<AccountSyncJobData>(
 );
 
 accountSyncWorker.on('failed', async (job, err) => {
-  logger.error({ message: `[Account Sync Worker] Job ${job?.id} failed`, error: err });
+  if (err instanceof ServiceUnavailableError) {
+    logger.info('[Account Sync Worker] Job failed: bank provider unavailable', { jobId: job?.id });
+  } else {
+    logger.error({ message: `[Account Sync Worker] Job ${job?.id} failed`, error: err });
+  }
 
   if (!job) return;
 
@@ -152,7 +172,13 @@ const addSyncJob = async ({
   accountIds: RecordId[];
   jobId: string;
 }): Promise<void> => {
-  const data: AccountSyncJobData = { userId, connectionId, providerType, accountIds };
+  const data: AccountSyncJobData = {
+    userId,
+    connectionId,
+    providerType,
+    accountIds,
+    psu: requestContext.getContext()?.psu,
+  };
 
   await withQueuePublishSpan({
     queueName,

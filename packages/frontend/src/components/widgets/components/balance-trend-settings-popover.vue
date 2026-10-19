@@ -204,7 +204,9 @@
                 <InputField
                   v-model="form.absoluteThreshold"
                   type="number"
-                  :label="t('dashboard.widgets.balanceTrend.spikeSettings.absoluteThreshold')"
+                  :label="
+                    t('dashboard.widgets.balanceTrend.spikeSettings.absoluteThreshold', { symbol: getCurrencySymbol() })
+                  "
                   :error-message="getFieldErrorMessage('form.absoluteThreshold')"
                   @blur="touchField('form.absoluteThreshold')"
                 >
@@ -265,6 +267,7 @@ import { readIncludePlanned, useIncludePlannedSaveError } from '@/components/wid
 import { SPIKE_DEFAULTS } from '@/composable/charts/use-spike-detection';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
 import { useFormValidation } from '@/composable/form-validator';
+import { useFormatCurrency } from '@/composable/formatters';
 import { between, integer, required } from '@/js/helpers/validators';
 import { ArrowLeftIcon, ChevronRightIcon, InfoIcon, SettingsIcon } from '@lucide/vue';
 import type { Ref } from 'vue';
@@ -277,6 +280,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
+const { getCurrencySymbol } = useFormatCurrency();
 const widgetConfigRef = inject<Ref<DashboardWidgetConfig> | null>('dashboard-widget-config', null);
 const { data: userSettingsData, mutateAsync: saveUserSettings } = useUserSettings();
 const notifyIncludePlannedSaveError = useIncludePlannedSaveError();

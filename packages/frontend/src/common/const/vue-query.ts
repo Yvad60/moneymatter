@@ -32,9 +32,12 @@ export const VUE_QUERY_GLOBAL_PREFIXES = Object.freeze({
 const { transactionChange, securityPriceChange, bankConnectionChange, ventureChange, notifications } =
   VUE_QUERY_GLOBAL_PREFIXES;
 
+const budgetPlans = [transactionChange, 'budget-plans'] as const;
+
 export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   // auth
   signupsOpen: ['signups-open'] as const,
+  authFeatures: ['auth-features'] as const,
   // currencies
   allCurrencies: [VUE_QUERY_GLOBAL_PREFIXES.currencies, 'all'] as const,
   userCurrencies: [VUE_QUERY_GLOBAL_PREFIXES.currencies, 'user'] as const,
@@ -80,9 +83,23 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   widgetCashFlow: [transactionChange, 'widget-cash-flow'] as const,
   widgetCashFlowPrev: [transactionChange, 'widget-cash-flow-prev'] as const,
   widgetCashFlowTrend: [transactionChange, 'widget-cash-flow-trend'] as const,
+  widgetTaxes: [transactionChange, 'widget-taxes'] as const,
 
   // widget net worth
   widgetNetWorth: [transactionChange, securityPriceChange, ventureChange, 'widget-net-worth'] as const,
+  widgetAssetsLiabilities: [
+    transactionChange,
+    securityPriceChange,
+    ventureChange,
+    'widget-assets-liabilities',
+  ] as const,
+
+  // widget cash & accounts
+  widgetCashAccountsPrevBalances: [transactionChange, 'widget-cash-accounts-prev-balances'] as const,
+  widgetCashAccountsExpenses: [transactionChange, 'widget-cash-accounts-expenses'] as const,
+
+  // widget spending pace
+  widgetSpendingPace: [transactionChange, 'widget-spending-pace'] as const,
 
   // analytics
   analyticsBalanceHistoryTrend: [
@@ -117,6 +134,8 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   earliestTransactionDate: [transactionChange, 'earliest-transaction-date'] as const,
 
   recordsPageRecordsList: [transactionChange, 'records-page-records-list'] as const,
+  recordsPageRecordsSummary: [transactionChange, 'records-page-records-summary'] as const,
+  savedTransactionViewCount: [transactionChange, 'saved-transaction-view-count'] as const,
 
   transactionAttachments: ['transaction-attachments'] as const,
 
@@ -135,6 +154,17 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
 
   budgetsList: ['budgets-list'] as const,
   budgetsListItem: ['budgets-list-item'] as const,
+
+  budgetPlans,
+  budgetPlansList: [...budgetPlans, 'list'] as const,
+  // append the planId (and, for a period view, the periodId) when using
+  budgetPlan: [...budgetPlans, 'plan'] as const,
+  budgetPlanPeriods: [...budgetPlans, 'periods'] as const,
+  budgetPlanPeriodView: [...budgetPlans, 'period-view'] as const,
+  budgetPlanTrends: [...budgetPlans, 'trends'] as const,
+  budgetPlanScheduled: [...budgetPlans, 'scheduled'] as const,
+  budgetSuggestionContext: [...budgetPlans, 'suggestion-context'] as const,
+
   budgetTransactionList: [transactionChange, 'budget-transaction-list'] as const,
   budgetAddingTransactionList: [transactionChange, 'budget-adding-transaction-list'] as const,
   budgetStats: [transactionChange, 'budget-stats'] as const,
@@ -272,4 +302,5 @@ export const VUE_QUERY_CACHE_KEYS = Object.freeze({
   ventureDealDetails: [ventureChange, 'venture-deal-details'] as const,
   ventureDealMetrics: [ventureChange, 'venture-deal-metrics'] as const,
   ventureDealEvents: [ventureChange, 'venture-deal-events'] as const,
+  transactionVentureLink: [transactionChange, ventureChange, 'transaction-venture-link'] as const,
 });

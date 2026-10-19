@@ -5,7 +5,10 @@ import type {
   FireSettings,
   PAYMENT_TYPES,
   TransactionOptionalField,
-  endpointsTypes,
+  SidebarSectionsConfig,
+  SavedPivotView,
+  SavedTransactionView,
+  CurrencyDisplayPreference,
 } from '@bt/shared/types';
 
 export interface DashboardWidgetConfig {
@@ -15,12 +18,12 @@ export interface DashboardWidgetConfig {
   config?: Record<string, unknown>;
 }
 
-/**
- * Per-section visibility for the sidebar's Accounts panel. Re-exported from the shared contract
- * so it stays in lockstep with the backend Zod schema (`ZodSidebarSectionsSchema`), which is
- * compile-time asserted against it (`SidebarSectionsSchemaIsInSync`).
- */
-export type SidebarSectionsConfig = endpointsTypes.SidebarSectionsConfig;
+/** Optional links under the sidebar's Accounts nav group. Each is visible when unset. */
+export interface SidebarNavConfig {
+  loans?: boolean;
+  investments?: boolean;
+  venture?: boolean;
+}
 
 export type TransactionsView = 'list' | 'table';
 
@@ -40,6 +43,8 @@ interface TransactionsTableSettings {
   extraFilters?: string[];
   /** Shades non-editable cells on every row instead of only the hovered one. */
   alwaysShowLockedCells?: boolean;
+  /** User-resized columns. Columns absent here keep their default width and flex to fill spare space. */
+  columnWidths?: { id: string; widthPx: number }[];
 }
 
 interface TransactionsListSettings {
@@ -55,6 +60,8 @@ interface TransactionFormSettings {
   optionalFields?: TransactionOptionalField[];
   /** Whether the transaction form may load map tiles and address search from OpenStreetMap. */
   mapPicker?: boolean;
+  /** Whether the category picker lists only categories matching the transaction type. On when unset. */
+  filterCategoriesByType?: boolean;
   /** Payment type preselected on new transactions. Credit card when unset. */
   defaultPaymentType?: PAYMENT_TYPES;
 }
@@ -78,14 +85,6 @@ export interface SubscriptionsSettings {
    *  still lets the user override it per subscription. */
   defaultAutoRecord?: boolean;
 }
-
-/**
- * A saved Pivot Report view — the full configuration a user pinned so they can reload the same
- * cross-tab later. The shape is the shared contract the backend Zod schema
- * (`ZodSavedPivotViewConfigSchema`) is asserted against, so the two ends can't drift.
- */
-export type SavedPivotViewConfig = endpointsTypes.SavedPivotViewConfig;
-export type SavedPivotView = endpointsTypes.SavedPivotView;
 
 export interface UserSettingsSchema {
   locale?: SupportedLocale;
@@ -114,13 +113,17 @@ export interface UserSettingsSchema {
   matchTransfersWithManualAccounts?: boolean;
   /** Store bank transactions before they are booked. Off when unset. */
   importPendingBankTransactions?: boolean;
+  /** UTC hours of the scheduled bank sync, at most two. 06:00 and 18:00 when unset. */
+  bankSyncHoursUtc?: number[];
   sidebarSections?: SidebarSectionsConfig;
+  sidebarNav?: SidebarNavConfig;
   payeeExtractionUsesDescription?: boolean;
   /** Transactions sharing a raw merchant name before a Payee is auto-created. Defaults to 2. */
   payeePromotionThreshold?: 1 | 2 | 3;
   ui?: UiSettings;
   subscriptions?: SubscriptionsSettings;
   savedPivotViews?: SavedPivotView[];
+  savedTransactionViews?: SavedTransactionView[];
   /** Header "Support" (donation) button visibility. Defaults to visible when unset. */
   showSupportButton?: boolean;
   /**
@@ -138,7 +141,18 @@ export interface UserSettingsSchema {
    * expense. Subcategories inherit from their parent. Empty or unset leaves cash flow unchanged.
    */
   savingsCategoryIds?: string[];
-  currencyDisplay?: endpointsTypes.CurrencyDisplayPreference;
+  /**
+   * Categories whose spending is a tax. The money-flow chart shows it as its own branch instead
+   * of as an expense. Subcategories inherit from their parent.
+   * A category also covered by `savingsCategoryIds` counts as savings.
+   */
+  taxCategoryIds?: string[];
+  /**
+   * Categories listed in the picker for income transactions; the rest are listed for expenses.
+   * Subcategories inherit from their parent. Empty or unset lists every category for both.
+   */
+  incomeCategoryIds?: string[];
+  currencyDisplay?: CurrencyDisplayPreference;
   fire?: FireSettings;
 }
 

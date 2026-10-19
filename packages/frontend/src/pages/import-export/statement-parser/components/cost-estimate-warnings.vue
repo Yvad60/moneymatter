@@ -4,29 +4,16 @@
     <Callout v-if="tokenWarningLevel" :variant="tokenCalloutVariant" :title="tokenWarningTitle">
       <p class="opacity-90">{{ tokenWarningDescription }}</p>
     </Callout>
-
-    <!-- Free API access warning -->
-    <Callout v-if="!usingUserKey" variant="info" :icon="InfoIcon">
-      <p class="text-warning-text">
-        {{ $t('pages.statementParser.uploadExtract.freeApiWarning') }}
-      </p>
-      <router-link :to="{ name: ROUTES_NAMES.settingsAiModels }" class="text-primary-text text-sm hover:underline">
-        {{ $t('pages.statementParser.uploadExtract.addApiKeyLink') }}
-      </router-link>
-    </Callout>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Callout } from '@/components/lib/ui/callout';
-import { ROUTES_NAMES } from '@/routes';
-import { InfoIcon } from '@lucide/vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   estimatedInputTokens: number;
-  usingUserKey: boolean;
 }>();
 
 const { t } = useI18n();

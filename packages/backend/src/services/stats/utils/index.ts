@@ -1,4 +1,4 @@
-import { endpointsTypes } from '@bt/shared/types';
+import type { CashFlowGranularity, NetWorthHistoryGranularity, PivotGranularity } from '@bt/shared/types';
 import {
   addDays,
   addMonths,
@@ -13,6 +13,7 @@ import {
   isBefore,
   max,
   min,
+  startOfDay,
   startOfMonth,
   startOfQuarter,
   startOfWeek,
@@ -73,10 +74,7 @@ interface GranularitySpec {
   advance: (periodStart: Date) => Date;
 }
 
-type StatsGranularity =
-  | endpointsTypes.PivotGranularity
-  | endpointsTypes.CashFlowGranularity
-  | endpointsTypes.NetWorthHistoryGranularity;
+type StatsGranularity = PivotGranularity | CashFlowGranularity | NetWorthHistoryGranularity;
 
 // Every granularity used by any stats report. `biweekly` (cash-flow only) is a 2-week window, so
 // its period end is the day before the start of the week two ahead.
@@ -94,6 +92,7 @@ const GRANULARITY_SPECS: Record<StatsGranularity, GranularitySpec> = {
     endOf: (date) => endOfDay(addDays(addWeeks(date, 2), -1)),
     advance: (date) => addWeeks(date, 2),
   },
+  daily: { startOf: startOfDay, endOf: endOfDay, advance: (date) => addDays(date, 1) },
 };
 
 /**

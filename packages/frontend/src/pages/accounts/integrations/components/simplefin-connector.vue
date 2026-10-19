@@ -3,6 +3,28 @@
     <!-- Step 1: Enter Setup Token -->
     <template v-if="currentStep === 1">
       <div class="space-y-4">
+        <Callout>
+          <ResponsivePopover
+            :title="t('pages.integrations.simplefin.brokerageNotice.title')"
+            align="start"
+            content-class="w-90 max-w-[calc(100vw-2rem)]"
+          >
+            <template #trigger>
+              <UiButton variant="link" class="inline h-auto p-0 text-left font-medium whitespace-normal text-inherit">
+                {{ t('pages.integrations.simplefin.brokerageNotice.trigger')
+                }}<InfoIcon class="ml-1 inline size-4 align-text-bottom" />
+              </UiButton>
+            </template>
+
+            <h3 class="mb-2 font-semibold">{{ t('pages.integrations.simplefin.brokerageNotice.title') }}</h3>
+            <div class="text-muted-foreground space-y-2 text-sm">
+              <p>{{ t('pages.integrations.simplefin.brokerageNotice.supported') }}</p>
+              <p>{{ t('pages.integrations.simplefin.brokerageNotice.unsupported') }}</p>
+              <p>{{ t('pages.integrations.simplefin.brokerageNotice.tryAnyway') }}</p>
+            </div>
+          </ResponsivePopover>
+        </Callout>
+
         <div>
           <InputField
             v-model="setupToken"
@@ -114,6 +136,7 @@ import {
   syncSelectedAccounts,
 } from '@/api/bank-data-providers';
 import { VUE_QUERY_GLOBAL_PREFIXES } from '@/common/const';
+import ResponsivePopover from '@/components/common/responsive-popover.vue';
 import { DemoRestricted } from '@/components/demo';
 import ExternalLink from '@/components/external-link.vue';
 import InputField from '@/components/fields/input-field.vue';

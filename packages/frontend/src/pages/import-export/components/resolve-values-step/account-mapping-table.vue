@@ -30,12 +30,13 @@ import type {
   BudgetBakersWalletAccountMappingValue,
   MsMoneyAccountMappingValue,
 } from '@bt/shared/types';
-import { computed } from 'vue';
+import { computed, useSlots } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import QuickActionsToolbar, { type QuickAction } from './quick-action-toolbar.vue';
 
 const { t } = useI18n();
+const slots = useSlots();
 
 /** Source account discovered upstream. `transactionCount` is informational. */
 interface SourceItem {
@@ -43,6 +44,8 @@ interface SourceItem {
   /** Stable mapping key when the display name is not unique. Defaults to `name`. */
   mappingKey?: string;
   currency: string;
+  /** The source carries no currency, so the parent may offer a picker via `currency-cell`. */
+  currencyDefaulted?: boolean;
   transactionCount?: number;
 }
 
@@ -100,11 +103,17 @@ const actionOptions = computed<OptionItem<AccountAction>[]>(() => [
 ]);
 
 // ---- Columns (status 36px, name 1fr, currency 80px, action 160px, target 1fr) ----
+// A `currency-cell` slot holds a select, which needs a wider track and the control card layout.
 
 const columns = computed<MappingTableColumn[]>(() => [
   { key: 'status', label: '', width: '36px', hideLabelInCard: true, cardHeader: true },
   { key: 'name', label: t('importShared.columns.sourceName'), width: 'minmax(0,1fr)', cardHeader: true },
-  { key: 'currency', label: t('importShared.columns.currency'), width: '80px', cardValue: 'inline' },
+  {
+    key: 'currency',
+    label: t('importShared.columns.currency'),
+    width: slots['currency-cell'] ? '104px' : '80px',
+    cardValue: slots['currency-cell'] ? 'control' : 'inline',
+  },
   // self-end: a labeled target field is taller than the select, so bottom-align the two controls.
   {
     key: 'action',
@@ -221,7 +230,9 @@ function onTargetChange({ name, account }: { name: string; account: AccountModel
       </template>
 
       <template #cell:currency="{ item }">
-        <span class="font-semibold">{{ item.currency || '—' }}</span>
+        <slot name="currency-cell" :item="item">
+          <span class="font-semibold">{{ item.currency || '—' }}</span>
+        </slot>
       </template>
 
       <template #cell:action="{ item }">

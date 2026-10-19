@@ -1,14 +1,12 @@
-import { getDefaultValue } from '@common/helpers/get-default-value-from-zod-schema';
 import { describe, expect, it } from '@jest/globals';
-import { SettingsSchema, ZodSettingsSchema } from '@models/user-settings.model';
+import { DEFAULT_SETTINGS, SettingsSchema } from '@models/user-settings.model';
 import * as helpers from '@tests/helpers';
 
 describe('Update user settings', () => {
-  it('returns default value when no settings were ever set', async () => {
-    const useSettings = await helpers.getUserSettings({ raw: true });
-    const defaultUserSettingsValue = getDefaultValue(ZodSettingsSchema);
+  it('returns the seeded defaults before any update', async () => {
+    const settings = await helpers.getUserSettings({ raw: true });
 
-    expect(useSettings).toStrictEqual(defaultUserSettingsValue);
+    expect(settings).toStrictEqual({ ...DEFAULT_SETTINGS, incomeCategoryIds: [expect.any(String)] });
   });
 
   it('updates empty settings and returns new value right away', async () => {
@@ -21,8 +19,8 @@ describe('Update user settings', () => {
       settings: newSettings,
     });
 
-    expect(updatedUserSettings).toStrictEqual(newSettings);
-    expect(await helpers.getUserSettings({ raw: true })).toStrictEqual(newSettings);
+    expect(updatedUserSettings).toMatchObject(newSettings);
+    expect(await helpers.getUserSettings({ raw: true })).toMatchObject(newSettings);
 
     const overridingSettings: SettingsSchema = { locale: 'uk' };
 
@@ -31,8 +29,8 @@ describe('Update user settings', () => {
       settings: overridingSettings,
     });
 
-    expect(overridden).toStrictEqual(overridingSettings);
-    expect(await helpers.getUserSettings({ raw: true })).toStrictEqual(overridingSettings);
+    expect(overridden).toMatchObject(overridingSettings);
+    expect(await helpers.getUserSettings({ raw: true })).toMatchObject(overridingSettings);
   });
 
   it('saves every accepted widget config shape', async () => {
@@ -64,7 +62,7 @@ describe('Update user settings', () => {
       settings: newSettings,
     });
 
-    expect(updatedSettings).toStrictEqual(newSettings);
+    expect(updatedSettings).toMatchObject(newSettings);
     expect(updatedSettings.dashboard?.widgets[1]?.config).toBeUndefined();
 
     const fetchedSettings = await helpers.getUserSettings({ raw: true });
@@ -98,7 +96,7 @@ describe('Update user settings', () => {
         settings: newSettings,
       });
 
-      expect(updatedSettings).toStrictEqual(newSettings);
+      expect(updatedSettings).toMatchObject(newSettings);
 
       // Verify persistence
       const fetched = await helpers.getUserSettings({ raw: true });
@@ -134,7 +132,7 @@ describe('Update user settings', () => {
         settings: newSettings,
       });
 
-      expect(updatedSettings).toStrictEqual(newSettings);
+      expect(updatedSettings).toMatchObject(newSettings);
 
       // Also test upper boundaries
       const upperSettings: SettingsSchema = {
@@ -160,7 +158,7 @@ describe('Update user settings', () => {
         settings: upperSettings,
       });
 
-      expect(upperResult).toStrictEqual(upperSettings);
+      expect(upperResult).toMatchObject(upperSettings);
     });
 
     it('rejects out-of-range spike config values', async () => {

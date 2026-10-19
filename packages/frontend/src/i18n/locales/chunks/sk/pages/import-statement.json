@@ -33,6 +33,11 @@
         "acrossFiles": "naprieč {count} súbormi",
         "currencyConflict": "Vybrané výpisy uvádzajú rôzne meny ({currencies}). Všetky sa importujú do jedného účtu, v mene tohto účtu.",
         "unsupportedFileNamed": "{name} nie je súbor PDF, CSV ani TXT",
+        "unreadableImageNamed": "{name} could not be read as an image",
+        "pasteImageButton": "Paste image",
+        "pasteShortcutHint": "or press {shortcut}",
+        "clipboardNoImage": "No image found in the clipboard.",
+        "clipboardReadFailed": "Couldn't read the clipboard. Allow clipboard access or paste with the keyboard shortcut.",
         "unreadableFiles": "Nepodarilo sa prečítať: {files}",
         "fileStatus": {
           "pending": "Neanalyzované",
@@ -40,10 +45,10 @@
           "estimated": "Pripravené",
           "estimateFailed": "Nepodarilo sa analyzovať",
           "extracting": "Spracúvanie...",
-          "extracted": "{count} transakcia | {count} transakcií",
+          "extracted": "{count} transakcia | {count} transakcie | {count} transakcií",
           "failed": "Zlyhalo"
         },
-        "analyzeButton": "Analyzovať súbor | Analyzovať súbory ({count})",
+        "analyzeButton": "Analyzovať súbor | Analyzovať {count} súborov | Analyzovať {count} súbory",
         "tryAgain": "Skúsiť znova",
         "modelLabel": "Model",
         "estimatedCostLabel": "Odhadovaná cena",
@@ -150,7 +155,7 @@
         "transactionCount": "(Transakcie: {count})",
         "duplicateCheckFailed": "Tento výpis sa nepodarilo porovnať s vašimi existujúcimi transakciami, preto počet duplicít nižšie nie je dostupný. Pred importom si zoznam skontrolujte."
       },
-      "droppedRowsWarning": "{count} riadok z odpovede AI sa nepodarilo prečítať a bol preskočený. Počet importovaných nižšie môže byť nižší než v súbore. | {count} riadkov z odpovede AI sa nepodarilo prečítať a boli preskočené. Počet importovaných nižšie môže byť nižší než v súbore.",
+      "droppedRowsWarning": "{count} riadok z odpovede AI sa nepodarilo prečítať a bol preskočený. Počet importovaných nižšie môže byť nižší než v súbore. | {count} riadky z odpovede AI sa nepodarilo prečítať a boli preskočené. Počet importovaných nižšie môže byť nižší než v súbore. | {count} riadkov z odpovede AI sa nepodarilo prečítať a boli preskočené. Počet importovaných nižšie môže byť nižší než v súbore.",
       "importResults": {
         "readyTitle": "Pripravené na import",
         "readyDescription": "Skontrolujte súhrn nižšie a pokračujte kliknutím na „Importovať transakcie\".",

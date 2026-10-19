@@ -263,9 +263,9 @@ const toggleExpand = (index: number) => {
 
 // --- Column definitions ---
 const invalidRowsColumns: MappingTableColumn[] = [
-  { key: 'row', label: t('pages.importExport.csvImport.review.columnHeaders.row'), width: '48px' },
-  { key: 'problem', label: t('pages.importExport.csvImport.review.columnHeaders.problem'), width: 'minmax(0,1.4fr)' },
-  { key: 'data', label: t('pages.importExport.csvImport.review.columnHeaders.data'), width: 'minmax(0,2fr)' },
+  { key: 'row', label: t('pages.importExport.csvImport.review.rowNumber'), width: '48px' },
+  { key: 'problem', label: t('pages.importExport.csvImport.review.errors'), width: 'minmax(0,1.4fr)' },
+  { key: 'data', label: t('pages.importExport.csvImport.review.rawData'), width: 'minmax(0,2fr)' },
 ];
 
 /**

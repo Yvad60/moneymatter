@@ -7,12 +7,14 @@ import {
   getStatementImportStatus,
 } from '@/api/import-export';
 import { loadTransactions } from '@/api/transactions';
+import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
 import { fileToBase64 } from '@/common/utils/file-to-base64';
 import { useImportJobProgress } from '@/composable/use-import-job-progress';
 import { useWizardSteps } from '@/composable/use-wizard-steps';
 import { i18n } from '@/i18n';
-import { isApiErrorWithCode } from '@/js/errors';
+import { extractApiErrorMessage, isApiErrorWithCode } from '@/js/errors';
 import { trackAnalyticsEvent } from '@/lib/posthog';
+import { importJobFailureMessage } from '@/pages/import-export/utils/import-error-message';
 import {
   API_ERROR_CODES,
   type AccountModel,
@@ -24,9 +26,10 @@ import {
   type StatementExtractionResult,
   type StatementImportProgress,
   type StatementTextExtractionErrorCode,
+  type TransactionModel,
 } from '@bt/shared/types';
-import type { TransactionModel } from '@bt/shared/types/db-models';
 import { useQueryClient } from '@tanstack/vue-query';
+import { uniqBy } from 'lodash-es';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
@@ -162,7 +165,12 @@ export const useStatementParserStore = defineStore('statementParser', () => {
     if (jobProgress.progress.value?.status === 'failed') {
       // A failed job with an empty message would read as "no error" and drop the
       // user back on the ready-to-import screen with a live Import button.
-      return jobProgress.progress.value.error || i18n.global.t('pages.statementParser.importResults.failedTitle');
+      const { failure, error } = jobProgress.progress.value;
+      return (
+        importJobFailureMessage({ failure, t: i18n.global.t }) ||
+        error ||
+        i18n.global.t('pages.statementParser.importResults.failedTitle')
+      );
     }
     return jobProgress.executeError.value;
   });
@@ -340,8 +348,10 @@ export const useStatementParserStore = defineStore('statementParser', () => {
   }
 
   // Entries for files still selected are kept as-is so their paid-for estimate/extraction survives.
-  // Returns names of files that could not be read; the store emits no user-facing strings.
-  async function setFiles({ files }: { files: File[] }): Promise<{ unreadable: string[] }> {
+  // Returns the files that could not be read; the store emits no user-facing strings.
+  async function setFiles({ files: selected }: { files: File[] }): Promise<{ unreadable: File[] }> {
+    // An image fitted for upload again yields the same key as its stored copy; keeping both double-imports it.
+    const files = uniqBy(selected, (file) => fileKey({ file }));
     const existing = new Map(fileEntries.value.map((entry) => [entry.id, entry]));
 
     // The upload step re-validates the same list on every dropzone emit; resetting
@@ -352,7 +362,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
     if (unchanged) return { unreadable: [] };
 
     const next: StatementFileEntry[] = [];
-    const unreadable: string[] = [];
+    const unreadable: File[] = [];
 
     for (const file of files) {
       const id = fileKey({ file });
@@ -375,7 +385,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
           extractionError: null,
         });
       } catch {
-        unreadable.push(file.name);
+        unreadable.push(file);
       }
     }
 
@@ -415,7 +425,10 @@ export const useStatementParserStore = defineStore('statementParser', () => {
 
           if ('success' in result && (result as StatementCostEstimateFailure).success === false) {
             const failure = result as StatementCostEstimateFailure;
-            entry.estimateError = failure.error?.message || failure.suggestion || 'Failed to analyze file';
+            entry.estimateError =
+              failure.error?.message ||
+              failure.suggestion ||
+              i18n.global.t('pages.statementParser.errors.estimateFailed');
             entry.estimateErrorCode = failure.textExtraction.success
               ? null
               : (failure.textExtraction.errorCode ?? null);
@@ -426,7 +439,8 @@ export const useStatementParserStore = defineStore('statementParser', () => {
             entry.estimateErrorCode = null;
           }
         } catch (error) {
-          entry.estimateError = error instanceof Error ? error.message : 'Failed to estimate cost';
+          entry.estimateError =
+            extractApiErrorMessage(error) || i18n.global.t('pages.statementParser.errors.estimateFailed');
           entry.estimateErrorCode = null;
         }
       }
@@ -453,6 +467,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
           entry.extraction = await extractStatementTransactions({
             fileBase64: entry.fileBase64,
             password: entry.password ?? undefined,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           });
           entry.extractionError = null;
           extractedSomething = true;
@@ -462,12 +477,14 @@ export const useStatementParserStore = defineStore('statementParser', () => {
             properties: { feature: 'statement_parser' },
           });
         } catch (error) {
-          entry.extractionError = error instanceof Error ? error.message : 'Failed to extract transactions';
+          entry.extractionError =
+            extractApiErrorMessage(error) || i18n.global.t('pages.statementParser.errors.extractFailed');
         }
       }
     } finally {
       extractingFileId.value = null;
       isExtracting.value = false;
+      queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.aiFeaturesStatus });
     }
 
     // A newly extracted file re-bases every later merged index, so duplicates,
@@ -574,7 +591,8 @@ export const useStatementParserStore = defineStore('statementParser', () => {
     } catch (error) {
       // A missing duplicate check does not block the import, so record the reason
       // instead of throwing.
-      duplicateDetectionError.value = error instanceof Error ? error.message : 'Failed to check for duplicates';
+      duplicateDetectionError.value =
+        extractApiErrorMessage(error) || i18n.global.t('pages.statementParser.transactionReview.duplicateCheckFailed');
     } finally {
       isDetectingDuplicates.value = false;
     }
@@ -620,6 +638,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
         accountId: selectedAccount.value.id,
         transactions: mergedTransactions.value,
         skipIndices: skipIndices.value,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       jobProgress.start({
@@ -637,7 +656,7 @@ export const useStatementParserStore = defineStore('statementParser', () => {
         });
         return;
       }
-      importError.value = error instanceof Error ? error.message : 'Failed to import transactions';
+      importError.value = extractApiErrorMessage(error) || i18n.global.t('pages.statementParser.errors.importFailed');
     } finally {
       isEnqueuing.value = false;
     }

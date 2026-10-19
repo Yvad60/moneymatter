@@ -3,12 +3,17 @@
  */
 import { auth } from '@config/auth';
 import { createController } from '@controllers/helpers/controller-factory';
+import { isEmailEnabled } from '@services/email';
 import { areSignupsOpen } from '@services/user/signups-open.service';
 import { fromNodeHeaders } from 'better-auth/node';
 import { z } from 'zod';
 
 export const signupsOpen = createController(z.object({}), async () => {
   return { data: { signupsOpen: await areSignupsOpen() } };
+});
+
+export const authFeatures = createController(z.object({}), async () => {
+  return { data: { emailEnabled: isEmailEnabled } };
 });
 
 /**

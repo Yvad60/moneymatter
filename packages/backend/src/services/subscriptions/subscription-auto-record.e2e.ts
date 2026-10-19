@@ -1,10 +1,12 @@
 import {
+  ACCOUNT_TYPES,
   SUBSCRIPTION_FREQUENCIES,
   SUBSCRIPTION_PERIOD_STATUSES,
   SUBSCRIPTION_TYPES,
   TRANSACTION_TYPES,
 } from '@bt/shared/types';
 import { describe, expect, it } from '@jest/globals';
+import { ERROR_CODES } from '@js/errors';
 import SubscriptionPeriods from '@models/subscription-periods.model';
 import Subscriptions from '@models/subscriptions.model';
 import { redisClient } from '@root/redis-client';
@@ -294,6 +296,33 @@ describe('Subscription auto-record cron', () => {
       });
       expect(addRules.statusCode).toBe(422);
     }, 60_000);
+
+    it('rejects autoRecord on a bank-connected account', async () => {
+      const bankAccount = await helpers.createAccount({
+        payload: { ...helpers.buildAccountPayload(), type: ACCOUNT_TYPES.monobank },
+        raw: true,
+      });
+      const basePayload = {
+        frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+        startDate: todayStr,
+        dueDate: todayStr,
+        accountId: bankAccount.id,
+        expectedAmount: 5,
+        expectedCurrencyCode: global.BASE_CURRENCY.code,
+      };
+
+      const created = await helpers.createSubscription({ ...basePayload, name: 'Bank auto', autoRecord: true });
+      expect(created.statusCode).toBe(ERROR_CODES.ValidationError);
+
+      const manual = await helpers.createSubscription({
+        ...basePayload,
+        name: 'Bank manual',
+        autoRecord: false,
+        raw: true,
+      });
+      const flipOn = await helpers.updateSubscription({ id: manual.id, autoRecord: true });
+      expect(flipOn.statusCode).toBe(ERROR_CODES.ValidationError);
+    });
   });
 });
 

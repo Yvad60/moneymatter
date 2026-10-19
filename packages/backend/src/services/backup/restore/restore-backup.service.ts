@@ -4,6 +4,7 @@ import { trackBackupRestored } from '@js/utils/posthog';
 import UserSettings, { type SettingsSchema, ZodSettingsSchema } from '@models/user-settings.model';
 import Users from '@models/users.model';
 import { unifyAiConnections } from '@root/migrations/utils/unify-ai-connections';
+import { recordFirstBudgetPlan } from '@services/budget-plans/create-plan';
 import { runUserDestroyLifecycle } from '@services/user/user-destroy-lifecycle';
 import { destroyUserOwnedData } from '@services/user/wipe-user-data.service';
 
@@ -11,11 +12,16 @@ import { stripConnectionKeys } from '../dump-tables.service';
 import { BACKUP_TABLES } from '../registry';
 import { type ParsedArchive } from './load-archive';
 import { loadValidatedArchive } from './load-validated-archive';
-import { USER_ROW_GUARDED_FK, foreignReferenceNulledMessage } from './owned-reference-guard';
+import { USER_ROW_GUARDED_FK } from './owned-reference-guard';
 import { triggerPostRestorePriceSync } from './post-restore-price-sync';
-import { remapFireSettingsIds, remapSavedPivotViewIds } from './remap-embedded-references';
+import {
+  remapFireSettingsIds,
+  remapIncomeCategoryIds,
+  remapSavedPivotViewIds,
+  remapSavedTransactionViewIds,
+} from './remap-embedded-references';
 import { resolveSecurities } from './resolve-securities';
-import { insertRestoreTables, purgeUserOwnedRestoreTables } from './restore-tables';
+import { insertRestoreTables } from './restore-tables';
 
 type Row = Record<string, unknown>;
 type ProgressCallback = (progress: BackupRestoreProgress) => void | Promise<void>;
@@ -58,7 +64,7 @@ async function restoreUserRow({
       warnings.push({
         code: 'foreign_reference_nulled',
         table: 'user',
-        message: foreignReferenceNulledMessage({ table: 'user', column: USER_ROW_GUARDED_FK.attrName, count: 1 }),
+        column: USER_ROW_GUARDED_FK.attrName,
         count: 1,
       });
     } else {
@@ -92,11 +98,7 @@ async function upsertUserSettings({
   const src = rows[0];
 
   if (!src || src.settings == null) {
-    warnings.push({
-      code: 'no_settings',
-      table: 'user-settings',
-      message: 'Backup had no saved settings; defaults were applied.',
-    });
+    warnings.push({ code: 'no_settings', table: 'user-settings' });
     await UserSettings.create({ userId, settings: ZodSettingsSchema.parse({}) });
     return;
   }
@@ -111,29 +113,24 @@ async function upsertUserSettings({
     // A backup taken across a settings-schema change can carry a blob the current
     // schema rejects. Reset to defaults and warn rather than aborting an otherwise
     // valid restore over a non-critical field.
-    warnings.push({
-      code: 'settings_reset',
-      table: 'user-settings',
-      message: 'Saved settings did not match the current schema and were reset to defaults.',
-    });
+    warnings.push({ code: 'settings_reset', table: 'user-settings' });
     await UserSettings.create({ userId, settings: ZodSettingsSchema.parse({}) });
     return;
   }
 
   if (!parsed.success) {
     logger.warn('Backup restore: FIRE settings failed schema and were reset', { userId, issues: parsed.error.issues });
-    warnings.push({
-      code: 'fire_settings_reset',
-      table: 'user-settings',
-      message: 'Saved FIRE settings did not match the current schema and were reset to defaults.',
-    });
+    warnings.push({ code: 'fire_settings_reset', table: 'user-settings' });
   }
   const restoredSettings: SettingsSchema = restored.data;
 
-  // Category/account/payee/portfolio UUIDs may be reminted on restore, so rewrite the
-  // ids saved inside Pivot views and the FIRE slice before persisting the settings blob.
+  // Category/account/payee/portfolio UUIDs may be reminted on restore, so rewrite the ids saved
+  // inside Pivot views, Transactions views, the FIRE slice and the income categories before persisting
+  // the settings blob.
   remapSavedPivotViewIds({ views: restoredSettings.savedPivotViews, insertedIds });
+  remapSavedTransactionViewIds({ views: restoredSettings.savedTransactionViews, insertedIds });
   remapFireSettingsIds({ fire: restoredSettings.fire, insertedIds });
+  remapIncomeCategoryIds({ settings: restoredSettings, insertedIds });
 
   await UserSettings.create({ userId, settings: restoredSettings });
 }
@@ -173,11 +170,6 @@ export async function restoreUserBackup({
     destroyInTx: async ({ user, transaction }) => {
       await destroyUserOwnedData({ user });
 
-      // Clear any user-owned rows the shared wipe leaves behind (it keeps the
-      // Users row, so `userId`-cascade tables like Payees survive) before the
-      // inserts re-add them under their preserved primary keys.
-      await purgeUserOwnedRestoreTables({ userId: user.id, transaction });
-
       const tableResult = await insertRestoreTables({
         archive,
         analysis,
@@ -188,6 +180,7 @@ export async function restoreUserBackup({
       });
       Object.assign(insertedByTable, tableResult.insertedByTable);
       warnings.push(...tableResult.warnings);
+      if (tableResult.insertedByTable['budget-plans']) await recordFirstBudgetPlan({ userId: user.id });
 
       const categoriesMap = tableResult.insertedIds.get(USER_ROW_GUARDED_FK.targetTable) ?? new Map<string, string>();
       await restoreUserRow({ archive, user, categoriesMap, warnings });

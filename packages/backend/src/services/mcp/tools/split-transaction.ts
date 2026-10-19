@@ -1,6 +1,7 @@
 import { SHARE_PERMISSIONS } from '@bt/shared/types';
 import { recordId } from '@common/lib/zod/custom-types';
 import { Money } from '@common/types/money';
+import { positiveAmountSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getTransactionById } from '@services/transactions/get-by-id';
@@ -15,7 +16,7 @@ const inputSchema = {
     .array(
       z.object({
         categoryId: recordId().describe('Category ID for this split portion'),
-        amount: z.number().describe('Amount for this split portion (decimal)'),
+        amount: positiveAmountSchema().describe('Amount for this split portion (decimal, greater than 0)'),
         note: z.string().optional().nullable().describe('Optional note for this split'),
       }),
     )

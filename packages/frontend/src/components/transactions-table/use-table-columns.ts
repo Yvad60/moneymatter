@@ -8,13 +8,16 @@ import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_VISIBLE_COLUMNS,
   TABLE_COLUMN,
+  clampColumnWidth,
   isKnownColumnId,
 } from './columns';
 
 const PERSIST_DEBOUNCE_MS = 1_000;
 
+type PersistedField = 'visibleColumns' | 'columnOrder' | 'columnWidths';
+
 /**
- * Column visibility + order for the transactions table, persisted in
+ * Column visibility, order and widths for the transactions table, persisted in
  * UserSettings under `ui.transactionsTable`. Unknown ids from settings are
  * dropped on read (a removed column must not break the table); known columns
  * missing from a stored order are appended in registry order so newly shipped
@@ -25,9 +28,11 @@ export function useTableColumns() {
 
   const localOrder = ref<TABLE_COLUMN[]>([...DEFAULT_COLUMN_ORDER]);
   const localVisible = ref<TABLE_COLUMN[]>([...DEFAULT_VISIBLE_COLUMNS]);
-  // Settings load async — hydrate local state once they arrive, but never
-  // clobber edits the user already made in this session.
-  const hasUserEdits = ref(false);
+  const localWidths = ref<Partial<Record<TABLE_COLUMN, number>>>({});
+  // Fields edited locally but not yet sent. Hydration skips them so a settings
+  // refresh can't undo a pending edit, and the PATCH carries only these, so an
+  // edit made before settings load can't overwrite the other stored fields.
+  const dirtyFields = new Set<PersistedField>();
 
   const sanitizeOrder = (storedOrder: string[]): TABLE_COLUMN[] => {
     const known = storedOrder.filter(isKnownColumnId);
@@ -38,28 +43,50 @@ export function useTableColumns() {
   watch(
     () => userSettings.value?.ui?.transactionsTable,
     (stored) => {
-      if (!stored || hasUserEdits.value) return;
-      localOrder.value = sanitizeOrder(stored.columnOrder);
+      if (!stored) return;
+      if (!dirtyFields.has('columnOrder')) localOrder.value = sanitizeOrder(stored.columnOrder);
       const visible = stored.visibleColumns.filter(isKnownColumnId);
-      if (visible.length > 0) localVisible.value = visible;
+      if (!dirtyFields.has('visibleColumns') && visible.length > 0) localVisible.value = visible;
+      if (!dirtyFields.has('columnWidths')) {
+        localWidths.value = Object.fromEntries(
+          (stored.columnWidths ?? [])
+            .filter(({ id }) => isKnownColumnId(id))
+            .map(({ id, widthPx }) => [id, clampColumnWidth({ widthPx })]),
+        );
+      }
     },
     { immediate: true },
   );
 
   const persistDebounced = useDebounceFn(() => {
     patchSettings({
-      ui: { transactionsTable: { visibleColumns: localVisible.value, columnOrder: localOrder.value } },
+      ui: {
+        transactionsTable: {
+          ...(dirtyFields.has('visibleColumns') && { visibleColumns: localVisible.value }),
+          ...(dirtyFields.has('columnOrder') && { columnOrder: localOrder.value }),
+          ...(dirtyFields.has('columnWidths') && {
+            columnWidths: Object.entries(localWidths.value).map(([id, widthPx]) => ({ id, widthPx })),
+          }),
+        },
+      },
     });
+    dirtyFields.clear();
   }, PERSIST_DEBOUNCE_MS);
 
-  const markEditedAndPersist = () => {
-    hasUserEdits.value = true;
+  const markEditedAndPersist = ({ fields }: { fields: PersistedField[] }) => {
+    fields.forEach((field) => dirtyFields.add(field));
     persistDebounced();
   };
 
-  /** Columns to render, in user order. */
+  /** Columns to render, in user order, with user-resized widths applied. */
   const visibleColumns = computed<ColumnDefinition[]>(() =>
-    localOrder.value.filter((id) => localVisible.value.includes(id)).map((id) => COLUMN_DEFINITIONS_BY_ID[id]),
+    localOrder.value
+      .filter((id) => localVisible.value.includes(id))
+      .map((id) => {
+        const customWidthPx = localWidths.value[id];
+        const definition = COLUMN_DEFINITIONS_BY_ID[id];
+        return customWidthPx ? { ...definition, widthPx: customWidthPx, isResized: true } : definition;
+      }),
   );
 
   /** All columns in user order, with visibility flag — for the config panel. */
@@ -79,18 +106,29 @@ export function useTableColumns() {
     } else {
       localVisible.value = [...localVisible.value, id];
     }
-    markEditedAndPersist();
+    markEditedAndPersist({ fields: ['visibleColumns'] });
   };
 
   const reorderColumns = (orderedIds: string[]) => {
     localOrder.value = sanitizeOrder(orderedIds);
-    markEditedAndPersist();
+    markEditedAndPersist({ fields: ['columnOrder'] });
+  };
+
+  /** `null` drops the custom width so the column flexes again. */
+  const setColumnWidth = ({ id, widthPx }: { id: TABLE_COLUMN; widthPx: number | null }) => {
+    if (widthPx === null && !(id in localWidths.value)) return;
+    const next = { ...localWidths.value };
+    if (widthPx === null) delete next[id];
+    else next[id] = widthPx;
+    localWidths.value = next;
+    markEditedAndPersist({ fields: ['columnWidths'] });
   };
 
   const resetToDefaults = () => {
     localOrder.value = [...DEFAULT_COLUMN_ORDER];
     localVisible.value = [...DEFAULT_VISIBLE_COLUMNS];
-    markEditedAndPersist();
+    localWidths.value = {};
+    markEditedAndPersist({ fields: ['visibleColumns', 'columnOrder', 'columnWidths'] });
   };
 
   return {
@@ -98,6 +136,7 @@ export function useTableColumns() {
     configurableColumns,
     toggleColumn,
     reorderColumns,
+    setColumnWidth,
     resetToDefaults,
   };
 }

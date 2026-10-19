@@ -9,6 +9,7 @@
  * blank lets the imported transactions' sum drive the final balance.
  */
 import InputField from '@/components/fields/input-field.vue';
+import SelectField from '@/components/fields/select-field.vue';
 import UiButton from '@/components/lib/ui/button/Button.vue';
 import { Callout } from '@/components/lib/ui/callout';
 import { captureException } from '@/lib/sentry';
@@ -18,6 +19,7 @@ import CategoryMappingTable from '@/pages/import-export/components/resolve-value
 import { type QuickAction } from '@/pages/import-export/components/resolve-values-step/quick-action-toolbar.vue';
 import { useAccountsStore } from '@/stores/accounts';
 import { useCategoriesStore } from '@/stores/categories/categories';
+import { useCurrenciesStore } from '@/stores/currencies';
 import { useImportMsMoneyStore } from '@/stores/import-ms-money';
 import { ChevronLeftIcon, ChevronRightIcon, LinkIcon, PlusIcon, RefreshCwIcon, SparklesIcon } from '@lucide/vue';
 import { storeToRefs } from 'pinia';
@@ -32,6 +34,7 @@ const categoriesStore = useCategoriesStore();
 
 const { importLinkableAccounts } = storeToRefs(accountsStore);
 const { formattedCategories } = storeToRefs(categoriesStore);
+const { systemCurrencies } = storeToRefs(useCurrenciesStore());
 
 // ---- Table items ----
 
@@ -40,6 +43,7 @@ const accountItems = computed(() =>
   (store.parsedResult?.accounts ?? []).map((account) => ({
     name: account.originalName,
     currency: account.currency,
+    currencyDefaulted: account.currencyDefaulted,
     transactionCount: account.transactionCount,
   })),
 );
@@ -175,6 +179,24 @@ async function handleContinue() {
       @set-action="store.setAccountAction"
       @set-target="store.setAccountTarget"
     >
+      <template #currency-cell="{ item }">
+        <div v-if="item.currencyDefaulted" class="w-full">
+          <SelectField
+            :model-value="systemCurrencies.find((c) => c.code === item.currency) ?? null"
+            :values="systemCurrencies"
+            value-key="code"
+            label-key="code"
+            with-search
+            :search-keys="['code', 'currency']"
+            @update:model-value="$event && store.setAccountCurrency({ name: item.name, currencyCode: $event.code })"
+          />
+          <span class="text-warning-text text-xs">
+            {{ $t('pages.importExport.msMoneyImport.resolve.accounts.currencyNotInFile') }}
+          </span>
+        </div>
+        <span v-else class="font-semibold">{{ item.currency || '—' }}</span>
+      </template>
+
       <!-- Optional current balance for create-new accounts. -->
       <template #create-new-cell="{ item }">
         <div class="flex flex-col gap-1">

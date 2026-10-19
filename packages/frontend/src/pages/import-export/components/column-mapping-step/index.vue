@@ -286,7 +286,7 @@ const { categories, formattedCategories, categoriesMap } = storeToRefs(categorie
 const fileLabel = computed(() => {
   const files = importStore.uploadedFiles;
   if (files.length === 1) return files[0]!.name;
-  return t('pages.importExport.columnMapping.filesCount', { count: files.length }, files.length);
+  return t('pages.importExport.csvImport.columnMapping.filesCount', { count: files.length }, files.length);
 });
 
 interface CurrencyWithDisplay extends CurrencyModel {

@@ -1,10 +1,10 @@
-import type { endpointsTypes } from '@bt/shared/types';
+import type { CurrencyDisplayPreference } from '@bt/shared/types';
 import { ref } from 'vue';
 
 export const formatFiat = (value: unknown): string => Number(value).toFixed(2);
 
 // Module-level so plain helpers, not just composables, follow the user's setting.
-export const currencyDisplayPreference = ref<endpointsTypes.CurrencyDisplayPreference>('symbol');
+export const currencyDisplayPreference = ref<CurrencyDisplayPreference>('symbol');
 
 export function toLocalNumber(
   value: string | number | undefined | null,
@@ -188,6 +188,10 @@ export const formatCompactFiat = ({ amount, currency }: { amount: number; curren
     thousandSuffix: 'K',
   });
 
+/** Full amount under 1,000, K/M/B suffix from there up. */
+export const formatShortFiat = ({ amount, currency }: { amount: number; currency?: string }) =>
+  Math.abs(amount) >= 1_000 ? formatCompactFiat({ amount, currency }) : formatUIAmount(amount, { currency });
+
 export function formatUIAmount(
   value: number,
   {
@@ -200,7 +204,8 @@ export function formatUIAmount(
 ): string {
   if (!Number.isFinite(value)) return String(value);
 
-  return toLocalFiatCurrency(value, {
+  // `|| 0` turns -0 into 0 so it doesn't render as "-$0.00".
+  return toLocalFiatCurrency(value || 0, {
     currency,
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,

@@ -1,5 +1,12 @@
 import { t } from '@i18n/index';
-import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequests, ValidationError } from '@js/errors';
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+  ServiceUnavailableError,
+  TooManyRequests,
+  ValidationError,
+} from '@js/errors';
 import { logger } from '@js/utils/logger';
 import axios, { AxiosInstance } from 'axios';
 
@@ -149,7 +156,13 @@ export class SimplefinApiClient {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
 
-      logger.info(`[SimplefinApiClient] ${method} failed: status=${status}`);
+      logger.info(`[SimplefinApiClient] ${method} failed: status=${status} code=${error.code}`);
+
+      // The Access URL host is user-supplied, so the client message stays fixed:
+      // axios text would reveal which internal hosts resolve or refuse connections.
+      if (!status || status >= 500) {
+        throw new ServiceUnavailableError({ message: t({ key: 'bankDataProviders.simplefinUnreachable' }) });
+      }
 
       if (status === 401 || status === 403) {
         throw new ForbiddenError({ message: t({ key: 'bankDataProviders.simplefin.invalidAccessUrl' }) });
@@ -160,7 +173,7 @@ export class SimplefinApiClient {
         throw new TooManyRequests({ message: t({ key: 'bankDataProviders.simplefin.rateLimited' }) });
       } else if (status === 404) {
         throw new NotFoundError({ message: t({ key: 'bankDataProviders.simplefin.accountNotFound' }) });
-      } else if (status && status >= 400) {
+      } else if (status >= 400) {
         throw new BadRequestError({
           message: t({
             key: 'bankDataProviders.apiError',

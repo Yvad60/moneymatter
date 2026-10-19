@@ -5,6 +5,7 @@ import {
   ACCOUNT_TYPES,
   AccountExternalData,
   BANK_PROVIDER_TYPE,
+  BUDGET_PLAN_ATTACHABLE_ACCOUNT_CATEGORIES,
   TRANSACTION_TRANSFER_NATURE,
   isDedicatedFlowAccountCategory,
 } from '@bt/shared/types';
@@ -16,11 +17,13 @@ import { logger } from '@js/utils/logger';
 import * as Accounts from '@models/accounts.model';
 import Balances from '@models/balances.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
+import BudgetPlanAccounts from '@models/budget-plan-accounts.model';
 import { countTransactions } from '@models/transactions-query';
 import { getBaseCurrency } from '@models/users-currencies.model';
 import Users from '@models/users.model';
 import { isRevaluedAccount, scheduleBalanceRevalue } from '@services/balances/revalue-balance-history.service';
 import { applyManualLogoPatch } from '@services/brand-logos';
+import { attachEligibleAccounts } from '@services/budget-plans/auto-attach-account';
 import { calculateRefAmount } from '@services/calculate-ref-amount.service';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
 import {
@@ -345,6 +348,15 @@ export const updateAccount = withTransaction(
       await performArchiveSideEffects({ account: accountData, userId: accountData.userId });
     }
 
+    const wasAttachable = BUDGET_PLAN_ATTACHABLE_ACCOUNT_CATEGORIES.includes(accountData.accountCategory);
+    const isAttachable =
+      payload.accountCategory === undefined
+        ? wasAttachable
+        : BUDGET_PLAN_ATTACHABLE_ACCOUNT_CATEGORIES.includes(payload.accountCategory);
+    if (wasAttachable && !isAttachable) {
+      await BudgetPlanAccounts.destroy({ where: { accountId: accountData.id } });
+    }
+
     const currentBalanceIsChanging =
       payload.currentBalance !== undefined && !payload.currentBalance.equals(accountData.currentBalance);
     let initialBalance: Money = accountData.initialBalance;
@@ -417,6 +429,10 @@ export const updateAccount = withTransaction(
 
     if (!result) {
       throw new UnexpectedError({ message: t({ key: 'accounts.accountUpdateFailed' }) });
+    }
+
+    if (!wasAttachable && isAttachable) {
+      await attachEligibleAccounts({ userId: accountData.userId, accountIds: [accountData.id] });
     }
 
     // A foreign-currency opening balance can't be shifted through history as a flat

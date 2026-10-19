@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { wipeUserData, type WipeDataSharedResources } from '@/api/user';
+import { wipeUserData } from '@/api/user';
 import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.vue';
-import { InputField } from '@/components/fields';
+import InputField from '@/components/fields/input-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { useNotificationCenter } from '@/components/notification-center';
 import { ApiErrorResponseError } from '@/js/errors';
 import { resetQueryCaches } from '@/lib/query-persister';
 import { captureException } from '@/lib/sentry';
-import { API_ERROR_CODES } from '@bt/shared/types';
+import { API_ERROR_CODES, type WipeDataSharedResources } from '@bt/shared/types';
 import { Trash2Icon, TriangleAlertIcon } from '@lucide/vue';
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
@@ -114,7 +114,7 @@ const handlePrimaryOpenChange = (open: boolean) => {
       <template #description>
         <div class="text-left">
           {{ $t('settings.security.wipeData.dialog.description') }}
-          <ul class="mt-2 list-inside list-disc text-sm">
+          <ul class="mt-2 list-disc pl-5 text-sm">
             <li>{{ $t('settings.security.wipeData.dialog.list.accounts') }}</li>
             <li>{{ $t('settings.security.wipeData.dialog.list.transactions') }}</li>
             <li>{{ $t('settings.security.wipeData.dialog.list.budgets') }}</li>
@@ -152,7 +152,7 @@ const handlePrimaryOpenChange = (open: boolean) => {
             <span class="font-medium">{{ $t('settings.security.wipeData.sharingDialog.warning') }}</span>
           </div>
           <p class="mb-3 text-sm">{{ $t('settings.security.wipeData.sharingDialog.description') }}</p>
-          <ul v-if="sharedResources?.accounts?.length" class="mb-2 list-inside list-disc text-sm">
+          <ul v-if="sharedResources?.accounts?.length" class="mb-2 list-disc pl-5 text-sm">
             <li v-for="account in sharedResources.accounts" :key="account.id">{{ account.name }}</li>
           </ul>
           <p v-if="sharedResources?.households?.length" class="text-sm">

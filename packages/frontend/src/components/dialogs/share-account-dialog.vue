@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { listSentShareInvitations } from '@/api/share';
+import { listSentShareInvitations, listShareMembers } from '@/api/share';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
 import DemoRestricted from '@/components/demo/demo-restricted.vue';
-import { InputField, SelectField } from '@/components/fields';
+import InputField from '@/components/fields/input-field.vue';
+import SelectField from '@/components/fields/select-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { useShareInvitationDialog } from '@/composable/use-share-invitation-dialog';
 import { useUserStore } from '@/stores';
@@ -25,7 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { isDemo } = storeToRefs(useUserStore());
+const { isDemo, user } = storeToRefs(useUserStore());
 const onboardingStore = useOnboardingStore();
 
 const isOpen = useVModel(props, 'open', emit, { passive: true });
@@ -50,43 +51,45 @@ const {
   onSuccess: () => onboardingStore.completeTask('share-account'),
 });
 
-// Inverse-invite hint: surface a non-blocking note when the typed email belongs to a
-// user already in the owner's household. The per-resource share simply overrides the
-// household grant on this account (per-resource access wins over household-level), so
-// we inform rather than block. Hooks the sent-invitations cache the owner already
-// loads in Settings → Household so it's usually warm by the time this dialog opens.
-//
-// `isError` matters: when the lookup fails we can't tell whether the typed email
-// belongs to a household member or not. The hint is non-blocking, so silently hiding
-// it would be a regression — `sentInvitationsLookupFailed` lets the template render an
-// inline "couldn't check household membership" line so the owner isn't caught by
-// surprise once the per-resource share takes effect.
+// Non-blocking hint when the typed email belongs to a current household member: the
+// per-account share overrides their household grant. An accepted invitation outlives the
+// membership it created, so it only maps email to user id; the members list decides.
 const { data: sentInvitations, isError: isSentInvitationsError } = useQuery({
   queryKey: VUE_QUERY_CACHE_KEYS.shareInvitationsSent,
   queryFn: listSentShareInvitations,
   enabled: computed(() => isOpen.value),
 });
 
-const sentInvitationsLookupFailed = computed(() => isSentInvitationsError.value);
+const householdId = computed(() => user.value?.id ?? null);
 
-const householdMembers = computed(() =>
-  (sentInvitations.value ?? []).filter(
-    (invitation) =>
-      invitation.resourceType === RESOURCE_TYPES.household && invitation.status === SHARE_INVITATION_STATUSES.accepted,
-  ),
-);
+const { data: householdMembers, isError: isHouseholdMembersError } = useQuery({
+  queryKey: computed(() => [...VUE_QUERY_CACHE_KEYS.shareMembers, RESOURCE_TYPES.household, householdId.value]),
+  queryFn: () => listShareMembers({ resourceType: RESOURCE_TYPES.household, resourceId: String(householdId.value) }),
+  enabled: computed(() => isOpen.value && householdId.value !== null),
+});
+
+// A failed lookup can't rule membership out, so the template says so instead of hiding the hint.
+const householdLookupFailed = computed(() => isSentInvitationsError.value || isHouseholdMembersError.value);
 
 const matchingHouseholdMember = computed(() => {
   const typed = email.value.trim().toLowerCase();
   if (!typed) return null;
-  return householdMembers.value.find((m) => m.inviteeEmail.toLowerCase() === typed) ?? null;
+  const inviteeIds = new Set(
+    (sentInvitations.value ?? [])
+      .filter(
+        (invitation) =>
+          invitation.resourceType === RESOURCE_TYPES.household &&
+          invitation.status === SHARE_INVITATION_STATUSES.accepted &&
+          invitation.inviteeEmail.toLowerCase() === typed,
+      )
+      .map((invitation) => invitation.invitee?.id),
+  );
+  return (
+    (householdMembers.value?.members ?? []).find((m) => m.role === 'recipient' && inviteeIds.has(m.user.id)) ?? null
+  );
 });
 
-const matchingMemberLabel = computed(() => {
-  const member = matchingHouseholdMember.value;
-  if (!member) return '';
-  return member.invitee?.username || member.inviteeEmail.split('@')[0] || '';
-});
+const matchingMemberLabel = computed(() => matchingHouseholdMember.value?.user.username ?? '');
 
 const matchingMemberPermissionLabel = computed(() => {
   const member = matchingHouseholdMember.value;
@@ -125,7 +128,7 @@ const matchingMemberPermissionLabel = computed(() => {
       </p>
 
       <p
-        v-else-if="sentInvitationsLookupFailed && isEmailValid"
+        v-else-if="householdLookupFailed && isEmailValid"
         class="text-muted-foreground -mt-2 text-xs"
         data-testid="inverse-invite-lookup-failed"
       >

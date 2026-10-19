@@ -8,10 +8,11 @@ import {
 } from '@bt/shared/types/investments';
 import Coingecko from '@coingecko/coingecko-typescript';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
+import { t } from '@i18n/index';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import InvestmentTransaction from '@models/investments/investment-transaction.model';
 import Securities from '@models/investments/securities.model';
-import { SERVER_MODELS } from '@services/ai/resolution-ladder';
+import { FALLBACK_SERVER_MODELS } from '@services/ai/resolution-ladder';
 import * as helpers from '@tests/helpers';
 import { GEMINI_API_URL, VALID_GEMINI_API_KEY, rejectIfWrongModel } from '@tests/mocks/gemini/mock-api';
 import { HttpResponse, http } from 'msw';
@@ -75,7 +76,7 @@ const csvRow = ({
 }) => `${symbol},${name},${date},${side},${quantity},${price},${fees},${currency},${assetClassHint},${confidence}`;
 
 /** The model the investment-import CSV extraction is actually configured to call. */
-const EXPECTED_GEMINI_MODEL = SERVER_MODELS[AI_FEATURE.investmentTransactionsParsing].model;
+const EXPECTED_GEMINI_MODEL = FALLBACK_SERVER_MODELS[AI_FEATURE.investmentTransactionsParsing].model;
 
 /**
  * MSW handler that returns a fixed CSV from Gemini's generateContent endpoint.
@@ -153,12 +154,14 @@ async function extractBtcDedupRow({
   side = 'B',
   importedQuantity = DEDUP_BASE_QUANTITY,
   importedPrice = DEDUP_BASE_PRICE,
+  fees,
 }: {
   portfolioId: RecordId;
   dayOffset: number;
   side?: 'B' | 'S';
   importedQuantity?: string;
   importedPrice?: string;
+  fees?: string;
 }) {
   installCoingeckoMock({
     coins: [{ id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', market_cap_rank: 1 }],
@@ -171,6 +174,7 @@ async function extractBtcDedupRow({
     side,
     quantity: importedQuantity,
     price: importedPrice,
+    fees,
   });
   global.mswMockServer.use(geminiCsvHandler({ csv }));
 
@@ -374,7 +378,7 @@ describe('Investment transactions AI import — E2E', () => {
         },
       });
 
-      expect(withoutKey.statusCode).not.toBe(200);
+      expect(withoutKey.statusCode).toBe(422);
 
       process.env.GEMINI_API_KEY = VALID_GEMINI_API_KEY;
       installCoingeckoMock({ coins: [] });
@@ -387,7 +391,7 @@ describe('Investment transactions AI import — E2E', () => {
         },
       });
 
-      expect(emptyCsv.statusCode).not.toBe(200);
+      expect(emptyCsv.statusCode).toBe(422);
     });
 
     it('keeps currencyCode null and surfaces a warning when AI returns a crypto/crypto pair', async () => {
@@ -460,6 +464,28 @@ describe('Investment transactions AI import — E2E', () => {
       });
       expect(differentUnitPrice).toBeNull();
     }, 120_000);
+
+    it('flags an imported sell with fees as a duplicate of the stored sell (net amount on both sides)', async () => {
+      const portfolio = await seedBtcDedupState();
+      const btc = (await Securities.findOne({ where: { symbol: 'BTC' } }))!;
+
+      // 0.05 * 42000 - 10 = 2090 stored and computed for the imported row.
+      const sell = await helpers.createInvestmentTransaction({
+        payload: {
+          portfolioId: portfolio.id,
+          securityId: btc.id,
+          category: INVESTMENT_TRANSACTION_CATEGORY.sell,
+          date: DEDUP_BASE_DATE,
+          quantity: DEDUP_BASE_QUANTITY,
+          price: DEDUP_BASE_PRICE,
+          fees: '10',
+        },
+        raw: true,
+      });
+
+      const duplicateOf = await extractBtcDedupRow({ portfolioId: portfolio.id, dayOffset: 0, side: 'S', fees: '10' });
+      expect(duplicateOf).toBe(sell.id);
+    }, 60_000);
   });
 
   describe('execute', () => {
@@ -468,6 +494,9 @@ describe('Investment transactions AI import — E2E', () => {
         payload: helpers.buildPortfolioPayload({ name: 'Crypto' }),
         raw: true,
       });
+
+      installCoingeckoMock({ coins: [{ id: 'solana', symbol: 'sol', name: 'Solana', market_cap_rank: 5 }] });
+      await helpers.searchSecurities({ payload: { query: 'SOL', assetClass: ASSET_CLASS.crypto }, raw: true });
 
       const result = await helpers.investmentImportExecute({
         payload: {
@@ -535,6 +564,69 @@ describe('Investment transactions AI import — E2E', () => {
       // Verify both transactions
       const txs = await InvestmentTransaction.findAll({ where: { securityId: sol!.id } });
       expect(txs).toHaveLength(2);
+    });
+
+    it('skips a holding whose security was never returned by a provider search', async () => {
+      const portfolio = await helpers.createPortfolio({
+        payload: helpers.buildPortfolioPayload({ name: 'Crypto' }),
+        raw: true,
+      });
+
+      const result = await helpers.investmentImportExecute({
+        payload: {
+          holdings: [
+            {
+              tempId: 'holding-1',
+              parsedSymbol: 'FORGED',
+              parsedName: 'Forged Coin',
+              resolvedSecurity: {
+                securityId: null,
+                providerSymbol: 'forged-coin',
+                symbol: 'FORGED',
+                name: 'Forged Coin',
+                assetClass: ASSET_CLASS.crypto,
+                providerName: SECURITY_PROVIDER.coingecko,
+                currencyCode: 'USD',
+                cryptoCurrencyCode: 'FORGED',
+                exchangeName: 'CoinGecko',
+                alreadyInDb: false,
+              },
+              resolvedConfidence: 'auto',
+              portfolioId: portfolio.id,
+              currencyCode: 'USD',
+              hasExistingHolding: false,
+              transactions: [
+                {
+                  tempId: 'tx-1',
+                  date: '2024-04-01',
+                  side: 'buy',
+                  quantity: '10',
+                  price: '1',
+                  fees: '0',
+                  amount: '10',
+                  possibleDuplicateOf: null,
+                },
+              ],
+            },
+          ],
+          skipTempIds: [],
+        },
+        raw: true,
+      });
+
+      expect(result.createdSecurities).toBe(0);
+      expect(result.createdTransactions).toBe(0);
+      expect(result.skippedHoldings).toBe(1);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toEqual({
+        code: 'HOLDING_SETUP_FAILED',
+        params: {
+          symbol: 'FORGED',
+          reason: t({ key: 'investments.securitySearchResultNotRecognized', locale: 'en' }),
+        },
+      });
+
+      expect(await Securities.findOne({ where: { providerSymbol: 'forged-coin' } })).toBeNull();
     });
 
     it('merges new transactions into an existing holding', async () => {
@@ -1097,9 +1189,9 @@ describe('Investment transactions AI import — E2E', () => {
       expect(holding.transactions.map((t) => t.side)).toEqual(['buy', 'sell', 'dividend']);
       expect(holding.transactions[0]!.price).toBe('42000');
       expect(holding.transactions[1]!.price).toBe('50000');
-      // amount = quantity * price + fees
+      // amount = quantity * price + fees for buys, - fees for sells
       expect(holding.transactions[0]!.amount).toBe('2105.2500000000');
-      expect(holding.transactions[1]!.amount).toBe('1002.1000000000');
+      expect(holding.transactions[1]!.amount).toBe('997.9000000000');
       expect(result.fileType).toBe('csv');
       expect(result.tokenCount).toEqual({ input: 0, output: 0 });
     });
@@ -1158,11 +1250,14 @@ describe('Investment transactions AI import — E2E', () => {
       expect(result.holdings).toHaveLength(1);
       expect(result.holdings[0]!.transactions).toHaveLength(1);
 
-      const skipWarning = result.warnings.find((w) => w.startsWith('3 of 4 CSV row(s) were skipped'));
-      expect(skipWarning).toBeDefined();
-      expect(skipWarning).toContain('Unmapped side value "Swap"');
-      expect(skipWarning).toContain('Unparseable date "not-a-date"');
-      expect(skipWarning).toContain('Missing symbol');
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([
+          { code: 'CSV_ROWS_INVALID', params: { count: 3, total: 4 } },
+          { code: 'CSV_ROW_UNMAPPED_SIDE', params: { row: 2, value: 'Swap' } },
+          { code: 'CSV_ROW_INVALID_DATE', params: { row: 3, value: 'not-a-date' } },
+          { code: 'CSV_ROW_MISSING_SYMBOL', params: { row: 4 } },
+        ]),
+      );
     });
 
     it('silently drops rows whose side value is mapped to the skip sentinel', async () => {
@@ -1204,7 +1299,8 @@ describe('Investment transactions AI import — E2E', () => {
       expect(result.holdings).toHaveLength(1);
       expect(result.holdings[0]!.transactions.map((t) => t.side)).toEqual(['buy', 'sell']);
       // Critical: no "N of M CSV rows were skipped" warning — skip is deliberate.
-      expect(result.warnings.find((w) => w.includes('CSV row(s) were skipped'))).toBeUndefined();
+      expect(result.warnings.find((w) => w.code === 'CSV_ROWS_INVALID')).toBeUndefined();
+      expect(result.warnings).toContainEqual({ code: 'CSV_ROWS_SKIPPED', params: { count: 2 } });
     });
 
     it('splits compound tickers like SOL-USD into ticker + quote currency', async () => {

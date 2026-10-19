@@ -1,8 +1,10 @@
 import { loadUserData, startFeatureTrial as startFeatureTrialApi } from '@/api';
 import { isBillingEnabled, liveSubscription } from '@/common/const/billing';
 import {
+  FEATURES,
   FEATURE_TRIAL_LIMITS,
   SUBSCRIPTION_STATUSES,
+  hasPaidPlus,
   USER_ROLES,
   UserInfoResponse,
   isTerminalSubscription,
@@ -54,6 +56,9 @@ export const useUserStore = defineStore('user', () => {
 
   const isReadOnly = computed(() => Boolean(entitlements.value?.readOnly));
 
+  /** False while entitlements are still loading. */
+  const hasPlus = computed(() => entitlements.value !== null && hasPaidPlus({ entitlements: entitlements.value }));
+
   const hasSubscriptions = computed(() => Boolean(entitlements.value?.subscriptions.length));
 
   const isPastDue = computed(
@@ -67,6 +72,14 @@ export const useUserStore = defineStore('user', () => {
     if (value.subscriptions.some((s) => !isTerminalSubscription(s))) return null;
 
     return Math.max(0, differenceInCalendarDays(new Date(value.trialEndsAt), new Date()));
+  });
+
+  const budgetTrial = computed<{ state: 'active'; daysLeft: number } | { state: 'ended' } | null>(() => {
+    const endsAt = entitlements.value?.budgetPlanTrialEndsAt;
+    if (!endsAt) return null;
+    if (isFeatureGated(FEATURES.budget_plan)) return { state: 'ended' };
+    const end = new Date(endsAt);
+    return isFuture(end) ? { state: 'active', daysLeft: Math.max(1, differenceInCalendarDays(end, new Date())) } : null;
   });
 
   const loadUser = async () => {
@@ -86,9 +99,11 @@ export const useUserStore = defineStore('user', () => {
     featureTrialDaysLeft,
     startFeatureTrial,
     isReadOnly,
+    hasPlus,
     isPastDue,
     hasSubscriptions,
     trialDaysLeft,
+    budgetTrial,
     loadUser,
   };
 });

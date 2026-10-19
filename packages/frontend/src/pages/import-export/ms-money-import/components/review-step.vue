@@ -27,7 +27,7 @@ const WARNING_LABEL_KEYS: Record<MsMoneyParseWarning['code'], string> = {
   'transfer-counterpart-not-imported':
     'pages.importExport.msMoneyImport.review.warnings.transferCounterpartNotImported',
   'row-limit-reached': 'pages.importExport.msMoneyImport.review.warnings.rowLimitReached',
-  'account-currency-defaulted': 'pages.importExport.msMoneyImport.review.warnings.accountCurrencyDefaulted',
+  'account-currency-defaulted': 'pages.importExport.msMoneyImport.review.warnings.accountCurrencyMissing',
   'row-missing-date': 'pages.importExport.msMoneyImport.review.warnings.rowMissingDate',
   'account-name-missing': 'pages.importExport.msMoneyImport.review.warnings.accountNameMissing',
   'account-name-duplicated': 'pages.importExport.msMoneyImport.review.warnings.accountNameDuplicated',

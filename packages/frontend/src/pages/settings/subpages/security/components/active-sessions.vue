@@ -78,8 +78,10 @@
 <script setup lang="ts">
 import { Button } from '@/components/lib/ui/button';
 import { useNotificationCenter } from '@/components/notification-center';
+import { UnexpectedError, getAuthErrorMessage } from '@/js/errors';
 import { authClient, getSession } from '@/lib/auth-client';
 import { Loader2Icon, LogOutIcon, MonitorIcon, SmartphoneIcon, TabletIcon } from '@lucide/vue';
+import { format } from 'date-fns';
 import { type Component, computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -118,7 +120,7 @@ const formatDate = (dateStr: string | Date) => {
   if (diffHours < 24) return t('settings.security.activeSessions.timeAgo.hoursAgo', { count: diffHours });
   if (diffDays < 7) return t('settings.security.activeSessions.timeAgo.daysAgo', { count: diffDays });
 
-  return date.toLocaleDateString();
+  return format(date, 'P');
 };
 
 const parseUserAgent = (userAgent: string | null | undefined): string => {
@@ -167,6 +169,7 @@ const loadSessions = async () => {
     }
 
     const result = await authClient.listSessions();
+    if (result.error) throw new UnexpectedError(result.error.message, result.error);
     if (result.data) {
       sessions.value = (result.data as Session[]).map((s: Session) => ({
         ...s,
@@ -175,20 +178,25 @@ const loadSessions = async () => {
       // Sort so current session is first
       sessions.value.sort((a, b) => (a.isCurrent ? -1 : b.isCurrent ? 1 : 0));
     }
-  } catch (e) {
-    console.error('Failed to load sessions:', e);
-    addErrorNotification(t('settings.security.activeSessions.notifications.loadFailed'));
+  } catch (error) {
+    console.error('Failed to load sessions:', error);
+    addErrorNotification(
+      await getAuthErrorMessage({ error, fallbackKey: 'settings.security.activeSessions.notifications.loadFailed' }),
+    );
   }
 };
 
 const handleRevokeSession = async (token: string) => {
   try {
     isRevokingSession.value = token;
-    await authClient.revokeSession({ token: token });
+    const { error } = await authClient.revokeSession({ token });
+    if (error) throw new UnexpectedError(error.message, error);
     addSuccessNotification(t('settings.security.activeSessions.notifications.revokeSuccess'));
     await loadSessions();
-  } catch {
-    addErrorNotification(t('settings.security.activeSessions.notifications.revokeFailed'));
+  } catch (error) {
+    addErrorNotification(
+      await getAuthErrorMessage({ error, fallbackKey: 'settings.security.activeSessions.notifications.revokeFailed' }),
+    );
   } finally {
     isRevokingSession.value = null;
   }
@@ -196,11 +204,17 @@ const handleRevokeSession = async (token: string) => {
 
 const handleRevokeAll = async () => {
   try {
-    await authClient.revokeOtherSessions();
+    const { error } = await authClient.revokeOtherSessions();
+    if (error) throw new UnexpectedError(error.message, error);
     addSuccessNotification(t('settings.security.activeSessions.notifications.revokeAllSuccess'));
     await loadSessions();
-  } catch {
-    addErrorNotification(t('settings.security.activeSessions.notifications.revokeAllFailed'));
+  } catch (error) {
+    addErrorNotification(
+      await getAuthErrorMessage({
+        error,
+        fallbackKey: 'settings.security.activeSessions.notifications.revokeAllFailed',
+      }),
+    );
   }
 };
 

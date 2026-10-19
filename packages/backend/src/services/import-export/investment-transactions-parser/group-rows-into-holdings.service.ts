@@ -7,16 +7,17 @@
  *   2. Majority-votes asset class per symbol.
  *   3. Resolves symbols to Security candidates.
  *   4. Normalises quote currencies.
- *   5. Computes amounts (`quantity * price + fees`).
+ *   5. Computes amounts (`quantity * price ± fees`, minus for sell/dividend).
  *   6. Flags possible duplicates against existing transactions.
  *
  * Output is the hierarchical `InvestmentImportExtractionResult['holdings']`
  * shape consumed by the review UI.
  */
-import { ASSET_CLASS, isTradeSide } from '@bt/shared/types/investments';
+import { ASSET_CLASS, isCashInCategory, isTradeSide } from '@bt/shared/types/investments';
 import type {
   InvestmentImportExtractionResult,
   InvestmentImportTradeSide,
+  InvestmentImportWarning,
   InvestmentImportTransactionSide,
 } from '@bt/shared/types/investments';
 import { logger } from '@js/utils';
@@ -55,12 +56,12 @@ interface GroupRowsParams {
    * per-symbol currency warnings. Lets callers preserve the existing AI-path
    * ordering for things like "AI dropped N rows".
    */
-  extraWarnings?: string[];
+  extraWarnings?: InvestmentImportWarning[];
 }
 
 interface GroupRowsResult {
   holdings: InvestmentImportExtractionResult['holdings'];
-  warnings: string[];
+  warnings: InvestmentImportWarning[];
 }
 
 export async function groupRowsIntoHoldings({
@@ -94,7 +95,7 @@ export async function groupRowsIntoHoldings({
     defaultPortfolioId,
   });
 
-  const warnings: string[] = [...resolution.warnings, ...extraWarnings];
+  const warnings: InvestmentImportWarning[] = [...resolution.warnings, ...extraWarnings];
 
   const holdings: InvestmentImportExtractionResult['holdings'] = [];
   const rowsForDedup: Array<{
@@ -127,13 +128,16 @@ export async function groupRowsIntoHoldings({
     }
 
     if (invalidCount > 0) {
-      warnings.push(`Symbol "${symbol}" had ${invalidCount} row(s) with unsupported quote currency.`);
+      warnings.push({ code: 'UNSUPPORTED_QUOTE_CURRENCY', params: { symbol, count: invalidCount } });
     }
 
     const holdingTempId = uuidv4();
     const txns = symbolRows.map((row) => {
       const tempId = uuidv4();
-      const amount = new Big(row.quantity).times(new Big(row.price)).plus(new Big(row.fees)).toFixed(10);
+      const notional = new Big(row.quantity).times(new Big(row.price));
+      const amount = (
+        isCashInCategory({ category: row.side }) ? notional.minus(row.fees) : notional.plus(row.fees)
+      ).toFixed(10);
       // Dedup is only meaningful for trades — dividends/fees/etc. don't have a
       // price-based "is this the same event?" signal. Restrict the dedup batch
       // to buy/sell and rely on the same-value comparison in detect-duplicates.
@@ -194,7 +198,7 @@ export async function groupRowsIntoHoldings({
         message: 'Investment txn import dedup detection failed',
         error: error as Error,
       });
-      warnings.push('Could not check for possible duplicates — review your existing transactions manually.');
+      warnings.push({ code: 'DUPLICATE_CHECK_FAILED' });
     }
   }
 

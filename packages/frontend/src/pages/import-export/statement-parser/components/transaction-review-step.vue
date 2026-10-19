@@ -154,6 +154,9 @@
                   :class="item.txType === 'expense' ? 'text-app-expense-color' : 'text-app-income-color'"
                 >
                   {{ item.txType === 'expense' ? '-' : '+' }}{{ item.amount.toFixed(2) }}
+                  <span v-if="item.originalAmount" class="text-muted-foreground block text-[10px] font-normal">
+                    {{ item.originalAmount }}
+                  </span>
                 </span>
               </div>
             </div>
@@ -206,7 +209,9 @@ import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { useStatementParserStore } from '@/stores/statement-parser';
 import { ArrowLeftIcon, Loader2Icon } from '@lucide/vue';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const store = useStatementParserStore();
 
 // Count existing transactions that are not duplicates
@@ -224,6 +229,8 @@ interface TimelineItem {
   description: string;
   amount: number;
   txType: 'income' | 'expense';
+  /** e.g. "12.99 USD" when the purchase was made in another currency */
+  originalAmount?: string;
   /** Statement the row was extracted from. Unset for single-file imports and for existing rows. */
   sourceFile?: string;
   existingNote?: string;
@@ -251,6 +258,10 @@ const timelineItems = computed((): TimelineItem[] => {
     const isExcluded = store.excludedTransactionIndices.has(index);
     const isOverridden = store.overriddenDuplicateIndices.has(index);
     const sourceFile = showSources.value ? store.transactionSources[index] : undefined;
+    const originalAmount =
+      tx.originalAmount !== undefined && tx.originalCurrencyCode
+        ? `${tx.originalAmount.toFixed(2)} ${tx.originalCurrencyCode}`
+        : undefined;
 
     if (duplicate) {
       items.push({
@@ -260,6 +271,7 @@ const timelineItems = computed((): TimelineItem[] => {
         description: tx.description,
         amount: tx.amount,
         txType: tx.type,
+        originalAmount,
         sourceFile,
         existingNote: duplicate.existingTransaction.note,
         isOverridden,
@@ -272,6 +284,7 @@ const timelineItems = computed((): TimelineItem[] => {
         description: tx.description,
         amount: tx.amount,
         txType: tx.type,
+        originalAmount,
         sourceFile,
         isExcluded,
       });
@@ -291,7 +304,7 @@ const timelineItems = computed((): TimelineItem[] => {
       transactionIndex: -1, // Not applicable for existing transactions
       existingId: tx.id,
       date: dateStr,
-      description: tx.note || 'No description',
+      description: tx.note || t('pages.statementParser.transactionReview.noDescription'),
       amount: Math.abs(tx.amount),
       txType: tx.transactionType,
     });

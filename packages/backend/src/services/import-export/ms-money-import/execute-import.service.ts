@@ -191,15 +191,16 @@ async function executeMsMoneyImportImpl({
   // here first, before any rows are written: the mapping's currency must agree
   // with the currency the parser read from the file, whether the account is
   // linked (a UAH Money account cannot post to a USD app account) or created (the
-  // client sends the currency back, so it is not authoritative). This loop also
-  // checks link-existing ownership and tallies `accountsLinked`; the actual id
-  // resolution and new-account creation is then delegated to
+  // client sends the currency back, so it is not authoritative). An account the
+  // file carries no currency for skips both checks: the user picks its currency.
+  // This loop also checks link-existing ownership and tallies `accountsLinked`;
+  // the actual id resolution and new-account creation is then delegated to
   // `createAccountsIfNeeded`.
   for (const account of importableAccounts) {
     const mapping = accountMapping[account.originalName]!;
 
     if (mapping.action === 'create-new') {
-      if (mapping.currencyCode !== account.currency) {
+      if (!account.currencyDefaulted && mapping.currencyCode !== account.currency) {
         throw new ValidationError({
           message: `Account "${account.originalName}" (${account.currency}) cannot be created as "${mapping.currencyCode}" — a new account must use the currency from the file.`,
         });
@@ -214,7 +215,7 @@ async function executeMsMoneyImportImpl({
         message: `Account "${account.originalName}" is linked to an account that does not exist or is not yours.`,
       });
     }
-    if (existing.currencyCode !== account.currency) {
+    if (!account.currencyDefaulted && existing.currencyCode !== account.currency) {
       throw new ValidationError({
         message: `Account "${account.originalName}" (${account.currency}) cannot be linked to "${existing.name}" (${existing.currencyCode}) — currencies must match.`,
       });

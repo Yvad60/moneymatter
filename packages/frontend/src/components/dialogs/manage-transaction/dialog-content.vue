@@ -2,6 +2,7 @@
 import { getExchangeRatePair } from '@/api/currencies';
 import { loadTransactionById } from '@/api/transactions';
 import { OUT_OF_WALLET_ACCOUNT_MOCK, VERBOSE_PAYMENT_TYPES, VUE_QUERY_CACHE_KEYS } from '@/common/const';
+import type { FormattedCategory } from '@/common/types';
 import { getMaxLoanPayment, isLoanOverpayment, isLoanPaymentPreAnchor } from '@/common/utils/loan-payment';
 import { isHttpUrl } from '@/common/utils/external-url';
 import { roundCoordinate } from '@/common/utils/coordinates';
@@ -21,6 +22,8 @@ import TextareaField from '@/components/fields/textarea-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import HintIcon from '@/components/common/hint-icon.vue';
 import { Checkbox } from '@/components/lib/ui/checkbox';
+import { Switch } from '@/components/lib/ui/switch';
+import { cn } from '@/lib/utils';
 import * as Drawer from '@/components/lib/ui/drawer';
 import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
@@ -30,6 +33,7 @@ import { useFormValidation } from '@/composable/form-validator';
 import { useCurrencyName, useFormatCurrency } from '@/composable/formatters';
 import { CUSTOM_BREAKPOINTS, useWindowBreakpoints } from '@/composable/window-breakpoints';
 import { formatUIAmount } from '@/js/helpers';
+import { flattenCategories } from '@/pages/import-export/utils/flatten-categories';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { useAccountsStore, useCategoriesStore, useCurrenciesStore, useTagsStore, useUserStore } from '@/stores';
 import {
@@ -39,17 +43,19 @@ import {
   ACCOUNT_TYPES,
   TRANSACTION_TRANSFER_NATURE,
   TRANSACTION_TYPES,
+  type AccountModel,
   type CurrencyModel,
   type TransactionLocation,
   type TransactionModel,
 } from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
 import { between, helpers, maxLength, minValue, required } from '@vuelidate/validators';
-import { createReusableTemplate, watchOnce } from '@vueuse/core';
+import { createReusableTemplate, useEventListener, watchOnce } from '@vueuse/core';
 import { endOfDay, format } from 'date-fns';
 import {
   ChevronUpIcon,
   CommandIcon,
+  CopyIcon,
   CornerDownLeftIcon,
   ExternalLinkIcon,
   LocateIcon,
@@ -84,6 +90,7 @@ import TypeSelector from './components/type-selector.vue';
 import TemplateFormDialog from './components/templates/template-form-dialog.vue';
 import TemplatesDrawer from './components/templates/templates-drawer.vue';
 import TemplatesPanel from './components/templates/templates-panel.vue';
+import { openCreateTransactionDialog } from '@/composable/global-state/create-transaction-dialog';
 import { useAccountAccess } from '@/composable/use-account-access';
 import { useAccountDropdownPrefs } from '@/composable/use-account-dropdown-prefs';
 import { useAccountCategories } from '@/composable/data-queries/categories';
@@ -102,11 +109,21 @@ import { useDefaultPaymentType } from './composables/use-default-payment-type';
 import { useMapPickerSetting } from './composables/use-map-picker-setting';
 import { useOptionalFields } from './composables/use-optional-fields';
 import { useReverseGeocodedLabel } from './composables/use-reverse-geocoded-label';
+import { formToCreateMorePrefill } from './utils/form-to-create-more-prefill';
+import { formToDuplicatePrefill } from './utils/form-to-duplicate-prefill';
+import { canDuplicateTransaction } from './utils/can-duplicate-transaction';
 import { resolveFormLocation } from './utils/resolve-form-location';
 import { useTransactionTemplating } from './composables/use-transaction-templating';
-import { usePayeeTagAutoApply } from '@/composable/use-payee-tag-auto-apply';
+import { useAutoTagApply } from '@/composable/use-auto-tag-apply';
+import { useUserSettings } from '@/composable/data-queries/user-settings';
 
-import { canDeleteTransaction, isTxEditableAsManual, prepopulateForm } from './helpers';
+import {
+  canDeleteTransaction,
+  getUnlistedCategoryIds,
+  isConnectedAccount,
+  isTxEditableAsManual,
+  prepopulateForm,
+} from './helpers';
 import { FORM_TYPES, type TransactionPrefill, UI_FORM_STRUCT } from './types';
 import { canSuggestOriginalAmount, resolveSuggestedOriginalAmount } from './utils/suggest-original-amount';
 
@@ -121,6 +138,8 @@ interface CreateRecordModalProps {
   prefill?: TransactionPrefill;
   /** Creation-mode files uploaded to the new row right after it is created. */
   initialAttachments?: File[];
+  /** "Create more" toggle; left undefined, the host can't keep the dialog open and the toggle is hidden. */
+  createMore?: boolean;
 }
 
 const props = withDefaults(defineProps<CreateRecordModalProps>(), {
@@ -128,6 +147,7 @@ const props = withDefaults(defineProps<CreateRecordModalProps>(), {
   oppositeTransaction: undefined,
   prefill: undefined,
   initialAttachments: () => [],
+  createMore: undefined,
 });
 
 // Keep `transaction` as the user-facing primary tx (set by useManageTransactionDialog
@@ -140,6 +160,9 @@ const oppositeTransaction = computed(() => props.oppositeTransaction);
 const emit = defineEmits<{
   'close-modal': [];
   created: [result: { transaction: TransactionModel | undefined; attachmentsFailed: boolean }];
+  'update:createMore': [value: boolean];
+  /** Saved and staying open: the host remounts this content with `prefill` for the next entry. */
+  'keep-open': [payload: { prefill: TransactionPrefill }];
 }>();
 const closeModal = () => {
   emit('close-modal');
@@ -222,20 +245,29 @@ const form = ref<UI_FORM_STRUCT>({
 // wins; the top (most-used) category is a fallback so users who never set
 // defaults still get a useful suggestion.
 //
-// Tags use a different model — see `usePayeeTagAutoApply`. In edit mode its
-// tracker starts empty, so the row's saved tags count as manual: a payee
-// change only adds, never removes. Prepopulation sets `payeeId` without going
-// through the clear path, which is consistent with that empty tracker.
+// Tags use a different model — see `useAutoTagApply`. In edit mode its
+// trackers start empty, so the row's saved tags count as manual: a payee or
+// category change only adds, never removes. Prepopulation sets `payeeId` and
+// `category` without going through the clear path, consistent with that.
 const formTagIds = computed({
   get: () => form.value.tagIds ?? [],
   set: (value: string[]) => {
     form.value.tagIds = value;
   },
 });
-const { onPayeeSelected: applyPayeeTags, reset: resetPayeeTagTracking } = usePayeeTagAutoApply({
+const { apply: applyAutoTags, reset: resetAutoTagTracking } = useAutoTagApply({
   tagIds: formTagIds,
-  payeeId: () => form.value.payeeId,
+  sources: {
+    payee: () => form.value.payeeId,
+    category: () => form.value.category?.id,
+  },
+  // Transfers carry no category.
+  suspended: { category: () => form.value.type === FORM_TYPES.transfer },
 });
+const applyCategoryTags = ({ category }: { category: FormattedCategory | null }) => {
+  if (!category) return;
+  applyAutoTags({ source: 'category', autoTagIds: category.defaultTagIds });
+};
 const handlePayeeSelected = ({
   defaultCategoryId,
   topCategoryId,
@@ -248,7 +280,7 @@ const handlePayeeSelected = ({
   defaultTagIds: string[];
   defaultLocation: TransactionLocation | null;
 }) => {
-  applyPayeeTags({ defaultTagIds });
+  applyAutoTags({ source: 'payee', autoTagIds: defaultTagIds });
 
   if (defaultLocation && !isLocationFilled.value) {
     form.value.latitude = defaultLocation.latitude;
@@ -259,17 +291,20 @@ const handlePayeeSelected = ({
   const targetId = defaultCategoryId ?? topCategoryId;
   if (!targetId) return;
   const match = findFormattedCategoryById(effectiveFormattedCategories.value, targetId);
-  if (match) form.value.category = match;
+  if (!match) return;
+  form.value.category = match;
+  applyCategoryTags({ category: match });
 };
-const handleCategoryUserTouched = () => {
+const handleCategoryPicked = (category: FormattedCategory | null) => {
   form.value.categoryUserTouched = true;
+  applyCategoryTags({ category });
 };
 
 const transferDestinationType = ref<TransferDestinationType>('account');
 
 const { data: portfolios } = usePortfolios();
 
-const { addInfoNotification, addErrorNotification } = useNotificationCenter();
+const { addInfoNotification, addErrorNotification, addSuccessNotification } = useNotificationCenter();
 
 const {
   isInitialRefundsDataLoaded,
@@ -339,11 +374,21 @@ watch(
 
 const pendingAttachments = ref<File[]>(props.initialAttachments);
 
+const isCreateMoreAvailable = computed(() => isFormCreation.value && props.createMore !== undefined);
+let shouldKeepOpen = false;
+let isHandedOffToNextEntry = false;
+
 const submitMutation = useSubmitTransaction({
   onSuccess: ({ created, attachmentsFailed }) => {
     // Emitted for every creation submit: only a plain creation answers with the new row, and a
     // listener that prefilled the form needs to know when it did not get one.
     if (isFormCreation.value) emit('created', { transaction: created, attachmentsFailed: Boolean(attachmentsFailed) });
+    if (shouldKeepOpen) {
+      addSuccessNotification(t('dialogs.manageTransaction.form.createMore.createdToast'));
+      isHandedOffToNextEntry = true;
+      emit('keep-open', { prefill: formToCreateMorePrefill({ form: form.value, now: new Date() }) });
+      return;
+    }
     closeModal();
   },
 });
@@ -393,6 +438,8 @@ const isCategoriesReady = computed(
     sharedAccountCategories.isSuccess.value ||
     sharedAccountCategories.isError.value,
 );
+// Until a shared account's categories load, the selected category may belong to another owner.
+const isSubmitBlocked = computed(() => isFormCreation.value && !isCategoriesReady.value);
 
 const canMutateCurrentTx = computed(() => canMutateTx(transaction.value, currentUser.value?.id));
 
@@ -446,6 +493,18 @@ const isFormFieldsDisabled = computed(() => isLoading.value || !isInitialRefunds
 
 const currentTxType = computed(() => form.value.type);
 const isTransferTx = computed(() => currentTxType.value === FORM_TYPES.transfer);
+
+const { data: userSettings } = useUserSettings();
+// A shared account lists its owner's categories, which the caller's own settings don't describe.
+const unlistedCategoryIds = computed(() =>
+  isAccountSharedWithCaller.value || userSettings.value?.ui?.transactionForm?.filterCategoriesByType === false
+    ? undefined
+    : getUnlistedCategoryIds({
+        categories: formattedCategories.value,
+        incomeCategoryIds: userSettings.value?.incomeCategoryIds,
+        isIncome: currentTxType.value === FORM_TYPES.income,
+      }),
+);
 
 // The Loan pill only narrows the picker to loan accounts; the backend stamps transfer_to_loan from the destination's accountCategory.
 const isLoanDestination = computed(() => isTransferTx.value && transferDestinationType.value === 'loan');
@@ -534,7 +593,7 @@ const isPlannedBadgeVisible = computed(
 const isSelectedAccountConnected = computed(() => {
   const account = resolvedAccount.value;
   if (!account) return false;
-  return account.type !== ACCOUNT_TYPES.system;
+  return isConnectedAccount({ account });
 });
 
 const nonTransferSourceAccounts = computed(() =>
@@ -637,10 +696,14 @@ const existingLoanLegAmount = computed(() => {
   return existingLeg?.amount ?? 0;
 });
 
+// Form accounts are snapshots; balances must come from the store so they follow refetches after a save.
+const liveAccount = ({ account }: { account: AccountModel | null | undefined }) =>
+  account ? (accountsRecord.value[account.id] ?? account) : account;
+
 // Largest payment that keeps the destination loan at or above zero.
 const loanOverpayMax = computed(() =>
   getMaxLoanPayment({
-    loanCurrentBalance: form.value.toAccount?.currentBalance ?? 0,
+    loanCurrentBalance: liveAccount({ account: form.value.toAccount })?.currentBalance ?? 0,
     existingLegAmount: existingLoanLegAmount.value,
   }),
 );
@@ -657,7 +720,7 @@ const isLoanOverpayCheckActive = computed(() => isLoanDestination.value && !!for
 // balance going negative – credit lines already in the red overdraw by design. Non-blocking.
 const wouldOverdrawLoanSource = computed(() => {
   if (!isLoanDestination.value) return false;
-  const account = form.value.account;
+  const account = liveAccount({ account: form.value.account });
   if (!account) return false;
   const amount = Number(form.value.amount);
   if (!Number.isFinite(amount) || amount <= 0) return false;
@@ -983,7 +1046,8 @@ watch(exchangeRates, () => {
   prefillLoanTargetAmount();
 });
 
-const submit = () => {
+const submit = ({ keepOpen = false }: { keepOpen?: boolean } = {}) => {
+  if (isSubmitBlocked.value) return;
   touchField('form.amount');
   touchField('form.targetAmount');
   touchField('form.time');
@@ -994,6 +1058,7 @@ const submit = () => {
 
   if (!isFormValid('form')) return;
 
+  shouldKeepOpen = isCreateMoreAvailable.value && (keepOpen || Boolean(props.createMore));
   submitMutation.mutate({
     form: form.value,
     isFormCreation: isFormCreation.value,
@@ -1049,17 +1114,23 @@ const [DefineMoreOptions, ReuseMoreOptions] = createReusableTemplate();
 
 const { isEnabled: isOptionalFieldEnabled } = useOptionalFields();
 
+// Snapshot: the host clears its prefill on close, while this content stays mounted through the exit animation.
+const initialPrefill = props.prefill;
+
 const showExternalUrl = computed(
-  () => isOptionalFieldEnabled('externalUrl') || !!props.transaction?.externalUrl || !!props.prefill?.externalUrl,
+  () => isOptionalFieldEnabled('externalUrl') || !!props.transaction?.externalUrl || !!initialPrefill?.externalUrl,
 );
 const showExternalReference = computed(
   () =>
     isOptionalFieldEnabled('externalReference') ||
     !!props.transaction?.externalReference ||
-    !!props.prefill?.externalReference,
+    !!initialPrefill?.externalReference,
 );
 const showOriginalAmount = computed(
-  () => isOptionalFieldEnabled('originalAmount') || props.transaction?.originalAmount != null,
+  () =>
+    isOptionalFieldEnabled('originalAmount') ||
+    props.transaction?.originalAmount != null ||
+    initialPrefill?.originalAmount != null,
 );
 const isLocationFilled = computed(() => form.value.latitude != null || form.value.longitude != null);
 const showLocation = computed(
@@ -1163,22 +1234,25 @@ const prepopulateIfReady = () => {
       route.name === ROUTES_NAMES.account ? accounts.find((account) => account.id === route.params.id) : undefined;
     form.value.account = pageAccount ?? resolveDefaultAccount({ accounts });
     form.value.paymentType = defaultPaymentType.value;
-    Object.assign(form.value, props.prefill);
-    hasPrepopulated.value = true;
-    return;
+    Object.assign(form.value, initialPrefill);
+    // Keeps the payee auto-fill from replacing a prefilled category.
+    form.value.categoryUserTouched = !!initialPrefill?.category;
+    // A prefilled category arrives with the tag list its source already settled on.
+    if (!initialPrefill?.category) applyCategoryTags({ category: form.value.category });
+  } else {
+    if (!isCategoriesReady.value) return;
+    const data = prepopulateForm({
+      transaction: transaction.value,
+      oppositeTransaction: oppositeTransaction.value,
+      accounts: accountsRecord.value,
+      categories: effectiveCategoriesMap.value,
+      formattedCategories: effectiveFormattedCategories.value,
+      systemCurrencies: systemCurrencies.value,
+    });
+    if (data) form.value = data;
   }
-  if (!isCategoriesReady.value) return;
-  const data = prepopulateForm({
-    transaction: transaction.value,
-    oppositeTransaction: oppositeTransaction.value,
-    accounts: accountsRecord.value,
-    categories: effectiveCategoriesMap.value,
-    formattedCategories: effectiveFormattedCategories.value,
-    systemCurrencies: systemCurrencies.value,
-  });
-  if (data) form.value = data;
-  // Edit fallback: when the resolved opposite leg is a loan account, switch the picker to the Loan pill so it matches the row.
-  if (data?.toAccount?.accountCategory === ACCOUNT_CATEGORIES.loan) {
+  // A loan destination switches the picker to the Loan pill so it matches the account.
+  if (form.value.toAccount?.accountCategory === ACCOUNT_CATEGORIES.loan) {
     transferDestinationType.value = 'loan';
   }
   hasPrepopulated.value = true;
@@ -1189,15 +1263,17 @@ watch([isCategoriesReady, isAccountsFetched], prepopulateIfReady);
 
 // The category set swaps whenever the picked account moves between own and shared. Drop a
 // selection the new set no longer contains, so the required rule blocks Create with a visible
-// message instead of posting a categoryId belonging to another owner.
-watch(effectiveFormattedCategories, (categories) => {
-  if (!isFormCreation.value) return;
+// message instead of posting a categoryId belonging to another owner. A shared set is empty
+// while loading, so the check waits for the load to end, failed loads included.
+watch([effectiveFormattedCategories, isCategoriesReady], ([categories, isReady]) => {
+  if (!isFormCreation.value || !isReady) return;
   const selected = form.value.category;
   if (!selected) {
     if (form.value.categoryUserTouched) return;
     // An applied template that resolved no category must stay empty, not fall back to the first.
     if (templating.applied.value) return;
     form.value.category = categories[0] ?? null;
+    applyCategoryTags({ category: form.value.category });
     return;
   }
   if (effectiveCategoriesMap.value[selected.id]) return;
@@ -1205,6 +1281,7 @@ watch(effectiveFormattedCategories, (categories) => {
 });
 
 const amountFieldRef = ref<InstanceType<typeof InputField> | null>(null);
+const targetAmountFieldRef = ref<InstanceType<typeof InputField> | null>(null);
 const categoryFieldRef = ref<InstanceType<typeof CategorySelectField> | null>(null);
 
 const templating = useTransactionTemplating({
@@ -1219,7 +1296,7 @@ const templating = useTransactionTemplating({
   // Templates pin the caller's own categories; the shared-account picker swaps to the owner's set.
   formattedCategories,
   currencyCode,
-  resetPayeeTagTracking,
+  resetAutoTagTracking,
   focusAmountField: () => {
     amountFieldRef.value?.focus();
     amountFieldRef.value?.select();
@@ -1228,8 +1305,76 @@ const templating = useTransactionTemplating({
   submit: () => submit(),
 });
 
+// A default category the current type doesn't list would sit selected yet missing from the picker.
+watch(
+  unlistedCategoryIds,
+  (unlistedIds) => {
+    if (!isFormCreation.value || form.value.categoryUserTouched || templating.applied.value) return;
+    const selected = form.value.category;
+    if (!unlistedIds || !selected || !unlistedIds.has(selected.id)) return;
+    form.value.category =
+      flattenCategories({ categories: formattedCategories.value }).find((category) => !unlistedIds.has(category.id)) ??
+      null;
+    applyCategoryTags({ category: form.value.category });
+  },
+  { immediate: true },
+);
+
+const isDuplicateVisible = computed(
+  () =>
+    !isFormCreation.value &&
+    isMutable.value &&
+    hasPrepopulated.value &&
+    canDuplicateTransaction({
+      transferNature: transaction.value?.transferNature,
+      form: form.value,
+      transferDestinationType: transferDestinationType.value,
+      hasLockedLeg: !!linkedTransaction.value || isRecordExternal.value || isOppositeTxExternal.value,
+      hasOppositeTransaction: !!oppositeTransaction.value,
+      sourceAccounts: txTargetableSourceAccountsActiveFirst.value,
+      plannedAccounts: plannedTargetableAccountsActiveFirst.value,
+      destinationAccounts: transferDestinationAccounts.value,
+    }),
+);
+
+const duplicate = () => {
+  if (isFormFieldsDisabled.value) return;
+  const prefill = formToDuplicatePrefill({ form: form.value, now: new Date() });
+  isHandedOffToNextEntry = true;
+  closeModal();
+  // Lets the host start closing this dialog first, so the two don't fight over scroll lock and focus.
+  nextTick(() => openCreateTransactionDialog({ prefill }));
+};
+
+// On document so keys pressed inside portaled pickers count, and the browser's bookmark shortcut never fires here.
+useEventListener(document, 'keydown', (event: KeyboardEvent) => {
+  const isDuplicateHotkey =
+    event.code === 'KeyD' && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey;
+  if (!isDuplicateHotkey || isFormCreation.value) return;
+  event.preventDefault();
+  if (isDuplicateVisible.value) duplicate();
+});
+
+const onKeydown = (event: KeyboardEvent) => {
+  const isCreateMoreHotkey = event.key === 'Enter' && (event.metaKey || event.ctrlKey) && event.shiftKey;
+  if (isCreateMoreHotkey && isCreateMoreAvailable.value) {
+    event.preventDefault();
+    if (!isFormFieldsDisabled.value) submit({ keepOpen: true });
+    return;
+  }
+  templating.onKeydown(event);
+};
+
+defineExpose({
+  focusAmount: () => (isAmountFieldDisabled.value ? targetAmountFieldRef.value : amountFieldRef.value)?.focus(),
+});
+
 onUnmounted(() => {
-  (previouslyFocusedElement.value as HTMLElement).focus();
+  // The next entry's content (Create more remount or the duplicate's Add dialog) takes over focus.
+  if (isHandedOffToNextEntry) return;
+  // A remounted entry captured document.body or a detached node; Reka returns focus to the trigger then.
+  const element = previouslyFocusedElement.value;
+  if (element && element !== document.body && element.isConnected) (element as HTMLElement).focus();
 });
 </script>
 
@@ -1440,7 +1585,7 @@ onUnmounted(() => {
   <div
     v-else
     class="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] overflow-hidden rounded-t-xl"
-    @keydown="templating.onKeydown"
+    @keydown="onKeydown"
   >
     <p role="status" class="sr-only">{{ templating.announcement.value }}</p>
     <!-- Striped while planned, so the mode stays readable once the toggle scrolls away. -->
@@ -1586,6 +1731,7 @@ onUnmounted(() => {
                 <template v-if="isTargetFieldVisible">
                   <form-row>
                     <input-field
+                      ref="targetAmountFieldRef"
                       v-model="form.targetAmount"
                       :disabled="isFormFieldsDisabled || isTargetAmountFieldDisabled"
                       only-positive
@@ -1651,12 +1797,13 @@ onUnmounted(() => {
                   :label="$t('dialogs.manageTransaction.form.categoryLabel')"
                   :placeholder="$t('dialogs.manageTransaction.form.selectCategoryPlaceholder')"
                   :values="effectiveFormattedCategories"
+                  :unlisted-ids="unlistedCategoryIds"
                   :error-message="categoryErrorMessage"
                   :categories-map="isAccountSharedWithCaller ? effectiveCategoriesMap : undefined"
                   :shared-owner-username="isAccountSharedWithCaller ? accountShare?.owner.username : undefined"
                   label-key="name"
                   :disabled="isFormFieldsDisabled"
-                  @update:model-value="handleCategoryUserTouched"
+                  @update:model-value="handleCategoryPicked"
                 >
                   <template #field-right>
                     <LabelPill
@@ -1833,34 +1980,73 @@ onUnmounted(() => {
         <template #title>{{ $t('dialogs.manageTransaction.form.deleteConfirmTitle') }}</template>
         <template #description>{{ $t('dialogs.manageTransaction.form.deleteConfirmDescription') }}</template>
       </ResponsiveAlertDialog>
-      <Button
-        v-if="!isReadOnly"
-        class="ml-auto min-w-30"
-        :aria-label="
-          isFormCreation
-            ? $t('dialogs.manageTransaction.form.createAriaLabel')
-            : $t('dialogs.manageTransaction.form.editAriaLabel')
-        "
-        :disabled="isFormFieldsDisabled"
-        @click="submit"
-      >
-        {{
-          isLoading
-            ? $t('dialogs.manageTransaction.form.loadingButton')
-            : isFormCreation
-              ? $t('dialogs.manageTransaction.form.createButton')
-              : $t('dialogs.manageTransaction.form.editButton')
-        }}
-        <kbd
-          v-if="!isMobileView"
-          aria-hidden="true"
-          class="text-primary-foreground/70 inline-flex items-center gap-0.5 text-xs font-medium"
+      <div class="ml-auto flex items-center gap-2">
+        <DesktopOnlyTooltip
+          v-if="isDuplicateVisible"
+          :content="$t('dialogs.manageTransaction.form.duplicateButton')"
+          :disabled="!isMobileView"
         >
-          <CommandIcon v-if="isMac" class="size-3" />
-          <template v-else>Ctrl</template>
-          <CornerDownLeftIcon class="size-3" />
-        </kbd>
-      </Button>
+          <Button
+            variant="outline"
+            :size="isMobileView ? 'icon' : 'default'"
+            :aria-label="$t('dialogs.manageTransaction.form.duplicateButton')"
+            :disabled="isFormFieldsDisabled"
+            @click="duplicate"
+          >
+            <CopyIcon class="size-4" />
+            <template v-if="!isMobileView">
+              {{ $t('dialogs.manageTransaction.form.duplicateButton') }}
+              <kbd
+                aria-hidden="true"
+                class="text-muted-foreground inline-flex items-center gap-0.5 text-xs font-medium"
+              >
+                <CommandIcon v-if="isMac" class="size-3" />
+                <template v-else>Ctrl</template>
+                D
+              </kbd>
+            </template>
+          </Button>
+        </DesktopOnlyTooltip>
+        <label
+          v-if="isCreateMoreAvailable"
+          :class="cn('flex items-center gap-2 text-sm whitespace-nowrap', !isFormFieldsDisabled && 'cursor-pointer')"
+        >
+          <Switch
+            :model-value="createMore"
+            :disabled="isFormFieldsDisabled"
+            @update:model-value="(value: boolean) => emit('update:createMore', value)"
+          />
+          {{ $t('dialogs.manageTransaction.form.createMore.label') }}
+        </label>
+        <Button
+          v-if="!isReadOnly"
+          class="min-w-30"
+          :aria-label="
+            isFormCreation
+              ? $t('dialogs.manageTransaction.form.createAriaLabel')
+              : $t('dialogs.manageTransaction.form.editAriaLabel')
+          "
+          :disabled="isFormFieldsDisabled || isSubmitBlocked"
+          @click="submit()"
+        >
+          {{
+            isLoading
+              ? $t('dialogs.manageTransaction.form.loadingButton')
+              : isFormCreation
+                ? $t('dialogs.manageTransaction.form.createButton')
+                : $t('dialogs.manageTransaction.form.editButton')
+          }}
+          <kbd
+            v-if="!isMobileView"
+            aria-hidden="true"
+            class="text-primary-foreground/70 inline-flex items-center gap-0.5 text-xs font-medium"
+          >
+            <CommandIcon v-if="isMac" class="size-3" />
+            <template v-else>Ctrl</template>
+            <CornerDownLeftIcon class="size-3" />
+          </kbd>
+        </Button>
+      </div>
     </div>
   </div>
 </template>

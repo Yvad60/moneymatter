@@ -1,5 +1,6 @@
 import {
   ACCOUNT_TYPES,
+  API_ERROR_CODES,
   BANK_PROVIDER_TYPE,
   DEACTIVATION_REASON,
   type RecordId,
@@ -7,8 +8,9 @@ import {
   asDecimal,
 } from '@bt/shared/types';
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { ERROR_CODES } from '@js/errors';
+import { logger } from '@js/utils/logger';
 import Accounts from '@models/accounts.model';
 import Balances from '@models/balances.model';
 import Transactions from '@models/transactions.model';
@@ -28,11 +30,15 @@ import {
   INVALID_SIMPLEFIN_SETUP_TOKEN,
   NON_URL_SIMPLEFIN_SETUP_TOKEN,
   RATE_LIMITED_SIMPLEFIN_SETUP_TOKEN,
+  ROTATED_SIMPLEFIN_SETUP_TOKEN,
   SERVER_ERROR_SIMPLEFIN_SETUP_TOKEN,
+  SIMPLEFIN_ACCESS_URL,
   VALID_SIMPLEFIN_SETUP_TOKEN,
   createSimplefinAccountsRecorder,
   getSimplefinAccountsErrorMock,
   getSimplefinAccountsMock,
+  getSimplefinAccountsNetworkErrorMock,
+  getSimplefinRotatedAccountsMock,
 } from '@tests/mocks/simplefin/mock-api';
 import { addDays, subDays, subHours } from 'date-fns';
 import { Op } from 'sequelize';
@@ -600,6 +606,32 @@ describe('SimpleFIN Data Provider E2E', () => {
       expect(stored.length).toBe(3);
       expect(result.createdCount).toBe(3);
     });
+
+    it('warns once per load for legacy bridge errors repeated on every window', async () => {
+      const connectionId = await connectSimplefin();
+      const accountId = await importFirstAccount(connectionId);
+
+      global.mswMockServer.use(
+        getSimplefinAccountsMock({ response: getMockedSimplefinAccountSet({ errors: ['bridge text'] }) }),
+      );
+
+      const warnSpy = jest.spyOn(logger, 'warn');
+      try {
+        const result = (await helpers.bankDataProviders.loadTransactionsForPeriod({
+          connectionId,
+          accountId,
+          from: subDays(new Date(), 200).toISOString(),
+          to: new Date().toISOString(),
+          raw: true,
+        })) as unknown as { totalBatches: number };
+        expect(result.totalBatches).toBeGreaterThanOrEqual(3);
+
+        const bridgeWarnings = warnSpy.mock.calls.filter(([message]) => message === '[SimpleFIN] Bridge warning');
+        expect(bridgeWarnings).toEqual([['[SimpleFIN] Bridge warning', { bridgeMessages: ['bridge text'] }]]);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   describe('Accounts without provider currency', () => {
@@ -804,6 +836,38 @@ describe('SimpleFIN Data Provider E2E', () => {
       expect(connection.isActive).toBe(true);
       expect(connection.deactivationReason).toBeNull();
     });
+
+    it.each([
+      { outage: 'no HTTP response', mock: () => getSimplefinAccountsNetworkErrorMock() },
+      { outage: 'a 503 response', mock: () => getSimplefinAccountsErrorMock({ status: 503 }) },
+    ])('reports a sync that gets $outage as an outage: no error log, no deactivation', async ({ mock }) => {
+      const connectionId = await connectSimplefin();
+      const accountId = await importFirstAccount(connectionId);
+
+      global.mswMockServer.use(mock());
+
+      const errorSpy = jest.spyOn(logger, 'error');
+      const infoSpy = jest.spyOn(logger, 'info');
+      try {
+        const first = await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId });
+        const second = await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId });
+        expect(first.statusCode).toBe(ERROR_CODES.ServiceUnavailable);
+        expect(second.statusCode).toBe(ERROR_CODES.ServiceUnavailable);
+
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(infoSpy).toHaveBeenCalledWith(
+          '[Bank Sync] Bank provider unavailable, sync skipped',
+          expect.objectContaining({ connectionId }),
+        );
+      } finally {
+        errorSpy.mockRestore();
+        infoSpy.mockRestore();
+      }
+
+      const { connection } = await helpers.bankDataProviders.getConnectionDetails({ connectionId, raw: true });
+      expect(connection.isActive).toBe(true);
+      expect(connection.deactivationReason).toBeNull();
+    });
   });
 
   describe('Refresh credentials', () => {
@@ -856,6 +920,93 @@ describe('SimpleFIN Data Provider E2E', () => {
       expect(connection.isActive).toBe(false);
       expect(connection.deactivationReason).toBe(DEACTIVATION_REASON.AUTH_FAILURE);
     });
+  });
+
+  describe('Bridge unavailable (no HTTP response, 5xx or throttled)', () => {
+    it('returns 503 with a fixed message when refreshing with an Access URL, leaving the connection untouched', async () => {
+      const connectionId = await connectSimplefin();
+      const accountId = await importFirstAccount(connectionId);
+
+      global.mswMockServer.use(getSimplefinAccountsErrorMock({ status: 403 }));
+      await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId });
+      await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId });
+
+      global.mswMockServer.use(getSimplefinAccountsNetworkErrorMock());
+
+      const result = await helpers.bankDataProviders.updateConnectionDetails({
+        connectionId,
+        credentials: { accessUrl: SIMPLEFIN_ACCESS_URL },
+      });
+
+      expect(result.statusCode).toBe(ERROR_CODES.ServiceUnavailable);
+      const error = result.body.response as unknown as { code: string; message: string };
+      expect(error.code).toBe(API_ERROR_CODES.serviceUnavailable);
+      expect(error.message).toBe('SimpleFIN is temporarily unreachable. Please try again later.');
+
+      const { connection } = await helpers.bankDataProviders.getConnectionDetails({ connectionId, raw: true });
+      expect(connection.isActive).toBe(false);
+      expect(connection.deactivationReason).toBe(DEACTIVATION_REASON.AUTH_FAILURE);
+    });
+
+    it('keeps a freshly claimed Access URL when the probe after a setup-token refresh gets no response', async () => {
+      const connectionId = await connectSimplefin();
+      const accountId = await importFirstAccount(connectionId);
+
+      global.mswMockServer.use(getSimplefinAccountsErrorMock({ status: 403 }));
+      await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId });
+      await helpers.bankDataProviders.syncTransactionsForAccount({ connectionId, accountId });
+
+      const deactivated = await helpers.bankDataProviders.getConnectionDetails({ connectionId, raw: true });
+      expect(deactivated.connection.isActive).toBe(false);
+
+      global.mswMockServer.use(getSimplefinAccountsNetworkErrorMock());
+      const result = await helpers.bankDataProviders.updateConnectionDetails({
+        connectionId,
+        credentials: { setupToken: ROTATED_SIMPLEFIN_SETUP_TOKEN },
+      });
+      expect(result.statusCode).toBe(200);
+
+      const reactivated = await helpers.bankDataProviders.getConnectionDetails({ connectionId, raw: true });
+      expect(reactivated.connection.isActive).toBe(true);
+      expect(reactivated.connection.deactivationReason).toBeNull();
+
+      global.mswMockServer.use(getSimplefinRotatedAccountsMock());
+      const { accounts } = await helpers.bankDataProviders.listExternalAccounts({ connectionId, raw: true });
+      expect(accounts.length).toBeGreaterThan(0);
+    });
+
+    it('creates the connection from a claimed setup token when the probe gets no response', async () => {
+      global.mswMockServer.use(getSimplefinAccountsNetworkErrorMock());
+
+      const result = await helpers.bankDataProviders.connectProvider({
+        providerType: BANK_PROVIDER_TYPE.SIMPLEFIN,
+        credentials: { setupToken: VALID_SIMPLEFIN_SETUP_TOKEN },
+      });
+      expect(result.statusCode).toBe(200);
+      const { connectionId } = result.body.response;
+
+      global.mswMockServer.use(getSimplefinAccountsMock({ response: getMockedSimplefinAccountSet() }));
+      const { accounts } = await helpers.bankDataProviders.listExternalAccounts({ connectionId, raw: true });
+      expect(accounts.length).toBeGreaterThan(0);
+    });
+
+    it.each([503, 429])(
+      'creates the connection from a claimed setup token when the probe gets a %i',
+      async (status) => {
+        global.mswMockServer.use(getSimplefinAccountsErrorMock({ status }));
+
+        const result = await helpers.bankDataProviders.connectProvider({
+          providerType: BANK_PROVIDER_TYPE.SIMPLEFIN,
+          credentials: { setupToken: VALID_SIMPLEFIN_SETUP_TOKEN },
+        });
+        expect(result.statusCode).toBe(200);
+        const { connectionId } = result.body.response;
+
+        global.mswMockServer.use(getSimplefinAccountsMock({ response: getMockedSimplefinAccountSet() }));
+        const { accounts } = await helpers.bankDataProviders.listExternalAccounts({ connectionId, raw: true });
+        expect(accounts.length).toBeGreaterThan(0);
+      },
+    );
   });
 
   describe('con.auth scope handling', () => {

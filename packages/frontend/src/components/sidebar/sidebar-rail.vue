@@ -31,7 +31,12 @@ import { useSidebarSectionTotals } from './accounts-view/helpers/use-sidebar-sec
 import LoansList from './accounts-view/loans-list.vue';
 import PortfoliosList from './accounts-view/portfolios-list.vue';
 import VenturesList from './accounts-view/ventures-list.vue';
-import { SIDEBAR_NAV_CHILDREN, type SidebarNavChild } from './nav-items';
+import {
+  SIDEBAR_BUDGET_NAV_ITEM,
+  SIDEBAR_NAV_CHILDREN,
+  type SidebarNavChild,
+  useAccountsNavChildren,
+} from './nav-items';
 import RailIconTrigger from './rail-icon-trigger.vue';
 import { useSidebarNavRoutes } from './use-nav-routes';
 import { useSidebarCollapsed } from './use-sidebar-collapsed';
@@ -40,7 +45,8 @@ import UserMenu from './user-menu.vue';
 const { t } = useI18n();
 const route = useRoute();
 const { isCollapsed } = useSidebarCollapsed();
-const { isAccountsRoute, isTransactionsRoute, isPlannedRoute } = useSidebarNavRoutes();
+const { isAccountsRoute, isTransactionsRoute, isBudgetRoute, isPlannedRoute } = useSidebarNavRoutes();
+const accountsNavChildren = useAccountsNavChildren();
 
 const {
   accountGroups,
@@ -83,7 +89,7 @@ interface RailNavItem {
   routeName: string;
   icon: Component;
   label: string;
-  /** Route-group match for the entries with children; the rest fall back to router-link's own. */
+  /** Route-group match for the grouped entries; the rest fall back to router-link's own. */
   active?: boolean;
   children?: SidebarNavChild[];
 }
@@ -95,7 +101,7 @@ const navItems = computed<RailNavItem[]>(() => [
     icon: LayersIcon,
     label: t('navigation.accounts'),
     active: isAccountsRoute.value,
-    children: SIDEBAR_NAV_CHILDREN.accounts,
+    children: accountsNavChildren.value.length > 1 ? accountsNavChildren.value : undefined,
   },
   {
     routeName: ROUTES_NAMES.transactions,
@@ -103,6 +109,12 @@ const navItems = computed<RailNavItem[]>(() => [
     label: t('navigation.transactions'),
     active: isTransactionsRoute.value,
     children: SIDEBAR_NAV_CHILDREN.transactions,
+  },
+  {
+    routeName: SIDEBAR_BUDGET_NAV_ITEM.routeName,
+    icon: SIDEBAR_BUDGET_NAV_ITEM.icon,
+    label: t(SIDEBAR_BUDGET_NAV_ITEM.labelKey),
+    active: isBudgetRoute.value,
   },
   {
     routeName: ROUTES_NAMES.planned,
@@ -236,9 +248,12 @@ const sectionItems = computed<RailSectionItem[]>(() => {
                 as="span"
                 size="icon"
                 :aria-label="item.label"
-                :class="cn(isActive && 'bg-primary/10')"
+                :class="cn((item.active ?? isActive) && 'bg-primary/10')"
               >
-                <component :is="item.icon" :class="cn('size-4 shrink-0', isActive && 'text-primary-text')" />
+                <component
+                  :is="item.icon"
+                  :class="cn('size-4 shrink-0', (item.active ?? isActive) && 'text-primary-text')"
+                />
               </ui-button>
             </router-link>
           </DesktopOnlyTooltip>

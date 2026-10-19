@@ -11,6 +11,7 @@ import {
   markDemoOrigin,
   markSignedInOnDevice,
 } from '@/lib/demo-origin';
+import { setLastLoginMethod, setPendingLoginMethod } from '@/lib/last-login-method';
 import { identifyUser, resetUser, startSessionRecording, trackAnalyticsEvent } from '@/lib/posthog';
 import { collectPersistedQueryGarbage, resetQueryCaches } from '@/lib/query-persister';
 import { captureException, clearSentryUser, setSentryUser } from '@/lib/sentry';
@@ -51,6 +52,7 @@ function identifyUserForTracking(user: UserInfoResponse) {
       is_demo: isDemo,
       user_role: user.role,
       plan: isDemo ? 'demo' : user.entitlements && analyticsPlan({ entitlements: user.entitlements }),
+      granted_plan: user.entitlements?.plan ?? null,
       ...demoOriginProperties,
     },
   });
@@ -130,7 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
     });
 
     if (result.error) {
-      throw new UnexpectedError(result.error.message || 'Login failed');
+      throw new UnexpectedError(result.error.message, result.error);
     }
 
     await userStore.loadUser();
@@ -143,6 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     isLoggedIn.value = true;
     localStorage.setItem(HAS_EVER_LOGGED_IN_KEY, 'true');
+    setLastLoginMethod({ method: 'email' });
   };
 
   /**
@@ -158,6 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
     from?: 'signin' | 'signup';
   }) => {
     sessionStorage.setItem('oauth_from', from);
+    setPendingLoginMethod({ method: provider });
 
     const result = await signIn.social({
       provider,
@@ -173,7 +177,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (code === 'PROVIDER_NOT_FOUND' || status === 404) {
         throw new OAuthProviderNotConfiguredError(provider);
       }
-      throw new UnexpectedError(result.error.message || `${provider} login failed`);
+      throw new UnexpectedError(result.error.message, result.error);
     }
   };
 
@@ -184,7 +188,7 @@ export const useAuthStore = defineStore('auth', () => {
     const result = await authClient.signIn.passkey();
 
     if (result.error) {
-      throw new UnexpectedError(result.error.message || 'Passkey login failed');
+      throw new UnexpectedError(result.error.message, result.error);
     }
 
     await userStore.loadUser();
@@ -197,6 +201,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     isLoggedIn.value = true;
     localStorage.setItem(HAS_EVER_LOGGED_IN_KEY, 'true');
+    setLastLoginMethod({ method: 'passkey' });
   };
 
   /**
@@ -208,7 +213,7 @@ export const useAuthStore = defineStore('auth', () => {
     });
 
     if (result.error) {
-      throw new UnexpectedError(result.error.message || 'Failed to register passkey');
+      throw new UnexpectedError(result.error.message, result.error);
     }
 
     return result;
@@ -262,7 +267,7 @@ export const useAuthStore = defineStore('auth', () => {
     });
 
     if (result.error) {
-      throw new UnexpectedError(result.error.message || 'Signup failed', result.error);
+      throw new UnexpectedError(result.error.message, result.error);
     }
 
     // Don't auto-login - user needs to verify email first

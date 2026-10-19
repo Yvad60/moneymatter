@@ -135,6 +135,7 @@ describeWithFixture('Microsoft Money import execution', () => {
 
     expect(upload.result.accounts).toHaveLength(3);
     expect(upload.result.baseCurrency).toBe(FIXTURE_CURRENCY);
+    expect(upload.result.accounts.every((account) => account.currencyDefaulted === false)).toBe(true);
     // Fail fast if the fixture stops carrying voided rows — the opt-in test
     // below would otherwise pass by asserting nothing.
     expect(upload.result.transactions.filter((tx) => tx.isVoid).length).toBeGreaterThan(0);

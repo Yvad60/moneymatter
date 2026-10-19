@@ -2,9 +2,10 @@ import { ACCOUNT_CATEGORIES } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import * as Accounts from '@models/accounts.model';
 import * as Balances from '@models/balances.model';
+import { connection } from '@models/connection';
 import { getAccessibleAccountIdsForUser } from '@services/sharing/auth/get-accessible-account-ids.service';
 import { format } from 'date-fns';
-import { Op, WhereOptions } from 'sequelize';
+import { Op, QueryTypes, WhereOptions } from 'sequelize';
 
 import { getWhereConditionForTime } from './utils';
 
@@ -16,7 +17,7 @@ interface AccountCategoryFilter {
 }
 
 /**
- * Balance row fetched with `raw: true` — a deliberate exception to the
+ * Balance row fetched without model hydration — a deliberate exception to the
  * "no raw on Money queries" rule: Balances has one row per account per day,
  * so per-row Sequelize instances + Money objects dominate dashboard-load memory.
  * `amount` is cents (BIGINT; the global INT8 parser in models/index.ts yields
@@ -69,9 +70,9 @@ function formatDate(date: string | Date): string {
 /**
  * Fetches the balance rows for the accounts named by `accountScope` within a specified date
  * range.
- * If no balance record is found for an account between the "from" and "to" dates,
- * and also no record before the "from" date, it checks for records after the "to" date
- * that have a positive balance.
+ * An account with no row dated on "from" also gets its latest earlier balance as a row
+ * dated "from". An account with no row in the range and none before "from" gets its
+ * earliest balance after "to" instead, dated "from" (or "to" when "from" is absent).
  */
 const getBalanceHistoryRows = async ({
   userId,
@@ -120,33 +121,31 @@ const getBalanceHistoryRows = async ({
   let data = balancesInRange;
   const allAccountIds = allUserAccounts.map((acc) => acc.id);
 
-  // Identify accounts that have NO balance records at all within the requested range.
-  // These accounts need a backfill entry from their latest pre-range (or earliest post-range)
-  // balance so the aggregation includes them.
-  //
-  // Accounts that DO have records in the range (even if not on the first date) are handled
-  // correctly by the aggregation's forward-fill logic — their first in-range value is used
-  // for all prior dates. We intentionally skip backfilling these accounts to avoid creating
-  // phantom balance spikes when the pre-range balance differs from the first in-range value
-  // (e.g., an account was $8,500 before the range but $0 on its first in-range record).
   const accountIdsWithRecordsInRange = new Set(balancesInRange.map((b) => b.accountId));
   const accountIdsWithNoRecords = allAccountIds.filter((id) => !accountIdsWithRecordsInRange.has(id));
 
-  if (accountIdsWithNoRecords.length && (from || to)) {
-    const [balancesBeforeFrom, balancesAfterTo] = await Promise.all([
-      // Get latest balance before 'from' date for each missing account
-      from
-        ? (Balances.default.findAll({
-            where: {
-              accountId: { [Op.in]: accountIdsWithNoRecords },
-              date: { [Op.lt]: new Date(from) },
-            },
-            attributes: dataAttributes,
-            raw: true,
-          }) as unknown as Promise<BalanceHistoryRow[]>)
-        : Promise.resolve<BalanceHistoryRow[]>([]),
-      // Get earliest balance after 'to' date for each missing account
-      to
+  // Balances rows are sparse, so an account without a row on `from` is seeded there with its
+  // latest pre-range balance; unseeded, its first in-range value would back-fill earlier days.
+  // `formatDate(from)` is the day the range query's lower bound resolves to.
+  if ((from && allAccountIds.length) || (accountIdsWithNoRecords.length && to)) {
+    const [latestBalancesBeforeFrom, balancesAfterTo] = await Promise.all([
+      from && allAccountIds.length
+        ? (connection.sequelize.query(
+            `
+            SELECT DISTINCT ON (b."accountId") b."accountId", b."amount"
+              FROM "Balances" b
+             WHERE b."accountId" IN (:accountIds)
+               AND b."date" < :from
+               AND NOT EXISTS (
+                 SELECT 1 FROM "Balances" on_from
+                  WHERE on_from."accountId" = b."accountId" AND on_from."date" = :from
+               )
+             ORDER BY b."accountId", b."date" DESC
+            `,
+            { type: QueryTypes.SELECT, replacements: { accountIds: allAccountIds, from: formatDate(from) } },
+          ) as Promise<Pick<BalanceHistoryRow, 'accountId' | 'amount'>[]>)
+        : Promise.resolve<Pick<BalanceHistoryRow, 'accountId' | 'amount'>[]>([]),
+      to && accountIdsWithNoRecords.length
         ? (Balances.default.findAll({
             where: {
               accountId: { [Op.in]: accountIdsWithNoRecords },
@@ -158,17 +157,6 @@ const getBalanceHistoryRows = async ({
         : Promise.resolve<BalanceHistoryRow[]>([]),
     ]);
 
-    // Pre-group balances by accountId using Maps for O(1) lookup
-    const beforeByAccount = new Map<string, BalanceHistoryRow[]>();
-    for (const b of balancesBeforeFrom) {
-      const items = beforeByAccount.get(b.accountId);
-      if (items) {
-        items.push(b);
-      } else {
-        beforeByAccount.set(b.accountId, [b]);
-      }
-    }
-
     const afterByAccount = new Map<string, BalanceHistoryRow[]>();
     for (const b of balancesAfterTo) {
       const items = afterByAccount.get(b.accountId);
@@ -179,31 +167,17 @@ const getBalanceHistoryRows = async ({
       }
     }
 
-    // Sort once per account (descending for "before", ascending for "after")
-    for (const items of beforeByAccount.values()) {
-      items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }
     for (const items of afterByAccount.values()) {
       items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }
 
-    // For each account with no records in the range, find the latest "before" or
-    // earliest "after" balance. Inject at `from` so the aggregation forward-fills
-    // this balance across the entire range.
-    const latestBalances: BalanceHistoryRow[] = [];
     const overrideDate = new Date(from ?? to ?? new Date());
+    const latestBalances: BalanceHistoryRow[] = latestBalancesBeforeFrom.map((b) => ({ ...b, date: overrideDate }));
+    const seededAccountIds = new Set(latestBalancesBeforeFrom.map((b) => b.accountId));
 
+    // Accounts with no in-range and no pre-range row take their earliest post-range balance.
     for (const accountId of accountIdsWithNoRecords) {
-      const beforeBalances = beforeByAccount.get(accountId);
-      if (beforeBalances && beforeBalances.length > 0) {
-        const b = beforeBalances[0]!;
-        latestBalances.push({
-          accountId: b.accountId,
-          amount: b.amount,
-          date: overrideDate,
-        });
-        continue;
-      }
+      if (seededAccountIds.has(accountId)) continue;
 
       const afterBalances = afterByAccount.get(accountId);
       if (afterBalances && afterBalances.length > 0) {
@@ -230,9 +204,7 @@ const getBalanceHistoryRows = async ({
 
 /**
  * Retrieves the balances for all the accounts for a user within a specified date range.
- * If no balance record is found for an account between the "from" and "to" dates,
- * and also no record before the "from" date, it checks for records after the "to" date
- * that have a positive balance.
+ * Accounts without a record on "from" are seeded there — see `getBalanceHistoryRows`.
  *
  * @param {Object} params - The parameters for fetching balances.
  * @param {number} params.userId - The ID of the user for whom balances are to be fetched.

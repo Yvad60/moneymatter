@@ -1,7 +1,13 @@
 import { AsyncLocalStorage } from 'async_hooks';
 
+export interface PsuContext {
+  ipAddress: string;
+  userAgent: string;
+}
+
 interface RequestContext {
   locale: string;
+  psu?: PsuContext;
 }
 
 const asyncLocalStorage = new AsyncLocalStorage<RequestContext>();

@@ -1,4 +1,4 @@
-import { HttpResponse, http } from 'msw';
+import { HttpResponse, delay, http } from 'msw';
 
 export const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_MODELS_URL = 'https://api.anthropic.com/v1/models';
@@ -19,6 +19,10 @@ function authErrorResponse() {
 interface MockCategorizationOptions {
   /** Map of transaction ordinal to category ordinal (1-based, prompt order), emitted as "t1:c2" alias pairs */
   categorizations?: Record<number, number>;
+  /** Verbatim response text; overrides categorizations */
+  rawText?: string;
+  /** Hold the response for this long, simulating a slow model */
+  delayMs?: number;
   /** If true, returns an error response */
   shouldFail?: boolean;
   /** Custom error status code */
@@ -27,12 +31,14 @@ interface MockCategorizationOptions {
 
 /**
  * Creates a mock response for the Anthropic messages API
- * Returns categorization in the short-alias format "t<n>:c<n>" per line
+ * Returns rawText verbatim, else the categorizations as "t<n>:c<n>" lines.
  */
 export function createAnthropicMock(options: MockCategorizationOptions = {}) {
-  const { categorizations = {}, shouldFail = false, errorStatus = 500 } = options;
+  const { categorizations = {}, rawText, delayMs = 0, shouldFail = false, errorStatus = 500 } = options;
 
-  return http.post(ANTHROPIC_API_URL, ({ request }) => {
+  return http.post(ANTHROPIC_API_URL, async ({ request }) => {
+    if (delayMs) await delay(delayMs);
+
     const apiKey = request.headers.get('x-api-key');
 
     if (apiKey === INVALID_ANTHROPIC_API_KEY) {
@@ -53,10 +59,11 @@ export function createAnthropicMock(options: MockCategorizationOptions = {}) {
       );
     }
 
-    // Build response text from categorizations map
-    const responseText = Object.entries(categorizations)
-      .map(([txOrdinal, catOrdinal]) => `t${txOrdinal}:c${catOrdinal}`)
-      .join('\n');
+    const responseText =
+      rawText ??
+      Object.entries(categorizations)
+        .map(([txOrdinal, catOrdinal]) => `t${txOrdinal}:c${catOrdinal}`)
+        .join('\n');
 
     return HttpResponse.json({
       id: 'msg_test_123',

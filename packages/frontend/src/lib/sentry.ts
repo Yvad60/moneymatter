@@ -52,7 +52,10 @@ export function initSentry({ app, router }: { app: App; router: Router }): void 
     transport: makeSilentFetchTransport,
     integrations: [
       // Browser tracing for performance monitoring
-      Sentry.browserTracingIntegration({ router }),
+      Sentry.browserTracingIntegration({
+        router,
+        ignoreResourceSpans: ['resource.script', 'resource.link', 'resource.css', 'resource.other'],
+      }),
       // Replay for session recordings on errors
       Sentry.replayIntegration({
         // Mask all text for privacy
@@ -64,9 +67,8 @@ export function initSentry({ app, router }: { app: App; router: Router }): void 
     // Each sampled transaction fans out into a span per resource, fetch and web
     // vital, so the span bill scales far faster than this rate suggests.
     tracesSampleRate: 0.01,
-    // Session replay sample rate
-    // Capture 1% of all sessions
-    replaysSessionSampleRate: 0.01,
+    // Replays are capped at 50/month, so only sessions with errors are recorded.
+    replaysSessionSampleRate: 0,
     // Capture 100% of sessions with errors
     replaysOnErrorSampleRate: 1.0,
     // Environment

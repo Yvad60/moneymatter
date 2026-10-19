@@ -45,8 +45,8 @@
            between the compact list and the full table. -->
       <template v-if="showMobileLayout">
         <div class="flex shrink-0 items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
-            <div class="bg-card flex items-center gap-0.5 rounded-md border p-0.5">
+          <div class="flex min-w-0 items-center gap-2">
+            <div class="bg-card flex shrink-0 items-center gap-0.5 rounded-md border p-0.5">
               <DesktopOnlyTooltip :content="$t('transactions.table.viewToggle.list')">
                 <Button
                   :variant="activeView === 'list' ? 'secondary' : 'ghost'"
@@ -78,9 +78,16 @@
                 v-model:filters="filters"
                 :is-reset-button-disabled="isResetButtonDisabled"
                 :is-filters-out-of-sync="false"
-                @reset-filters="resetFilters"
+                @reset-filters="resetFiltersAndView"
               />
             </FiltersDialog>
+
+            <SavedViewsMenu
+              v-model:filters="filters"
+              v-model:sorting="sorting"
+              secondary-trigger
+              @applied="applyFilters"
+            />
           </div>
 
           <div class="flex items-center gap-2">
@@ -117,6 +124,7 @@
                   :is-fetching-next-page="isFetchingNextPage"
                   :scroll-area-id="SCROLL_AREA_IDS.transactionsPage"
                   :selection-scope-key="selectionScopeKey"
+                  :matching="matching"
                   @fetch-next-page="fetchNextPage"
                 />
               </div>
@@ -130,27 +138,31 @@
            of the sidebar so it stays in the page's top-left corner. -->
       <div v-if="showDesktopListLayout" class="flex min-h-0 flex-1 gap-4">
         <Card class="flex w-87.5 shrink-0 flex-col gap-3 overflow-hidden p-4">
-          <div class="bg-card flex items-center gap-0.5 self-start rounded-md border p-0.5">
-            <DesktopOnlyTooltip :content="$t('transactions.table.viewToggle.list')">
-              <Button
-                :variant="desktopView === 'list' ? 'secondary' : 'ghost'"
-                size="icon-sm"
-                :aria-label="$t('transactions.table.viewToggle.list')"
-                @click="setDesktopView('list')"
-              >
-                <ListIcon class="size-4" />
-              </Button>
-            </DesktopOnlyTooltip>
-            <DesktopOnlyTooltip :content="$t('transactions.table.viewToggle.table')">
-              <Button
-                :variant="desktopView === 'table' ? 'secondary' : 'ghost'"
-                size="icon-sm"
-                :aria-label="$t('transactions.table.viewToggle.table')"
-                @click="setDesktopView('table')"
-              >
-                <Table2Icon class="size-4" />
-              </Button>
-            </DesktopOnlyTooltip>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="bg-card flex shrink-0 items-center gap-0.5 rounded-md border p-0.5">
+              <DesktopOnlyTooltip :content="$t('transactions.table.viewToggle.list')">
+                <Button
+                  :variant="desktopView === 'list' ? 'secondary' : 'ghost'"
+                  size="icon-sm"
+                  :aria-label="$t('transactions.table.viewToggle.list')"
+                  @click="setDesktopView('list')"
+                >
+                  <ListIcon class="size-4" />
+                </Button>
+              </DesktopOnlyTooltip>
+              <DesktopOnlyTooltip :content="$t('transactions.table.viewToggle.table')">
+                <Button
+                  :variant="desktopView === 'table' ? 'secondary' : 'ghost'"
+                  size="icon-sm"
+                  :aria-label="$t('transactions.table.viewToggle.table')"
+                  @click="setDesktopView('table')"
+                >
+                  <Table2Icon class="size-4" />
+                </Button>
+              </DesktopOnlyTooltip>
+            </div>
+
+            <SavedViewsMenu v-model:filters="filters" v-model:sorting="sorting" block @applied="applyFilters" />
           </div>
 
           <ScrollArea class="-mx-4 min-h-0 flex-1">
@@ -162,7 +174,7 @@
                 :is-reset-button-disabled="isResetButtonDisabled"
                 :is-filters-out-of-sync="false"
                 surface="card"
-                @reset-filters="resetFilters"
+                @reset-filters="resetFiltersAndView"
               />
             </div>
           </ScrollArea>
@@ -185,6 +197,7 @@
                   :is-fetching-next-page="isFetchingNextPage"
                   :scroll-area-id="SCROLL_AREA_IDS.transactionsPage"
                   :selection-scope-key="selectionScopeKey"
+                  :matching="matching"
                   @fetch-next-page="fetchNextPage"
                 />
               </div>
@@ -197,7 +210,7 @@
         <FiltersToolbar
           v-model:filters="filters"
           :is-reset-button-disabled="isResetButtonDisabled"
-          @reset-filters="resetFilters"
+          @reset-filters="resetFiltersAndView"
         >
           <template #prefix>
             <div class="mr-2 mb-2 inline-block align-top">
@@ -223,6 +236,9 @@
                   </Button>
                 </DesktopOnlyTooltip>
               </div>
+            </div>
+            <div class="mr-2 mb-2 inline-block align-top">
+              <SavedViewsMenu v-model:filters="filters" v-model:sorting="sorting" @applied="applyFilters" />
             </div>
           </template>
 
@@ -263,7 +279,7 @@
               <FiltersToolbar
                 v-model:filters="filters"
                 :is-reset-button-disabled="isResetButtonDisabled"
-                @reset-filters="resetFilters"
+                @reset-filters="resetFiltersAndView"
               >
                 <template #actions>
                   <TableSettings />
@@ -306,7 +322,7 @@
                     v-model:filters="filters"
                     :is-reset-button-disabled="isResetButtonDisabled"
                     :is-filters-out-of-sync="false"
-                    @reset-filters="resetFilters"
+                    @reset-filters="resetFiltersAndView"
                   />
                 </FiltersDialog>
               </div>
@@ -328,16 +344,18 @@
               ref="tableRef"
               :transactions="transactionsPages?.pages.flat() ?? []"
               :visible-columns="visibleColumns"
+              @resize-column="setColumnWidth"
               :sorting="sorting"
               :has-next-page="hasNextPage"
               :is-fetching-next-page="isFetchingNextPage"
               :is-fetched="isFetched"
               :is-mobile-mode="isMobileMode"
               :selection-scope-key="selectionScopeKey"
+              :matching="matching"
               :always-show-locked-cells="alwaysShowLockedCells"
               @update:sorting="onSortingChange"
               @fetch-next-page="fetchNextPage"
-              @reset-filters="resetFilters"
+              @reset-filters="resetFiltersAndView"
             />
           </Card>
         </div>
@@ -357,6 +375,7 @@ import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { isAnyGroupDissolvingFilterActive } from '@/components/records-filters/filter-registry';
 import FiltersDialog from '@/components/records-filters/filters-dialog.vue';
 import FiltersPanel from '@/components/records-filters/index.vue';
+import { useActiveView } from '@/components/records-filters/saved-views';
 import { parseStoredFilters, useTransactionsWithFilters } from '@/components/records-filters/transactions-with-filters';
 import { useFiltersFromQuery } from '@/components/records-filters/use-filters-from-query';
 import TransactionsList from '@/components/transactions-list/transactions-list.vue';
@@ -369,6 +388,7 @@ import type { TransactionsView } from '@/api/user-settings';
 
 import { trackNewlyActiveFilters } from './components/filter-analytics';
 import FiltersToolbar from './components/filters-toolbar.vue';
+import SavedViewsMenu from './components/saved-views-menu.vue';
 import ColumnConfigPopover from '@/components/common/column-config-popover.vue';
 import { DEFAULT_SORTING, type TableSorting } from '@/components/transactions-table/columns';
 import TransactionsTable from '@/components/transactions-table/transactions-table.vue';
@@ -392,9 +412,11 @@ const {
   isFetchingNextPage,
   isFetched,
   transactionsListRef,
-} = useTransactionsWithFilters({ sorting });
+  matching,
+} = useTransactionsWithFilters({ sorting, withSummary: true });
 
-const { visibleColumns, configurableColumns, toggleColumn, reorderColumns, resetToDefaults } = useTableColumns();
+const { visibleColumns, configurableColumns, toggleColumn, reorderColumns, setColumnWidth, resetToDefaults } =
+  useTableColumns();
 
 // Mobile mode keys off the content container, not the viewport – the sidebar
 // eats ~300px, so viewport breakpoints would flip at the wrong widths.
@@ -524,6 +546,14 @@ const { parseFiltersFromQuery } = useFiltersFromQuery();
 
 const STORED_FILTERS_KEY = 'records:filters';
 
+// Reset and deep links leave the saved view: its "Update" action must never overwrite the view
+// with filters the user did not build on top of it.
+const activeSavedView = useActiveView();
+const resetFiltersAndView = () => {
+  resetFilters();
+  activeSavedView.value = null;
+};
+
 // Initialize filters from query parameters (e.g. deep links from the dashboard),
 // otherwise from the previous visit in this tab.
 onMounted(() => {
@@ -540,6 +570,7 @@ onMounted(() => {
   if (stored?.sorting) sorting.value = stored.sorting;
 
   if (queryFilters) {
+    activeSavedView.value = null;
     // Clear query params from URL (replace to preserve back navigation to dashboard)
     router.replace({ query: {} });
   }

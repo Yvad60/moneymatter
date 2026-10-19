@@ -392,6 +392,23 @@ export const useImportMsMoneyStore = defineStore('import-ms-money', () => {
   }
 
   /**
+   * Sets the currency of an account the file carries none for. A link target is
+   * cleared because targets are filtered by currency.
+   */
+  function setAccountCurrency({ name, currencyCode }: { name: string; currencyCode: string }): void {
+    const account = parsedResult.value?.accounts.find((a) => a.originalName === name);
+    if (!account?.currencyDefaulted) return;
+    account.currency = currencyCode;
+
+    const existing = accountMapping.value[name];
+    if (existing?.action === 'create-new') {
+      existing.currencyCode = currencyCode;
+    } else if (existing?.action === 'link-existing') {
+      existing.accountId = undefined;
+    }
+  }
+
+  /**
    * Sets the desired post-import balance for a `create-new` account. Pass
    * `null` to leave the balance equal to the sum of imported transactions.
    * Decimals only — the frontend never works in cents.
@@ -706,6 +723,7 @@ export const useImportMsMoneyStore = defineStore('import-ms-money', () => {
     setAccountAction,
     setAccountTarget,
     setAccountCurrentBalance,
+    setAccountCurrency,
     setCategoryAction,
     setCategoryTarget,
 

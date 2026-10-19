@@ -33,7 +33,8 @@
 import { Button } from '@/components/lib/ui/button';
 import { DateSelector, type DateSelectorPreset } from '@/components/lib/ui/date-selector';
 import { type Period } from '@/composable/use-period-navigation';
-import { endOfDay, endOfMonth, startOfDay, startOfMonth, subMonths } from 'date-fns';
+import { resolveDatePreset } from '@/components/records-filters/saved-views';
+import { endOfMonth, startOfMonth } from 'date-fns';
 import { CalendarIcon, XIcon } from '@lucide/vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -63,31 +64,19 @@ const currentPeriod = computed<Period>(() => ({
 const presets = computed<DateSelectorPreset[]>(() => [
   {
     label: t('transactions.filters.dateRange.presets.thisMonth'),
-    getValue: () => ({
-      from: startOfMonth(new Date()),
-      to: endOfDay(new Date()),
-    }),
+    getValue: () => resolveDatePreset({ preset: 'thisMonth' }),
   },
   {
     label: t('transactions.filters.dateRange.presets.last3Months'),
-    getValue: () => ({
-      from: startOfDay(subMonths(new Date(), 3)),
-      to: endOfDay(new Date()),
-    }),
+    getValue: () => resolveDatePreset({ preset: 'last3Months' }),
   },
   {
     label: t('transactions.filters.dateRange.presets.last6Months'),
-    getValue: () => ({
-      from: startOfDay(subMonths(new Date(), 6)),
-      to: endOfDay(new Date()),
-    }),
+    getValue: () => resolveDatePreset({ preset: 'last6Months' }),
   },
   {
     label: t('transactions.filters.dateRange.presets.last12Months'),
-    getValue: () => ({
-      from: startOfDay(subMonths(new Date(), 12)),
-      to: endOfDay(new Date()),
-    }),
+    getValue: () => resolveDatePreset({ preset: 'last12Months' }),
   },
 ]);
 

@@ -1,9 +1,10 @@
-import { AINativeProvider, AI_FEATURE, AI_PROVIDER, FEATURES, hasPaidPlus } from '@bt/shared/types';
+import { AINativeProvider, AI_FEATURE, AI_PROVIDER, FEATURES } from '@bt/shared/types';
 import { logger } from '@js/utils/logger';
 import type { StoredConnection } from '@models/user-settings.model';
 
 import { getEntitlementsByUserId } from '../entitlements/resolve-entitlements.service';
 import { decryptConnectionKey, getStoredAiSettings, markConnectionInvalid } from '../user-settings/ai-connections';
+import { isWithinAiAllowance } from './ai-allowance';
 import type { ProviderModelSpec } from './ai-client-factory';
 import { CONNECTION_KEY_UNREADABLE_ERROR_MESSAGE } from './connection-failure';
 import { buildConnectionModelId, getServerApiKey, pickResolutionStep } from './resolution-ladder';
@@ -56,12 +57,20 @@ export async function resolveAIConfiguration({
   const connections = aiSettings?.connections ?? [];
   const config = aiSettings?.featureConfigs?.find((candidate) => candidate.feature === feature) ?? null;
   const entitlements = await getEntitlementsByUserId({ userId });
-  const serverKeysAllowed = allowOperatorKey || entitlements.features.includes(FEATURES.operator_ai);
+  const entitled = allowOperatorKey || entitlements.features.includes(FEATURES.operator_ai);
+  const withinAllowance = entitled ? await isWithinAiAllowance({ userId, entitlements }) : undefined;
+  const serverKeysAllowed = withinAllowance === true;
   const excludedConnectionIds = new Set<string>();
 
   // Every pass either returns or excludes one more connection, so the walk ends.
   for (let pass = 0; pass <= connections.length; pass++) {
-    const step = pickResolutionStep({ feature, config, connections, serverKeysAllowed, excludedConnectionIds });
+    const step = pickResolutionStep({
+      feature,
+      config,
+      connections,
+      serverKeysAllowed,
+      excludedConnectionIds,
+    });
 
     if (pass === 0 && config && step.kind !== 'configured' && step.kind !== 'configured-server') {
       // Reachable by deleting the connection or losing the plan the config relies on: user state, not a bug.
@@ -102,7 +111,7 @@ export async function resolveAIConfiguration({
 
       case 'configured-server':
       case 'server-default': {
-        const apiKey = getServerApiKey({ paidPlus: hasPaidPlus({ entitlements }) });
+        const apiKey = getServerApiKey({ provider: step.model.provider });
         if (!apiKey) {
           logger.error('Server AI key vanished between pick and use', { feature, provider: step.model.provider });
           return null;
@@ -123,12 +132,7 @@ export async function resolveAIConfiguration({
         return null;
 
       case 'unserved':
-        logger.info(
-          serverKeysAllowed
-            ? 'No AI model available for feature'
-            : 'AI feature not served: user lacks the operator_ai entitlement',
-          { userId, feature },
-        );
+        logger.info('No AI model available for feature', { userId, feature, entitled, withinAllowance });
         return null;
     }
   }

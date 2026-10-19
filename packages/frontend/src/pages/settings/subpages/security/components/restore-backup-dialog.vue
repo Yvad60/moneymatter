@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { WipeDataSharedResources } from '@/api/user';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
 import { RESTORE_PHASE_LABEL_KEYS } from '@/components/common/restore-phase-labels';
 import { Button } from '@/components/lib/ui/button';
@@ -8,14 +7,16 @@ import { Checkbox } from '@/components/lib/ui/checkbox';
 import { useRestoreBackup, useRestoreStatus } from '@/composable/data-queries/backup';
 import { useRestoreJobStatus, restoreDialogPresenting } from '@/composable/use-restore-job-status';
 import { useStallTimer } from '@/composable/use-stall-timer';
-import { ApiErrorResponseError } from '@/js/errors';
+import { ApiErrorResponseError, isApiErrorWithCode } from '@/js/errors';
 import { resetQueryCaches } from '@/lib/query-persister';
 import { captureException } from '@/lib/sentry';
-import { API_ERROR_CODES, type BackupRestorePhase } from '@bt/shared/types';
+import { API_ERROR_CODES, type BackupRestorePhase, type WipeDataSharedResources } from '@bt/shared/types';
 import { LoaderCircleIcon } from '@lucide/vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+import { getRestoreWarningMessage } from './restore-warning-message';
 
 const props = defineProps<{
   open: boolean;
@@ -35,6 +36,7 @@ const jobId = ref<string | null>(null);
 const sharedResources = ref<WipeDataSharedResources | null>(null);
 const acknowledged = ref(false);
 const failureMessage = ref('');
+const failureDetail = ref('');
 
 const { mutate: restore, isPending: isSubmitting } = useRestoreBackup();
 const { data: statusData, isError: isStatusError, error: statusError } = useRestoreStatus({ jobId });
@@ -75,7 +77,12 @@ const restoredEntries = computed(() =>
     .sort((a, b) => b[1] - a[1]),
 );
 
-const warnings = computed(() => summary.value?.warnings ?? []);
+const warningMessages = computed(() =>
+  (summary.value?.warnings ?? []).map((warning) => {
+    const { key, params, plural } = getRestoreWarningMessage({ warning });
+    return t(key, params, plural);
+  }),
+);
 
 const humanizeTable = (table: string) => table.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 
@@ -86,6 +93,7 @@ const resetState = () => {
   sharedResources.value = null;
   acknowledged.value = false;
   failureMessage.value = '';
+  failureDetail.value = '';
   // Fresh attempt from the confirm step: this dialog isn't presenting a restore yet.
   restoreDialogPresenting.value = false;
 };
@@ -128,6 +136,7 @@ watch(statusData, (status) => {
   } else if (status.status === 'failed') {
     resetStall();
     failureMessage.value = status.error || t('settings.security.backup.restore.failed.genericError');
+    failureDetail.value = status.errorDetail ?? '';
     step.value = 'failed';
     // The user is watching this failure live in the dialog; mark it handled so the boot
     // watchdog doesn't re-toast it, and release the safety-net watchdog (rollback left
@@ -186,7 +195,7 @@ const submit = ({ acknowledgeSharing }: { acknowledgeSharing?: boolean }) => {
           (e instanceof ApiErrorResponseError && e.data?.message) ||
           t('settings.security.backup.restore.failed.genericError');
         step.value = 'failed';
-        if (!isValidation) {
+        if (!isValidation && !isApiErrorWithCode(e, API_ERROR_CODES.planRequired)) {
           captureException({ error: e, context: { feature: 'data-backup-restore' } });
         }
       },
@@ -250,7 +259,7 @@ const handleClose = () => setOpen(false);
         <p>{{ $t('settings.security.backup.restore.confirm.description') }}</p>
       </Callout>
       <Callout variant="warning" :title="$t('settings.security.backup.restore.confirm.reconnectTitle')">
-        <ul class="mt-1 list-inside list-disc space-y-1 text-sm">
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-sm">
           <li>{{ $t('settings.security.backup.restore.confirm.reconnectBankConnections') }}</li>
           <li>{{ $t('settings.security.backup.restore.confirm.reconnectAiKeys') }}</li>
         </ul>
@@ -263,7 +272,7 @@ const handleClose = () => setOpen(false);
     <!-- Acknowledge shared resources -->
     <div v-else-if="step === 'acknowledge'" class="flex flex-col gap-4 text-left">
       <p class="text-sm">{{ $t('settings.security.backup.restore.acknowledge.description') }}</p>
-      <ul v-if="sharedResources?.accounts?.length" class="list-inside list-disc text-sm">
+      <ul v-if="sharedResources?.accounts?.length" class="list-disc pl-5 text-sm">
         <li v-for="account in sharedResources.accounts" :key="account.id">{{ account.name }}</li>
       </ul>
       <p v-if="sharedResources?.households?.length" class="text-sm">
@@ -315,13 +324,13 @@ const handleClose = () => setOpen(false);
         </ul>
       </div>
 
-      <div v-if="warnings.length">
+      <div v-if="warningMessages.length">
         <p class="mb-2 text-sm font-medium">
           {{ $t('settings.security.backup.restore.summary.warningsHeading') }}
         </p>
         <div class="flex flex-col gap-2">
-          <Callout v-for="(warning, index) in warnings" :key="index" variant="warning">
-            <p>{{ warning.message }}</p>
+          <Callout v-for="(message, index) in warningMessages" :key="index" variant="warning">
+            <p>{{ message }}</p>
           </Callout>
         </div>
       </div>
@@ -332,6 +341,10 @@ const handleClose = () => setOpen(false);
       <Callout variant="destructive">
         <p>{{ failureMessage }}</p>
       </Callout>
+      <details v-if="failureDetail" class="text-muted-foreground text-xs">
+        <summary class="cursor-pointer">{{ $t('settings.security.backup.restore.failed.technicalDetails') }}</summary>
+        <p class="mt-2 font-mono break-all">{{ failureDetail }}</p>
+      </details>
     </div>
 
     <template #footer>

@@ -11,7 +11,8 @@
  */
 import { MsMoneyAccountType, TRANSACTION_TYPES } from '@bt/shared/types';
 import type { MsMoneyParseResult } from '@bt/shared/types';
-import { describe, expect, it } from '@jest/globals';
+import { i18nextReady, t } from '@i18n/index';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 import { ValidationError } from '@js/errors';
 import {
   MS_MONEY_FIXTURES,
@@ -23,12 +24,16 @@ import {
 import type { AcctRow } from './parse-ms-money.service';
 import { buildAccountIndex, describeSchemaGaps, parseMsMoneyFile, readAmount } from './parse-ms-money.service';
 
+beforeAll(async () => {
+  await i18nextReady;
+});
+
 const hasFixtures = msMoneyFixturesAvailable();
 if (!hasFixtures) console.warn(`[parse-ms-money.unit] skipped. ${MS_MONEY_FIXTURES_MISSING_MESSAGE}`);
 const describeWithFixtures = hasFixtures ? describe : describe.skip;
 
 const parseFixture = ({ file, password }: { file: string; password?: string | null }): MsMoneyParseResult =>
-  parseMsMoneyFile({ buffer: readMsMoneyFixture({ file }), password });
+  parseMsMoneyFile({ buffer: readMsMoneyFixture({ file }), password, fallbackCurrency: 'USD' });
 
 const warningCount = ({ result, code }: { result: MsMoneyParseResult; code: string }): number =>
   result.warnings.find((warning) => warning.code === code)?.count ?? 0;
@@ -361,22 +366,24 @@ describeWithFixtures('parseMsMoneyFile', () => {
     it('throws for a wrong password', () => {
       expect(() => parseFixture({ file: 'money2005-pwd.mny', password: 'wrong' })).toThrow(ValidationError);
       expect(() => parseFixture({ file: 'money2005-pwd.mny', password: 'wrong' })).toThrow(
-        'Incorrect password for this Microsoft Money file.',
+        t({ key: 'importExport.msMoney.incorrectPassword' }),
       );
     });
 
     it('throws when a protected file arrives without a password', () => {
       expect(() => parseFixture({ file: 'money2005-pwd.mny' })).toThrow(ValidationError);
       expect(() => parseFixture({ file: 'money2005-pwd.mny' })).toThrow(
-        'This Microsoft Money file is password-protected. Enter its password to continue.',
+        t({ key: 'importExport.msMoney.passwordRequired' }),
       );
     });
 
     it('throws for bytes that are not a Money database', () => {
       const buffer = Buffer.alloc(4096 * 4, 0x07);
 
-      expect(() => parseMsMoneyFile({ buffer })).toThrow(ValidationError);
-      expect(() => parseMsMoneyFile({ buffer })).toThrow('This file is not a Microsoft Money database.');
+      expect(() => parseMsMoneyFile({ buffer, fallbackCurrency: 'USD' })).toThrow(ValidationError);
+      expect(() => parseMsMoneyFile({ buffer, fallbackCurrency: 'USD' })).toThrow(
+        t({ key: 'importExport.msMoney.notMsMoneyFile' }),
+      );
     });
 
     it('throws a readable error when the decrypted database cannot be opened', () => {
@@ -384,7 +391,7 @@ describeWithFixtures('parseMsMoneyFile', () => {
       // produces garbage pages instead of failing the check-byte comparison.
       expect(() => parseFixture({ file: 'money2002.mny', password: 'unnecessary' })).toThrow(ValidationError);
       expect(() => parseFixture({ file: 'money2002.mny', password: 'unnecessary' })).toThrow(
-        'This Microsoft Money file could not be read',
+        t({ key: 'importExport.msMoney.unreadableFile' }),
       );
     });
   });
@@ -425,6 +432,7 @@ describe('buildAccountIndex', () => {
     const { accountById, synthesizedNames } = buildAccountIndex({
       rows: [acctRow({ hacct: 7, szFull: '   ' }), acctRow({ hacct: 8, szFull: null })],
       currencyById,
+      fallbackCurrency: 'USD',
     });
 
     expect(synthesizedNames).toBe(2);
@@ -440,6 +448,7 @@ describe('buildAccountIndex', () => {
         acctRow({ hacct: 3, szFull: 'Savings' }),
       ],
       currencyById,
+      fallbackCurrency: 'USD',
     });
 
     expect(duplicateNames).toBe(2);
@@ -458,6 +467,7 @@ describe('buildAccountIndex', () => {
         acctRow({ hacct: 3, szFull: 'Savings' }),
       ],
       currencyById,
+      fallbackCurrency: 'USD',
     });
 
     expect(accountById.get(3)?.originalName).toBe('Savings (3)');
@@ -467,6 +477,7 @@ describe('buildAccountIndex', () => {
     const { accountById, knownAcctIds, unsupportedAccounts } = buildAccountIndex({
       rows: [acctRow({ hacct: 4, at: MsMoneyAccountType.investment }), acctRow({ hacct: 5, at: null })],
       currencyById,
+      fallbackCurrency: 'USD',
     });
 
     expect(unsupportedAccounts).toBe(2);
@@ -474,15 +485,16 @@ describe('buildAccountIndex', () => {
     expect(knownAcctIds).toEqual(new Set([4, 5]));
   });
 
-  it('resolves the currency and falls back to US dollars when the file has none', () => {
+  it('resolves the currency and falls back to the given one when the file has none', () => {
     const { accountById, defaultedCurrencies } = buildAccountIndex({
       rows: [acctRow({ hacct: 1 }), acctRow({ hacct: 2, szFull: 'Cash', hcrnc: 42 })],
       currencyById,
+      fallbackCurrency: 'UAH',
     });
 
     expect(defaultedCurrencies).toBe(1);
-    expect(accountById.get(1)?.currency).toBe('EUR');
-    expect(accountById.get(2)?.currency).toBe('USD');
+    expect(accountById.get(1)).toMatchObject({ currency: 'EUR', currencyDefaulted: false });
+    expect(accountById.get(2)).toMatchObject({ currency: 'UAH', currencyDefaulted: true });
   });
 });
 
@@ -495,7 +507,11 @@ describe('describeSchemaGaps', () => {
       ],
     });
 
-    expect(message).toContain('TRN_XFER (missing)');
-    expect(message).toContain('TRN (missing columns: amt, grftt)');
+    expect(message).toContain(
+      t({ key: 'importExport.msMoney.schemaGapTableMissing', variables: { table: 'TRN_XFER' } }),
+    );
+    expect(message).toContain(
+      t({ key: 'importExport.msMoney.schemaGapColumnsMissing', variables: { table: 'TRN', columns: 'amt, grftt' } }),
+    );
   });
 });

@@ -13,8 +13,9 @@ import { SUBSCRIPTION_MATCH_SOURCE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import { format } from 'date-fns';
 import { LinkIcon, SearchIcon, SettingsIcon, UnlinkIcon } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
 
 import {
   type LinkedPaymentsChartGap,
@@ -25,6 +26,13 @@ import {
 type LinkedTransaction = NonNullable<SubscriptionDetail['transactions']>[number];
 
 const props = defineProps<{ subscription: SubscriptionDetail }>();
+
+const route = useRoute();
+const rootRef = ref<HTMLElement>();
+const listRef = ref<HTMLElement>();
+onMounted(() => {
+  if (route.hash === '#linked-transactions') (listRef.value ?? rootRef.value)?.scrollIntoView({ behavior: 'smooth' });
+});
 
 const emit = defineEmits<{
   'suggest-matches': [];
@@ -187,7 +195,7 @@ const getMatchSourceDotClass = ({ source }: { source: string }): string =>
 </script>
 
 <template>
-  <div class="@container/linked">
+  <div id="linked-transactions" ref="rootRef" class="@container/linked scroll-mt-14">
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold">
         {{ $t('planned.subscriptions.linkedTransactionsTitle') }}
@@ -338,7 +346,7 @@ const getMatchSourceDotClass = ({ source }: { source: string }): string =>
         </div>
       </div>
 
-      <div class="border-border bg-card overflow-hidden rounded-lg border">
+      <div ref="listRef" class="border-border bg-card scroll-mt-14 overflow-hidden rounded-lg border">
         <div v-for="{ group, total } in yearGroupRows" :key="group.year" class="border-border border-b last:border-b-0">
           <div class="bg-background/50 flex items-center justify-between gap-3 px-2.5 py-1.5 @lg/linked:px-3.5">
             <span class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">

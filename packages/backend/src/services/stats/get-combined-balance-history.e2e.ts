@@ -212,12 +212,11 @@ describe('[Stats] Combined balance history', () => {
     expect(todayEntry.totalBalance).toBe(1000);
   });
 
-  it('Does not create phantom balance spike when pre-range balance differs from first in-range record', async () => {
-    // Scenario: Account A had 8500 before the range but its first in-range
-    // balance record is 0 (at day -3, NOT the earliest date in the range).
-    // The old code only checked accounts present on the FIRST date in the result,
-    // so Account A would be classified as "not in range" and get a stale 8500
-    // backfill injected — creating a phantom spike.
+  it('Carries the pre-range balance up to the first in-range record instead of back-filling that record', async () => {
+    // Balances rows are sparse: Account A held 8500 before the range and its
+    // only in-range row is the drain to 0 at day -3. Days before day -3 must
+    // read 8500; back-filling the day -3 value would hide the money on those
+    // days and turn a same-day transfer into a one-sided step.
     //
     // We use API-created accounts (so amounts are stored correctly) and only
     // manipulate dates via Balances.update to avoid Money conversion issues.
@@ -231,18 +230,25 @@ describe('[Stats] Combined balance history', () => {
       raw: true,
     });
 
+    const day12Ago = subDays(new Date(), 12);
     const day10Ago = subDays(new Date(), 10);
-    const day5Ago = subDays(new Date(), 5);
+    const day7Ago = subDays(new Date(), 7);
     const day3Ago = subDays(new Date(), 3);
+    day12Ago.setHours(0, 0, 0, 0);
     day10Ago.setHours(0, 0, 0, 0);
-    day5Ago.setHours(0, 0, 0, 0);
+    day7Ago.setHours(0, 0, 0, 0);
     day3Ago.setHours(0, 0, 0, 0);
 
     // Move Account A's balance record to day -10 (pre-range)
     await Balances.update({ date: day10Ago }, { where: { accountId: accountA.id } });
 
-    // Move Account B's balance record to day -5 (earliest in-range date)
-    await Balances.update({ date: day5Ago }, { where: { accountId: accountB.id } });
+    // Account B's record sits exactly on the range start, so it must not be seeded.
+    await Balances.update({ date: day7Ago }, { where: { accountId: accountB.id } });
+
+    // Older zero rows for both: the seed is the LATEST pre-range row (A), and an
+    // account with a row on the range start ignores its pre-range rows (B).
+    await (Balances as any).create({ accountId: accountA.id, date: day12Ago, amount: 0 });
+    await (Balances as any).create({ accountId: accountB.id, date: day12Ago, amount: 0 });
 
     // Create Account A's in-range record at day -3 with amount 0
     // (0 is safe from any Money conversion — 0 cents = $0 regardless)
@@ -260,17 +266,12 @@ describe('[Stats] Combined balance history', () => {
 
     expect(data.length).toBeGreaterThan(0);
 
-    // Account A has a record at day -3 (0) which is NOT the first date in range.
-    // The aggregation forward-fills 0 for all prior dates.
-    // Account B has 2000, forward-filled throughout.
-    // Total should be 2000, NOT 10500 (which would be the phantom spike).
-    const firstEntry = data[0]!;
-    expect(firstEntry.accountsBalance).toBe(2000);
+    expect(data[0]!.date).toBe(fromDate);
+    expect(data[0]!.accountsBalance).toBe(10500);
 
-    // Verify no entry exceeds 2000 — Account A's stale pre-range 8500
-    // should never appear in the range
+    const drainDate = format(day3Ago, 'yyyy-MM-dd');
     for (const entry of data) {
-      expect(entry.accountsBalance).toBeLessThanOrEqual(2000);
+      expect(entry.accountsBalance).toBe(entry.date < drainDate ? 10500 : 2000);
     }
   });
 

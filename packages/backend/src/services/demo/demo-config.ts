@@ -1,5 +1,7 @@
 import { ACCOUNT_CATEGORIES, SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
 
+export const DEMO_EMAIL_DOMAIN = 'demo.local';
+
 /**
  * Quote units per 1 USD, as of today. `rateForDayOffset` drifts historical rows
  * around this spot value, so `refAmount` isn't pinned to one frozen number. The

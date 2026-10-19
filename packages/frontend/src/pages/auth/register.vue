@@ -86,16 +86,17 @@
 
 <script lang="ts" setup>
 import { AuthDivider, GithubIcon, GoogleIcon, OAUTH_PROVIDER_NAMES, OAuthButton } from '@/components/auth';
-import { InputField } from '@/components/fields';
+import InputField from '@/components/fields/input-field.vue';
 import FormWrapper from '@/components/fields/form-wrapper.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/lib/ui/card';
 import { useFormValidation } from '@/composable';
-import { ApiErrorResponseError, OAuthProviderNotConfiguredError, UnexpectedError } from '@/js/errors';
+import { OAuthProviderNotConfiguredError, getAuthErrorMessage } from '@/js/errors';
 import { email, minLength, required, sameAs } from '@/js/helpers/validators';
+import { PASSWORD_MIN_LENGTH } from '@bt/shared/const/auth';
 import { ROUTES_NAMES } from '@/routes/constants';
 import { useAuthStore } from '@/stores';
-import { API_ERROR_CODES, OAUTH_PROVIDER } from '@bt/shared/types';
+import { OAUTH_PROVIDER } from '@bt/shared/types';
 import { useMutation } from '@tanstack/vue-query';
 import { Ref, computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -108,13 +109,14 @@ const isOAuthLoading = ref(false);
 const formError: Ref<string | null> = ref(null);
 const { t } = useI18n();
 
-// Map better-auth error codes to user-friendly messages
-const BETTER_AUTH_ERROR_MESSAGES: Record<string, string> = {
-  INVALID_EMAIL: t('auth.signup.errors.invalidEmail'),
-  PASSWORD_TOO_SHORT: t('auth.signup.errors.passwordTooShort'),
-  PASSWORD_TOO_LONG: t('auth.signup.errors.passwordTooLong'),
-  INVALID_PASSWORD: t('auth.signup.errors.invalidPassword'),
-  SIGNUPS_DISABLED: t('auth.signup.errors.signupsDisabled'),
+const SIGNUP_ERROR_KEYS: Record<string, string> = {
+  INVALID_EMAIL: 'auth.signup.errors.invalidEmail',
+  PASSWORD_TOO_SHORT: 'auth.signup.errors.passwordTooShort',
+  PASSWORD_TOO_LONG: 'auth.signup.errors.passwordTooLong',
+  INVALID_PASSWORD: 'auth.signup.errors.invalidPassword',
+  SIGNUPS_DISABLED: 'auth.signup.errors.signupsDisabled',
+  USER_ALREADY_EXISTS: 'auth.signup.errors.userExists',
+  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: 'auth.signup.errors.userExists',
 };
 const form = reactive({
   email: '',
@@ -139,11 +141,11 @@ const { isFormValid, getFieldErrorMessage } = useFormValidation(
       name: { required },
       password: {
         required,
-        passwordMinLength: minLength(6),
+        passwordMinLength: minLength(PASSWORD_MIN_LENGTH),
       },
       verifyPassword: {
         required,
-        passwordMinLength: minLength(6),
+        passwordMinLength: minLength(PASSWORD_MIN_LENGTH),
         sameAs: sameAs(computed(() => form.password)),
       },
     },
@@ -151,7 +153,7 @@ const { isFormValid, getFieldErrorMessage } = useFormValidation(
   undefined,
   {
     customValidationMessages: {
-      passwordMinLength: t('validation.minLength', { length: 6 }),
+      passwordMinLength: t('validation.minLength', { length: PASSWORD_MIN_LENGTH }),
       sameAs: t('validation.passwordsNoMatch'),
       email: t('validation.emailInvalid'),
     },
@@ -166,27 +168,12 @@ const { mutate: registerUser, isPending: isFormLoading } = useMutation({
     sessionStorage.setItem('verify_email_address', form.email);
     router.push({ name: ROUTES_NAMES.verifyEmail });
   },
-  onError: (error) => {
-    // Check for our custom API errors
-    if (error instanceof ApiErrorResponseError) {
-      if (error.data.code === API_ERROR_CODES.userExists) {
-        formError.value = t('auth.signup.errors.userExists');
-        return;
-      }
-    }
-
-    // Check for better-auth error codes in the message
-    const betterAuthCode =
-      error instanceof UnexpectedError ? (error.data as { code?: string } | undefined)?.code : undefined;
-    for (const [code, message] of Object.entries(BETTER_AUTH_ERROR_MESSAGES)) {
-      if (betterAuthCode === code || error.message?.includes(code)) {
-        formError.value = message;
-        return;
-      }
-    }
-
-    // Fall back to actual error message
-    formError.value = error.message || t('auth.signup.errors.genericErrorRetry');
+  onError: async (error) => {
+    formError.value = await getAuthErrorMessage({
+      error,
+      codeKeys: SIGNUP_ERROR_KEYS,
+      fallbackKey: 'auth.signup.errors.genericErrorRetry',
+    });
   },
 });
 
@@ -205,7 +192,11 @@ const handleOAuthSignup = async ({ provider }: { provider: OAUTH_PROVIDER }) => 
     formError.value =
       error instanceof OAuthProviderNotConfiguredError
         ? t('auth.signup.errors.oauthNotConfigured', { provider: OAUTH_PROVIDER_NAMES[provider] })
-        : t('auth.signup.errors.oauthFailed', { provider });
+        : await getAuthErrorMessage({
+            error,
+            fallbackKey: 'auth.signup.errors.oauthFailed',
+            params: { provider: OAUTH_PROVIDER_NAMES[provider] },
+          });
   } finally {
     isOAuthLoading.value = false;
   }

@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPES, PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
+import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { UnexpectedError, ValidationError } from '@js/errors';
 import * as Accounts from '@models/accounts.model';
@@ -14,11 +14,10 @@ import { getSubscriptionTagIds } from './subscription-tags';
  * Translates a subscription into the params for `createTransaction`.
  *
  * The booked direction (expense or income) comes from the subscription's own
- * `transactionType`, against its stored account. The transfer-related fields
- * are fixed: `transferNature` is
- * `not_transfer` and `accountType` is `system` (the manage-transaction HTTP
- * path's default for omitted accountType). `paymentType` is `bankTransfer` —
- * the closest neutral match for "I paid a recurring bill".
+ * `transactionType`, against its stored account. `transferNature` is fixed to
+ * `not_transfer`; `accountType` is omitted so `createTransaction` resolves it
+ * and rejects a manual write onto a bank-connected account. `paymentType` is
+ * `bankTransfer` — the closest neutral match for "I paid a recurring bill".
  *
  * `categoryId` falls back to the user's `defaultCategoryId` when the
  * subscription has none. `createTransaction` accepts a null/undefined category,
@@ -117,7 +116,6 @@ export async function buildTransactionFromSubscription({
     transactionType: subscription.transactionType,
     paymentType: PAYMENT_TYPES.bankTransfer,
     transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-    accountType: ACCOUNT_TYPES.system,
     categoryId,
     payeeId: subscription.payeeId ?? undefined,
     // Even an empty tagIds array makes createTransaction skip the Payee's own

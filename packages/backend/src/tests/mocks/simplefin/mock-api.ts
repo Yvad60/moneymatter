@@ -18,12 +18,20 @@ const EXPECTED_AUTH_HEADER = `Basic ${Buffer.from(`${ACCESS_USER}:${ACCESS_PASS}
 
 const isAuthorized = (request: Request): boolean => request.headers.get('authorization') === EXPECTED_AUTH_HEADER;
 
+// A second credential pair, so a test can tell a newly claimed Access URL from the stored one.
+const ROTATED_ACCESS_USER = 'rotated-user';
+const ROTATED_ACCESS_PASS = 'rotated-pass';
+const ROTATED_ACCESS_URL = `https://${ROTATED_ACCESS_USER}:${ROTATED_ACCESS_PASS}@${SIMPLEFIN_HOST}/simplefin`;
+const ROTATED_AUTH_HEADER = `Basic ${Buffer.from(`${ROTATED_ACCESS_USER}:${ROTATED_ACCESS_PASS}`).toString('base64')}`;
+
 // Setup tokens are base64-encoded claim URLs. The token's path segment selects
 // the claim outcome (see the claim handler below).
 const claimUrl = (token: string): string => `${SIMPLEFIN_BASE_URL}/claim/${token}`;
 const setupToken = (token: string): string => Buffer.from(claimUrl(token)).toString('base64');
 
 export const VALID_SIMPLEFIN_SETUP_TOKEN = setupToken('DEMO');
+/** Claims an Access URL whose credentials only {@link getSimplefinRotatedAccountsMock} accepts. */
+export const ROTATED_SIMPLEFIN_SETUP_TOKEN = setupToken('ROTATED');
 export const INVALID_SIMPLEFIN_SETUP_TOKEN = setupToken('INVALID');
 /** Claim endpoint returns 429 (rate limited) — token itself is fine. */
 export const RATE_LIMITED_SIMPLEFIN_SETUP_TOKEN = setupToken('RATELIMIT');
@@ -41,9 +49,21 @@ export const getSimplefinAccountsMock = ({ response }: { response: SimplefinAcco
     return HttpResponse.json(response);
   });
 
+/** `/accounts` that accepts only the credentials claimed by ROTATED_SIMPLEFIN_SETUP_TOKEN. */
+export const getSimplefinRotatedAccountsMock = () =>
+  http.get(SIMPLEFIN_ACCOUNTS_URL, ({ request }) => {
+    if (request.headers.get('authorization') !== ROTATED_AUTH_HEADER) {
+      return new HttpResponse(null, { status: 403, statusText: 'Forbidden' });
+    }
+    return HttpResponse.json(getMockedSimplefinAccountSet());
+  });
+
 /** Force the `/accounts` endpoint to fail with a given HTTP status. */
 export const getSimplefinAccountsErrorMock = ({ status }: { status: number }) =>
   http.get(SIMPLEFIN_ACCOUNTS_URL, () => new HttpResponse(null, { status, statusText: 'Error' }));
+
+/** Force the `/accounts` endpoint to fail without any HTTP response (timeout, reset, DNS). */
+export const getSimplefinAccountsNetworkErrorMock = () => http.get(SIMPLEFIN_ACCOUNTS_URL, () => HttpResponse.error());
 
 /**
  * An `/accounts` handler that records every request URL it sees (for asserting
@@ -91,6 +111,11 @@ export const simplefinHandlers = [
     switch (params.token) {
       case 'DEMO':
         return new HttpResponse(SIMPLEFIN_ACCESS_URL, {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      case 'ROTATED':
+        return new HttpResponse(ROTATED_ACCESS_URL, {
           status: 200,
           headers: { 'Content-Type': 'text/plain' },
         });

@@ -46,7 +46,7 @@ export const createAccount = createController(
       .object({
         accountCategory: z.nativeEnum(ACCOUNT_CATEGORIES).default(ACCOUNT_CATEGORIES.general),
         currencyCode: currencyCode(),
-        name: z.string(),
+        name: z.string().trim().min(1),
         type: z.nativeEnum(ACCOUNT_TYPES).default(ACCOUNT_TYPES.system),
         // Amount fields now accept decimals - conversion to cents happens below
         initialBalance: z.number().optional().default(0),
@@ -104,7 +104,7 @@ export const updateAccount = createController(
     body: z
       .object({
         accountCategory: z.nativeEnum(ACCOUNT_CATEGORIES).optional(),
-        name: z.string().optional(),
+        name: z.string().trim().min(1).optional(),
         // Amount fields now accept decimals - conversion to cents happens below
         creditLimit: z.number().min(0).optional(),
         status: z.nativeEnum(ACCOUNT_STATUSES).optional(),

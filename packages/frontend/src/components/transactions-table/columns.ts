@@ -36,6 +36,8 @@ export interface ColumnDefinition {
    * mounting during scroll can never re-measure (and widen) columns.
    */
   widthPx: number;
+  /** User set `widthPx` by dragging: the column keeps it exactly instead of flexing into spare space. */
+  isResized?: boolean;
   align: 'left' | 'right';
 }
 
@@ -154,3 +156,32 @@ export const COLUMN_DEFINITIONS_BY_ID: Record<TABLE_COLUMN, ColumnDefinition> = 
 ) as Record<TABLE_COLUMN, ColumnDefinition>;
 
 export const isKnownColumnId = (id: string): id is TABLE_COLUMN => id in COLUMN_DEFINITIONS_BY_ID;
+
+const MIN_COLUMN_WIDTH_PX = 60;
+// Matches the backend settings schema cap; a larger width fails the whole settings PATCH.
+const MAX_COLUMN_WIDTH_PX = 5000;
+
+export const clampColumnWidth = ({ widthPx }: { widthPx: number }) =>
+  Math.min(MAX_COLUMN_WIDTH_PX, Math.max(MIN_COLUMN_WIDTH_PX, Math.round(widthPx)));
+
+/**
+ * Resized columns keep their width exactly; the rest share any spare space in
+ * proportion to their default width. With nothing left to flex, the spare is
+ * returned as `leftoverPx` so the caller can still fill the container.
+ */
+export const fitColumnWidths = ({
+  columns,
+  availablePx,
+}: {
+  columns: Pick<ColumnDefinition, 'widthPx' | 'isResized'>[];
+  availablePx: number;
+}) => {
+  const spare = Math.max(0, availablePx - columns.reduce((sum, column) => sum + column.widthPx, 0));
+  const flexTotal = columns.reduce((sum, column) => (column.isResized ? sum : sum + column.widthPx), 0);
+  return {
+    widths: columns.map((column) =>
+      column.isResized || flexTotal === 0 ? column.widthPx : column.widthPx + (spare * column.widthPx) / flexTotal,
+    ),
+    leftoverPx: flexTotal === 0 ? spare : 0,
+  };
+};

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 import { redisClient } from '@root/redis-client';
 import { buildLockKey } from '@services/currencies/base-currency-lock';
 import * as helpers from '@tests/helpers';
+import { useSelfHost } from '@tests/helpers/self-host';
 import { MOCK_IDENTIFICATION_HASH_1, getMockedTransactions } from '@tests/mocks/enablebanking/data';
 import { MONOBANK_URLS_MOCK, VALID_MONOBANK_TOKEN, getMonobankTransactionsMock } from '@tests/mocks/monobank/mock-api';
 import { HttpResponse, http } from 'msw';
@@ -67,6 +68,8 @@ function connectAccount({ connectionId, waitForSync }: { connectionId: string; w
     waitForSync,
   });
 }
+
+useSelfHost();
 
 describe('Sync Flow E2E', () => {
   describe('Sync Status Tracking', () => {

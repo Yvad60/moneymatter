@@ -1,5 +1,5 @@
 import { generateRandomRecordId } from '@common/lib/record-id-helpers';
-import { afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import Users from '@models/users.model';
 import { redisClient } from '@root/redis-client';
 
@@ -17,7 +17,7 @@ import {
 let testUserId: number;
 
 describe('Sync Status Tracker - clearAllSyncStatuses', () => {
-  beforeAll(async () => {
+  beforeEach(async () => {
     // Get the test user ID from the user created in setupIntegrationTests.ts
     const user = await Users.findOne({ where: { username: 'test1' } });
     if (!user) throw new Error('Test user not found');

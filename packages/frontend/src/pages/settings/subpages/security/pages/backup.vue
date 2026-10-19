@@ -67,18 +67,20 @@
             {{ $t('settings.security.backup.download.description') }}
           </span>
         </div>
-        <Button
-          class="shrink-0"
-          :disabled="isDownloading || isFeatureGated(FEATURES.backup_export)"
-          @click="handleDownload"
-        >
-          <LoaderCircleIcon v-if="isDownloading" class="size-4 animate-spin" />
-          {{
-            isDownloading
-              ? $t('settings.security.backup.download.loading')
-              : $t('settings.security.backup.download.button')
-          }}
-        </Button>
+        <DemoRestricted feature="backup_export" content-class="shrink-0">
+          <Button
+            class="shrink-0"
+            :disabled="isDownloading || userStore.isDemo || isFeatureGated(FEATURES.backup_export)"
+            @click="handleDownload"
+          >
+            <LoaderCircleIcon v-if="isDownloading" class="size-4 animate-spin" />
+            {{
+              isDownloading
+                ? $t('settings.security.backup.download.loading')
+                : $t('settings.security.backup.download.button')
+            }}
+          </Button>
+        </DemoRestricted>
       </div>
 
       <!-- Restore from backup -->
@@ -92,17 +94,19 @@
             {{ $t('settings.security.backup.restore.description') }}
           </span>
         </div>
-        <Button
-          variant="outline"
-          class="shrink-0"
-          :disabled="isReading || isFeatureGated(FEATURES.backup_restore)"
-          @click="openFilePicker"
-        >
-          <LoaderCircleIcon v-if="isReading" class="size-4 animate-spin" />
-          {{
-            isReading ? $t('settings.security.backup.restore.reading') : $t('settings.security.backup.restore.button')
-          }}
-        </Button>
+        <DemoRestricted feature="backup_restore" content-class="shrink-0">
+          <Button
+            variant="outline"
+            class="shrink-0"
+            :disabled="isReading || userStore.isDemo || isFeatureGated(FEATURES.backup_restore)"
+            @click="openFilePicker"
+          >
+            <LoaderCircleIcon v-if="isReading" class="size-4 animate-spin" />
+            {{
+              isReading ? $t('settings.security.backup.restore.reading') : $t('settings.security.backup.restore.button')
+            }}
+          </Button>
+        </DemoRestricted>
       </div>
     </div>
 
@@ -124,15 +128,16 @@
 <script setup lang="ts">
 import PlanRestricted from '@/components/billing/plan-restricted.vue';
 import DocsLink from '@/components/common/docs-link.vue';
+import DemoRestricted from '@/components/demo/demo-restricted.vue';
 import { Button } from '@/components/lib/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/lib/ui/popover';
 import { useNotificationCenter } from '@/components/notification-center';
 import { fileToBase64 } from '@/common/utils/file-to-base64';
 import { BackupDownloadFailedError, useBackupDownload } from '@/composable/data-queries/backup';
-import { ApiErrorResponseError } from '@/js/errors';
+import { ApiErrorResponseError, isApiErrorWithCode } from '@/js/errors';
 import { captureException } from '@/lib/sentry';
 import { useUserStore } from '@/stores';
-import { FEATURES } from '@bt/shared/types';
+import { API_ERROR_CODES, FEATURES } from '@bt/shared/types';
 import { AlertTriangleIcon, DownloadIcon, KeyRoundIcon, LandmarkIcon, LoaderCircleIcon, UploadIcon } from '@lucide/vue';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -145,7 +150,8 @@ defineOptions({
 
 const { t } = useI18n();
 const { addSuccessNotification, addErrorNotification } = useNotificationCenter();
-const { isFeatureGated } = useUserStore();
+const userStore = useUserStore();
+const { isFeatureGated } = userStore;
 
 // A ~40MB zip base64-encodes to ~53MB, which still fits the backend's 64MB JSON body.
 const MAX_BACKUP_FILE_MB = 40;
@@ -176,6 +182,8 @@ const handleDownload = () => {
       addSuccessNotification(t('settings.security.backup.download.success'));
     },
     onError: (e) => {
+      // The API client already toasted the 402 with a "See plans" action.
+      if (isApiErrorWithCode(e, API_ERROR_CODES.planRequired)) return;
       addErrorNotification(resolveDownloadError(e));
       const isExpected = e instanceof BackupDownloadFailedError;
       if (!isExpected) {

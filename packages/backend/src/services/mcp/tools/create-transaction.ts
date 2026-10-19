@@ -1,5 +1,6 @@
 import { PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
 import { currencyCode, recordId } from '@common/lib/zod/custom-types';
+import { nonNegativeAmountSchema, positiveAmountSchema } from '@controllers/transactions.controller/schemas';
 import { trackMcpToolUsed } from '@js/utils/posthog';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { deserializeCreateTransaction, serializeTransactionTuple } from '@root/serializers';
@@ -10,7 +11,9 @@ import { assertOriginalCurrencyArgs, getUserId, jsonContent, requireScope } from
 
 const inputSchema = {
   accountId: recordId().describe('ID of the account the transaction belongs to'),
-  amount: z.number().describe('Transaction amount as a decimal (e.g. 12.50)'),
+  amount: nonNegativeAmountSchema().describe(
+    'Transaction amount as an unsigned decimal (e.g. 12.50). Never negative: transactionType sets the direction',
+  ),
   transactionType: z
     .enum([TRANSACTION_TYPES.income, TRANSACTION_TYPES.expense])
     .describe('Whether this is income or expense'),
@@ -36,7 +39,9 @@ const inputSchema = {
   time: z.string().optional().describe('Transaction date/time as ISO 8601 string. Defaults to now'),
   note: z.string().optional().describe('Optional note or description for the transaction'),
   destinationAccountId: recordId().optional().describe('For transfers: destination account ID'),
-  destinationAmount: z.number().optional().describe('For transfers: amount received in destination account (decimal)'),
+  destinationAmount: positiveAmountSchema()
+    .optional()
+    .describe('For transfers: amount received in destination account (decimal, greater than 0)'),
   destinationTransactionId: z
     .string()
     .uuid()
@@ -46,13 +51,14 @@ const inputSchema = {
     .array(
       z.object({
         categoryId: recordId().describe('Category ID for this split portion'),
-        amount: z.number().describe('Amount for this split portion (decimal)'),
+        amount: positiveAmountSchema().describe('Amount for this split portion (decimal, greater than 0)'),
         note: z.string().optional().nullable().describe('Optional note for this split'),
       }),
     )
     .optional()
     .describe('Split the transaction across multiple categories'),
   tagIds: z.array(recordId()).optional().describe('Tag IDs to assign to this transaction'),
+  payeeId: recordId().optional().describe('Payee ID to assign'),
   isPlanned: z.boolean().optional().describe('Mark the transaction as planned rather than an already-happened record'),
   originalAmount: z
     .number()
@@ -99,6 +105,7 @@ export function registerCreateTransaction(server: McpServer) {
           transferNature: args.transferNature,
           splits: args.splits,
           tagIds: args.tagIds,
+          payeeId: args.payeeId,
           isPlanned: args.isPlanned,
           originalAmount: args.originalAmount,
           originalCurrencyCode: args.originalCurrencyCode,

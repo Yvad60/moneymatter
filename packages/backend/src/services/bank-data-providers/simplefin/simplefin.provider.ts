@@ -10,7 +10,14 @@ import {
 } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { t } from '@i18n/index';
-import { BadRequestError, ForbiddenError, NotFoundError, ValidationError } from '@js/errors';
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+  ServiceUnavailableError,
+  TooManyRequests,
+  ValidationError,
+} from '@js/errors';
 import { logger } from '@js/utils';
 import Accounts from '@models/accounts.model';
 import BankDataProviderConnections from '@models/bank-data-provider-connections.model';
@@ -72,6 +79,9 @@ interface AccountTransactionsBucket {
   balance: string | null;
   currency: string | null;
 }
+
+const isTransientBridgeError = ({ error }: { error: unknown }): boolean =>
+  error instanceof ServiceUnavailableError || error instanceof TooManyRequests;
 
 /**
  * Split [from, to] into contiguous windows no longer than the SimpleFIN
@@ -141,13 +151,19 @@ export class SimplefinProvider extends BaseBankDataProvider {
     // Probe the Access URL. This both validates auth and gives us the org name
     // + account count for metadata — one call, mindful of the request budget.
     const apiClient = new SimplefinApiClient(accessUrl);
-    const accountSet = await apiClient.getAccounts({ balancesOnly: true });
+    // The setup token is spent once claimed, so an unavailable or throttling bridge must not discard
+    // the Access URL: the connection is stored without org metadata and the next read validates it.
+    const accountSet = await apiClient.getAccounts({ balancesOnly: true }).catch((error: unknown) => {
+      if (!isTransientBridgeError({ error })) throw error;
+      logger.info('[SimpleFIN] Probe failed after claim, storing the Access URL unprobed');
+      return null;
+    });
     // Fail the connect if the bridge reports an auth/connection problem even on
     // a 200 (no connection row should be created for bad credentials).
-    this.surfaceAccountSetErrors(accountSet);
+    if (accountSet) this.surfaceAccountSetErrors({ accountSet });
 
-    const connectionsById = this.buildConnectionsMap(accountSet);
-    const firstAccount = accountSet.accounts[0];
+    const connectionsById = accountSet ? this.buildConnectionsMap(accountSet) : new Map();
+    const firstAccount = accountSet?.accounts[0];
 
     const existingConnections = await BankDataProviderConnections.count({
       where: { userId, providerType: this.metadata.type },
@@ -162,7 +178,7 @@ export class SimplefinProvider extends BaseBankDataProvider {
       credentials: encryptCredentials({ accessUrl } satisfies SimplefinCredentials),
       metadata: {
         orgName: firstAccount ? this.resolveOrg(firstAccount, connectionsById).name : undefined,
-        accountCount: accountSet.accounts.length,
+        accountCount: accountSet?.accounts.length,
         consecutiveAuthFailures: 0,
         deactivationReason: null,
       } as SimplefinMetadata,
@@ -195,15 +211,23 @@ export class SimplefinProvider extends BaseBankDataProvider {
     // Accept either a fresh setup token (claimed into an Access URL) or an
     // Access URL pasted directly (advanced / self-hosted servers).
     let accessUrl: string;
+    let claimed = false;
     if (this.isValidConnectInput(newCredentials)) {
       accessUrl = await SimplefinApiClient.claimAccessUrl(newCredentials.setupToken);
+      claimed = true;
     } else if (this.isValidStoredCredentials(newCredentials)) {
       accessUrl = newCredentials.accessUrl;
     } else {
       throw new ValidationError({ message: t({ key: 'bankDataProviders.simplefin.invalidCredentialsFormat' }) });
     }
 
-    const isValid = await this.validateCredentials({ accessUrl });
+    // The setup token is spent once claimed, so an unavailable or throttling bridge must not discard
+    // the Access URL: it is stored unprobed and the next sync validates it.
+    const isValid = await this.validateCredentials({ accessUrl }).catch((error: unknown) => {
+      if (!claimed || !isTransientBridgeError({ error })) throw error;
+      logger.info('[SimpleFIN] Probe failed after claim, storing the Access URL unprobed', { connectionId });
+      return true;
+    });
     if (!isValid) {
       throw new ForbiddenError({ message: t({ key: 'bankDataProviders.simplefin.invalidAccessUrl' }) });
     }
@@ -653,11 +677,12 @@ export class SimplefinProvider extends BaseBankDataProvider {
     let balance: string | null = null;
     let currency: string | null = null;
 
-    for (const window of windows) {
+    for (const [index, window] of windows.entries()) {
       const accountSet = await this.getAccountsTracked({
         connectionId,
         apiClient,
         params: { accountId: accountExternalId, startDate: window.from, endDate: window.to },
+        quietBridgeWarnings: index > 0,
       });
       const account = accountSet.accounts.find((acc) => acc.id === accountExternalId);
       if (!account) {
@@ -707,11 +732,12 @@ export class SimplefinProvider extends BaseBankDataProvider {
     const byAccount = new Map<string, Map<string, SimplefinTransaction>>();
     const meta = new Map<string, { balance: string | null; currency: string | null }>();
 
-    for (const window of windows) {
+    for (const [index, window] of windows.entries()) {
       const accountSet = await this.getAccountsTracked({
         connectionId,
         apiClient,
         params: { startDate: window.from, endDate: window.to },
+        quietBridgeWarnings: index > 0,
       });
 
       for (const account of accountSet.accounts) {
@@ -911,14 +937,16 @@ export class SimplefinProvider extends BaseBankDataProvider {
     connectionId,
     apiClient,
     params,
+    quietBridgeWarnings,
   }: {
     connectionId: string;
     apiClient: SimplefinApiClient;
     params?: SimplefinGetAccountsParams;
+    quietBridgeWarnings?: boolean;
   }): Promise<SimplefinAccountSet> {
     try {
       const accountSet = await apiClient.getAccounts(params);
-      this.surfaceAccountSetErrors(accountSet);
+      this.surfaceAccountSetErrors({ accountSet, quietBridgeWarnings });
       await this.resetAuthFailures(connectionId);
       return accountSet;
     } catch (error) {
@@ -934,7 +962,13 @@ export class SimplefinProvider extends BaseBankDataProvider {
    * Logs every bridge error and throws ForbiddenError only for gen.auth, the one code meaning
    * our Access URL is rejected. con.auth and other entries leave the returned accounts processable.
    */
-  private surfaceAccountSetErrors(accountSet: SimplefinAccountSet): void {
+  private surfaceAccountSetErrors({
+    accountSet,
+    quietBridgeWarnings = false,
+  }: {
+    accountSet: SimplefinAccountSet;
+    quietBridgeWarnings?: boolean;
+  }): void {
     const structured = accountSet.errlist ?? [];
     const legacy = accountSet.errors ?? [];
 
@@ -948,10 +982,11 @@ export class SimplefinProvider extends BaseBankDataProvider {
       }
     }
     // v2 bridges repeat every errlist entry as a legacy `errors` string.
-    if (structured.length === 0) {
-      for (const msg of legacy) {
-        logger.warn(`[SimpleFIN] Bridge warning: ${msg}`);
-      }
+    // Legacy strings repeat on every window of a sync and every warn is a Sentry event, so they
+    // are reported as one fixed-message warn and only for the first window.
+    if (structured.length === 0 && legacy.length > 0) {
+      const log = quietBridgeWarnings ? logger.info : logger.warn;
+      log('[SimpleFIN] Bridge warning', { bridgeMessages: legacy });
     }
 
     const authErrors = structured.filter((e) => e.code === 'gen.auth');

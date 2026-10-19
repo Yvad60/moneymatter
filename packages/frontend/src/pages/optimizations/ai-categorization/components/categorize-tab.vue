@@ -27,7 +27,7 @@ const {
   isEverythingCategorized,
 } = run;
 
-const { visibleColumns } = useTableColumns();
+const { visibleColumns, setColumnWidth } = useTableColumns();
 
 const selectionScopeKey = computed(() => `${sorting.value.sortBy}:${sorting.value.order}`);
 
@@ -72,6 +72,7 @@ const onSortingChange = (value: TableSorting) => {
       class="min-h-0 flex-1"
       :transactions="candidates"
       :visible-columns="visibleColumns"
+      @resize-column="setColumnWidth"
       :sorting="sorting"
       :has-next-page="hasNextPage"
       :is-fetching-next-page="isFetchingNextPage"

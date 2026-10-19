@@ -2,6 +2,7 @@
  * AI extraction for investment transactions.
  */
 import { AI_FEATURE } from '@bt/shared/types';
+import { t } from '@i18n/index';
 import { logger } from '@js/utils';
 import {
   AI_MAX_OUTPUT_TOKENS,
@@ -11,6 +12,7 @@ import {
   describeMissingAiConfiguration,
   hitOutputCeiling,
 } from '@services/ai';
+import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { type AIExtractionError, resolveAiExtractionFailure } from '@services/import-export/core/ai-extraction-failure';
 import { generateText } from 'ai';
 
@@ -79,6 +81,7 @@ export async function extractInvestmentTransactionsWithAI({
       maxRetries,
       maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
     });
+    await trackAiUsage({ userId, feature: AI_FEATURE.investmentTransactionsParsing, aiClient, usage });
 
     // Truncated rows parse as a complete-looking but short import, so refuse them.
     if (hitOutputCeiling({ finishReason, usage })) {
@@ -114,7 +117,7 @@ export async function extractInvestmentTransactionsWithAI({
         success: false,
         error: {
           code: 'NO_TRANSACTIONS_FOUND',
-          message: 'No transactions found in the file.',
+          message: t({ key: 'investments.importNoTransactionsFound' }),
           details: responseText.slice(0, 500),
         },
       };

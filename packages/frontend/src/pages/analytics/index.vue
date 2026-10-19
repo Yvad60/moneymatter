@@ -18,73 +18,79 @@
     <nav
       v-if="!isOnChildRoute || !isCompactLayout"
       :class="[
-        'border-border bg-card/50 shrink-0 rounded-lg border p-2 backdrop-blur-sm',
+        'border-border bg-card/50 shrink-0 rounded-lg border backdrop-blur-sm',
         isTransitionReady && 'transition-all duration-200',
         isCompactLayout ? 'w-full' : isCollapsed ? 'w-14' : 'w-full lg:w-52',
+        !isCompactLayout && 'sticky top-[calc(var(--header-height)+1rem)] self-start',
       ]"
     >
-      <ul class="sticky top-(--header-height) flex flex-col gap-1 overflow-hidden">
-        <!-- Collapse toggle (only on wide layout) -->
-        <li v-if="!isCompactLayout" class="border-border mb-1 border-b pb-1">
-          <button
-            :class="
-              cn(
-                'text-muted-foreground flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
-                'hover:bg-accent hover:text-foreground',
-              )
-            "
-            @click="isCollapsed = !isCollapsed"
-          >
-            <PanelLeftCloseIcon v-if="!isCollapsed" class="size-4 shrink-0" />
-            <PanelLeftOpenIcon v-else class="size-4 shrink-0" />
-            <span
-              :class="['whitespace-nowrap transition-opacity duration-200', isCollapsed ? 'opacity-0' : 'opacity-100']"
+      <ScrollArea :class="navMaxHeight" :viewport-class="cn('p-2', navMaxHeight)">
+        <ul class="flex flex-col gap-1 overflow-hidden">
+          <!-- Collapse toggle (only on wide layout) -->
+          <li v-if="!isCompactLayout" class="border-border mb-1 border-b pb-1">
+            <button
+              :class="
+                cn(
+                  'text-muted-foreground flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'hover:bg-accent hover:text-foreground',
+                )
+              "
+              @click="isCollapsed = !isCollapsed"
             >
-              {{ $t('analytics.navigation.collapse') }}
-            </span>
-          </button>
-        </li>
-
-        <template v-for="section in sections" :key="section.key">
-          <!-- Section header: uppercase label on the expanded/compact layouts, a bare
-               divider when collapsed to icons so the grouping still reads. -->
-          <li v-if="section.title" class="mt-2">
-            <div v-if="isCollapsed && !isCompactLayout" class="border-border mx-1 border-t" />
-            <div v-else class="border-border border-t pt-3">
-              <span class="text-muted-foreground px-3 text-xs font-medium tracking-wider uppercase">
-                {{ section.title }}
-              </span>
-            </div>
-          </li>
-
-          <li v-for="tab in section.tabs" :key="tab.name">
-            <DesktopOnlyTooltip :content="tab.label" :disabled="!isCollapsed || isCompactLayout" side="right">
-              <router-link
-                :to="tab.to"
-                :class="
-                  cn(
-                    'text-muted-foreground flex items-center gap-2 rounded-md px-3 py-2 whitespace-nowrap transition-colors',
-                    'hover:bg-accent hover:text-foreground',
-                    '[&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-foreground',
-                    isCompactLayout ? 'text-sm md:gap-4 md:text-base' : 'text-sm',
-                  )
-                "
+              <PanelLeftCloseIcon v-if="!isCollapsed" class="size-4 shrink-0" />
+              <PanelLeftOpenIcon v-else class="size-4 shrink-0" />
+              <span
+                :class="[
+                  'whitespace-nowrap transition-opacity duration-200',
+                  isCollapsed ? 'opacity-0' : 'opacity-100',
+                ]"
               >
-                <component :is="tab.icon" :class="cn('size-4 shrink-0', isCompactLayout && 'md:size-5')" />
-                <span
-                  :class="[
-                    'transition-opacity duration-200',
-                    isCollapsed && !isCompactLayout ? 'opacity-0' : 'opacity-100',
-                  ]"
-                >
-                  {{ tab.label }}
-                </span>
-                <ChevronRightIcon v-if="isCompactLayout" class="text-muted-foreground ml-auto size-4" />
-              </router-link>
-            </DesktopOnlyTooltip>
+                {{ $t('analytics.navigation.collapse') }}
+              </span>
+            </button>
           </li>
-        </template>
-      </ul>
+
+          <template v-for="section in sections" :key="section.key">
+            <!-- Section header: uppercase label on the expanded/compact layouts, a bare
+               divider when collapsed to icons so the grouping still reads. -->
+            <li v-if="section.title" class="mt-2">
+              <div v-if="isCollapsed && !isCompactLayout" class="border-border mx-1 border-t" />
+              <div v-else class="border-border border-t pt-3">
+                <span class="text-muted-foreground px-3 text-xs font-medium tracking-wider uppercase">
+                  {{ section.title }}
+                </span>
+              </div>
+            </li>
+
+            <li v-for="tab in section.tabs" :key="tab.name">
+              <DesktopOnlyTooltip :content="tab.label" :disabled="!isCollapsed || isCompactLayout" side="right">
+                <router-link
+                  :to="tab.to"
+                  :class="
+                    cn(
+                      'text-muted-foreground flex items-center gap-2 rounded-md px-3 py-2 whitespace-nowrap transition-colors',
+                      'hover:bg-accent hover:text-foreground',
+                      '[&.router-link-exact-active]:bg-accent [&.router-link-exact-active]:text-foreground',
+                      isCompactLayout ? 'text-sm md:gap-4 md:text-base' : 'text-sm',
+                    )
+                  "
+                >
+                  <component :is="tab.icon" :class="cn('size-4 shrink-0', isCompactLayout && 'md:size-5')" />
+                  <span
+                    :class="[
+                      'transition-opacity duration-200',
+                      isCollapsed && !isCompactLayout ? 'opacity-0' : 'opacity-100',
+                    ]"
+                  >
+                    {{ tab.label }}
+                  </span>
+                  <ChevronRightIcon v-if="isCompactLayout" class="text-muted-foreground ml-auto size-4" />
+                </router-link>
+              </DesktopOnlyTooltip>
+            </li>
+          </template>
+        </ul>
+      </ScrollArea>
     </nav>
 
     <!-- Content Area (wide: always visible, compact: only on child routes) -->
@@ -117,6 +123,7 @@
 
 <script setup lang="ts">
 import DocsLink from '@/components/common/docs-link.vue';
+import { ScrollArea } from '@/components/lib/ui/scroll-area';
 import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { useAfterMountTransition } from '@/composable/use-after-mount-transition';
 import { CUSTOM_BREAKPOINTS, useWindowBreakpoints } from '@/composable/window-breakpoints';
@@ -171,6 +178,7 @@ const isMobileView = useWindowBreakpoints(CUSTOM_BREAKPOINTS.uiMobile, {
 });
 
 const isCompactLayout = computed(() => containerWidth.value < 920);
+const navMaxHeight = computed(() => (isCompactLayout.value ? '' : 'max-h-[calc(100dvh-var(--header-height)-2rem)]'));
 const isCollapsed = useLocalStorage('analytics-sidebar-collapsed', false);
 
 const isTransitionReady = useAfterMountTransition();

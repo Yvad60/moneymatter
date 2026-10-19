@@ -149,7 +149,7 @@
       </div>
 
       <div
-        class="text-muted-foreground border-border flex flex-col border-t text-sm @2xl/hero:items-end @2xl/hero:gap-1 @2xl/hero:border-0 @2xl/hero:text-right"
+        class="text-muted-foreground border-border flex flex-col border-t text-sm @2xl/hero:shrink-0 @2xl/hero:items-end @2xl/hero:gap-1 @2xl/hero:border-0 @2xl/hero:text-right"
       >
         <div :class="LEDGER_ROW_CLASS">
           <i18n-t keypath="analytics.fire.hero.basedOn.spending" tag="span">

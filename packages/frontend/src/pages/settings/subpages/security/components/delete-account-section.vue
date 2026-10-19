@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { deleteUserAccount } from '@/api/user';
-import { ClickToCopy } from '@/components/common';
+import ClickToCopy from '@/components/common/click-to-copy.vue';
 import ResponsiveAlertDialog from '@/components/common/responsive-alert-dialog.vue';
-import { InputField } from '@/components/fields';
+import InputField from '@/components/fields/input-field.vue';
 import { Button } from '@/components/lib/ui/button';
 import { useNotificationCenter } from '@/components/notification-center';
 import { ROUTES_NAMES } from '@/routes';
@@ -77,7 +77,7 @@ const handleOpenChange = (open: boolean) => {
       <template #description>
         <div class="text-left">
           {{ $t('settings.security.deleteAccount.dialog.description') }}
-          <ul class="mt-2 list-inside list-disc text-sm">
+          <ul class="mt-2 list-disc pl-5 text-sm">
             <li>{{ $t('settings.security.deleteAccount.dialog.dataList.accounts') }}</li>
             <li>{{ $t('settings.security.deleteAccount.dialog.dataList.categories') }}</li>
             <li>{{ $t('settings.security.deleteAccount.dialog.dataList.portfolios') }}</li>

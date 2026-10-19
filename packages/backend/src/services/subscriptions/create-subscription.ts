@@ -15,6 +15,7 @@ import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-curre
 
 import {
   assertAmountCurrencyConsistent,
+  assertAutoRecordAccountIsManual,
   assertAutoRecordConsistent,
   validateAccountOwnership,
   validateCategoryOwnership,
@@ -102,6 +103,7 @@ export const createSubscription = withTransaction(
       expectedCurrencyCode,
       matchingRules,
     });
+    await assertAutoRecordAccountIsManual({ autoRecord: rest.autoRecord ?? false, accountId, userId });
 
     // The subscriptions summary converts expectedAmount into the user's base
     // currency, and that conversion requires a UsersCurrencies row for the

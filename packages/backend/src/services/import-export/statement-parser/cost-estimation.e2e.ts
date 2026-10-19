@@ -1,8 +1,10 @@
 import type { StatementFileType, StatementTextExtractionFailure } from '@bt/shared/types';
 import { AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
+import { t } from '@i18n/index';
 import { describe, expect, it } from '@jest/globals';
 import {
   ENCRYPTED_STATEMENT_PASSWORD,
+  PNG_1X1_BASE64,
   STATEMENT_PDF_FIXTURES,
   readStatementPdfFixture,
 } from '@tests/fixtures/statement-parser-fixtures';
@@ -89,6 +91,26 @@ describe('Statement parser cost estimation', () => {
     expect(estimate.estimatedCostUsd).toBeNull();
   });
 
+  it('estimates an image without reading any text from it', async () => {
+    await createFirstConnection();
+
+    const estimate = await helpers.statementEstimateCost({ payload: { fileBase64: PNG_1X1_BASE64 }, raw: true });
+
+    expect(estimate.fileType).toBe('image');
+    expect(estimate.textExtraction).toEqual({ success: true, characterCount: 0, pageCount: 1 });
+    expect(estimate.estimatedInputTokens).toBeGreaterThan(0);
+  });
+
+  it('answers 422 for an image over the 4MB cap', async () => {
+    await createFirstConnection();
+    const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const oversized = Buffer.concat([pngHeader, Buffer.alloc(4 * 1024 * 1024)]);
+
+    const response = await helpers.statementEstimateCost({ payload: { fileBase64: oversized.toString('base64') } });
+
+    expect(response.statusCode).toBe(422);
+  });
+
   it('estimates against the default connection when the feature has no config', async () => {
     await createFirstConnection();
 
@@ -173,5 +195,39 @@ describe('Statement parser cost estimation', () => {
       expect(estimate.modelId).toBe(`${AI_PROVIDER.google}/${CATALOG_MODEL}`);
       expect(estimate.estimatedInputTokens).toBeGreaterThan(0);
     });
+  });
+
+  // PDF readers accept the `%PDF` header anywhere in the first 1024 bytes, and
+  // bank exports do ship with a BOM or blank lines in front of it.
+  it('reads a PDF whose header is preceded by junk bytes the same as the clean file', async () => {
+    await createGeminiConnection({ model: CATALOG_MODEL });
+
+    const clean = readStatementPdfFixture({ file: STATEMENT_PDF_FIXTURES.encrypted });
+    const prefixed = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('\r\n\r\n'), clean]);
+
+    const [cleanEstimate, prefixedEstimate] = await Promise.all(
+      [clean, prefixed].map((buffer) =>
+        helpers.statementEstimateCost({
+          payload: { fileBase64: buffer.toString('base64'), password: ENCRYPTED_STATEMENT_PASSWORD },
+          raw: true,
+        }),
+      ),
+    );
+
+    expect(cleanEstimate!.textExtraction.success).toBe(true);
+    expect(prefixedEstimate!.textExtraction).toEqual(cleanEstimate!.textExtraction);
+  });
+
+  it('rejects a file too small to be a statement in the language the request asks for', async () => {
+    const response = await helpers.makeRequest({
+      method: 'post',
+      url: '/import/text-source/estimate-cost',
+      payload: { fileBase64: Buffer.from('abc').toString('base64') },
+      headers: { 'Accept-Language': 'uk' },
+    });
+
+    expect(response.statusCode).not.toBe(200);
+    expect(response.body.response.message).toBe(t({ key: 'statementParser.fileTooSmall', locale: 'uk' }));
+    expect(response.body.response.message).not.toBe(t({ key: 'statementParser.fileTooSmall', locale: 'en' }));
   });
 });

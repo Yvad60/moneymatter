@@ -1,6 +1,7 @@
 import { currencyCode, decimalString, recordId } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import { updatePortfolioBalance } from '@services/investments/portfolios/balances';
+import { findPortfolioOrThrow } from '@services/investments/portfolios/transfers/transfer-validations';
 import { z } from 'zod';
 
 export default createController(
@@ -39,6 +40,8 @@ export default createController(
       ),
   }),
   async ({ user, params, body }) => {
+    await findPortfolioOrThrow({ portfolioId: params.id, userId: user.id, role: 'generic' });
+
     const result = await updatePortfolioBalance({
       userId: user.id,
       portfolioId: params.id,

@@ -10,13 +10,7 @@ import { BACKUP_TABLES, type BackupTableDef } from '../registry';
 import type { ArchiveAnalysis, TableColumnPlan } from './analyze-archive';
 import { buildInsertRecord, runBulkInsert } from './bulk-insert';
 import type { ParsedArchive } from './load-archive';
-import {
-  type GuardedFk,
-  buildGuardedReferenceMap,
-  foreignReferenceDroppedMessage,
-  foreignReferenceNulledMessage,
-  guardRowReferences,
-} from './owned-reference-guard';
+import { type GuardedFk, buildGuardedReferenceMap, guardRowReferences } from './owned-reference-guard';
 import { remapEmbeddedReferences } from './remap-embedded-references';
 
 type Row = Record<string, unknown>;
@@ -43,38 +37,6 @@ interface InsertContext {
 
 const hasColumn = ({ plan, field }: { plan: TableColumnPlan; field: string }): boolean =>
   plan.columns.some((c) => c.field === field);
-
-/**
- * Delete any restore-target rows that outlived the shared wipe, so this user's
- * own backup ids are free and the keep-if-free inserts below reuse them instead
- * of reminting. `destroyUserOwnedData` keeps the Users row, so tables whose only
- * owner link is `userId` with an ON DELETE CASCADE to Users (Payees,
- * PayeeIgnoredNames, …) are never reached by that wipe and would collide on their
- * primary keys when re-inserted. Delete every `insert`-mode `userColumn` table
- * for this user in reverse tier order (children before parents); each survivor's
- * `viaParent` children (e.g. PayeeAliases/PayeeTags off Payees) go with it via FK
- * cascade. Most rows are already gone via the wipe + cascades, so these are
- * usually no-ops — the pass exists to guarantee emptiness for the stragglers.
- */
-export async function purgeUserOwnedRestoreTables({
-  userId,
-  transaction,
-}: {
-  userId: number;
-  transaction: Transaction;
-}): Promise<void> {
-  const targets = BACKUP_TABLES.filter(
-    (def): def is BackupTableDef & { scope: { strategy: 'userColumn'; column: 'userId' | 'ownerUserId' } } =>
-      def.restoreMode === 'insert' && def.scope.strategy === 'userColumn',
-  )
-    .toSorted((a, b) => b.tier - a.tier)
-    .map((def) => ({ model: def.model, column: def.scope.column }));
-
-  for (const { model, column } of targets) {
-    // force:true so paranoid models hard-delete instead of leaving soft-deleted rows behind their default scope.
-    await model.destroy({ where: { [column]: userId }, transaction, force: true });
-  }
-}
 
 /**
  * Rewrite one row's remappable columns and decide whether it survives. Returns
@@ -171,7 +133,8 @@ async function insertTable({
   const hasStandaloneId = pkAttrs.length === 1 && pkAttrs[0] === 'id';
 
   // Probe which backup ids another row already holds, inside the restore tx.
-  // After the wipe only OTHER users' rows survive, so a hit is a real collision.
+  // After the wipe only other users' rows and this user's rows on their shared
+  // accounts survive, so a hit is a real collision.
   // `paranoid: false` so a soft-deleted row still counts as taken — the primary
   // key ignores `deletedAt`, so keeping its id would collide on insert anyway.
   // Chunked so a table with tens of thousands of rows stays under Postgres's
@@ -205,6 +168,7 @@ async function insertTable({
   // count) instead of one warning per dropped row.
   let droppedMccCount = 0;
   let droppedCurrencyCount = 0;
+  let droppedInvalidCount = 0;
   const fkDroppedByColumn = new Map<string, number>();
   const fkNulledByColumn = new Map<string, number>();
 
@@ -218,6 +182,11 @@ async function insertTable({
     // Skip a row whose currency isn't seeded on the target (users-currencies).
     if (def.requireSeededCurrency && !ctx.currencyCodes.has(String(row.currencyCode))) {
       droppedCurrencyCount += 1;
+      continue;
+    }
+
+    if (def.isValidRow && !def.isValidRow({ row })) {
+      droppedInvalidCount += 1;
       continue;
     }
 
@@ -254,7 +223,6 @@ async function insertTable({
     ctx.warnings.push({
       code: 'mcc_code_missing',
       table: def.fileName,
-      message: `Dropped ${droppedMccCount} user MCC rule(s) whose merchant category code doesn't exist on this instance.`,
       count: droppedMccCount,
     });
   }
@@ -262,25 +230,21 @@ async function insertTable({
     ctx.warnings.push({
       code: 'currency_missing',
       table: def.fileName,
-      message: `Skipped ${droppedCurrencyCount} currency row(s) whose currency isn't available on this instance.`,
       count: droppedCurrencyCount,
     });
   }
-  for (const [column, count] of fkDroppedByColumn) {
+  if (droppedInvalidCount > 0) {
     ctx.warnings.push({
-      code: 'foreign_reference_dropped',
+      code: 'invalid_row_dropped',
       table: def.fileName,
-      message: foreignReferenceDroppedMessage({ table: def.fileName, column, count }),
-      count,
+      count: droppedInvalidCount,
     });
   }
+  for (const [column, count] of fkDroppedByColumn) {
+    ctx.warnings.push({ code: 'foreign_reference_dropped', table: def.fileName, column, count });
+  }
   for (const [column, count] of fkNulledByColumn) {
-    ctx.warnings.push({
-      code: 'foreign_reference_nulled',
-      table: def.fileName,
-      message: foreignReferenceNulledMessage({ table: def.fileName, column, count }),
-      count,
-    });
+    ctx.warnings.push({ code: 'foreign_reference_nulled', table: def.fileName, column, count });
   }
 
   const inserted = await runBulkInsert({ model: def.model, records, transaction: ctx.transaction });
@@ -310,7 +274,7 @@ async function insertTable({
       ctx.warnings.push({
         code: 'foreign_reference_nulled',
         table: def.fileName,
-        message: foreignReferenceNulledMessage({ table: def.fileName, column: selfRefColumn, count: selfRefNulled }),
+        column: selfRefColumn,
         count: selfRefNulled,
       });
     }
@@ -383,7 +347,6 @@ export async function insertRestoreTables({
         warnings.push({
           code: 'shares_skipped',
           table: def.fileName,
-          message: `Skipped ${count} "${def.fileName}" row(s): shared resources reference counterpart users that don't exist on this instance.`,
           count,
         });
       }

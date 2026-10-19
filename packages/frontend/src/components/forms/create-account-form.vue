@@ -12,10 +12,13 @@ import UiButton from '@/components/lib/ui/button/Button.vue';
 import * as Select from '@/components/lib/ui/select';
 import { NotificationType, useNotificationCenter } from '@/components/notification-center';
 import { useCurrencyName } from '@/composable';
+import { useFormValidation } from '@/composable/form-validator';
+import * as validators from '@/js/helpers/validators';
 import { trackAnalyticsEvent } from '@/lib/posthog';
 import { useCurrenciesStore } from '@/stores';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { ACCOUNT_CATEGORIES, isDedicatedFlowAccountCategory } from '@bt/shared/types';
+import { PlusIcon } from '@lucide/vue';
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
 import { storeToRefs } from 'pinia';
 import { computed, defineAsyncComponent, reactive } from 'vue';
@@ -60,6 +63,11 @@ const form = reactive<{
   logo: null,
 });
 
+const { isFormValid, touchField, getFieldErrorMessage } = useFormValidation(
+  { form },
+  { form: { name: { required: validators.required } } },
+);
+
 const logoPlaceholderAccount = computed(() => ({
   name: form.name,
   logoDomain: null,
@@ -77,12 +85,12 @@ const selectableAccountCategories = computed(() =>
 const createAccountMutation = useMutation({ mutationFn: createAccount });
 
 const submit = async () => {
-  if (createAccountMutation.isPending.value) return;
+  if (createAccountMutation.isPending.value || !isFormValid()) return;
 
   try {
     await createAccountMutation.mutateAsync({
       currencyCode: form.currencyCode,
-      name: form.name,
+      name: form.name.trim(),
       accountCategory: form.accountCategory,
       creditLimit: form.creditLimit,
       initialBalance: form.initialBalance,
@@ -128,6 +136,8 @@ const submit = async () => {
           v-model="form.name"
           :label="$t('forms.createAccount.nameLabel')"
           :placeholder="$t('forms.createAccount.namePlaceholder')"
+          :error-message="getFieldErrorMessage('form.name')"
+          @blur="touchField('form.name')"
         />
       </div>
       <LogoSquareField
@@ -158,6 +168,7 @@ const submit = async () => {
 
             <AddCurrencyDialog @added="form.currencyCode = String($event)">
               <ui-button type="button" class="mt-4 w-full" variant="link">
+                <PlusIcon class="size-4" />
                 {{ $t('forms.createAccount.addCurrencyButton') }}
               </ui-button>
             </AddCurrencyDialog>

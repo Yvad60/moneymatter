@@ -571,6 +571,152 @@ describe('Transaction ↔ Portfolio link (/transactions/:transactionId/*-portfol
     });
   });
 
+  describe('Soft-deleted portfolio', () => {
+    const TX_AMOUNT = 500;
+    const SEED_CASH = 1000;
+
+    const linkExpenseThenTrashPortfolio = async () => {
+      const [expenseTx] = await helpers.createTransaction({
+        payload: helpers.buildTransactionPayload({
+          accountId: account.id,
+          amount: TX_AMOUNT,
+          transactionType: TRANSACTION_TYPES.expense,
+        }),
+        raw: true,
+      });
+
+      const transfer = await helpers.linkTransactionToPortfolio({
+        transactionId: expenseTx!.id,
+        payload: { portfolioId: portfolio.id },
+        raw: true,
+      });
+      expect(transfer.toPortfolioId).toBe(portfolio.id);
+
+      const deleteResponse = await helpers.deletePortfolio({ portfolioId: portfolio.id });
+      expect(deleteResponse.statusCode).toBe(200);
+
+      return expenseTx!;
+    };
+
+    it('should unlink a transaction from a soft-deleted portfolio and restore its original transferNature', async () => {
+      const expenseTx = await linkExpenseThenTrashPortfolio();
+
+      const response = await helpers.unlinkTransactionFromPortfolio({ transactionId: expenseTx.id });
+      expect(response.statusCode).toBe(204);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+      const updatedTx = transactions.find((t) => t.id === expenseTx.id);
+      expect(updatedTx).toBeDefined();
+      expect(updatedTx!.transferNature).toBe(TRANSACTION_TRANSFER_NATURE.not_transfer);
+
+      const link = await helpers.getTransactionPortfolioLink({ transactionId: expenseTx.id });
+      expect(link.statusCode).toBe(ERROR_CODES.NotFoundError);
+    });
+
+    it('should delete a transaction linked to a soft-deleted portfolio', async () => {
+      const expenseTx = await linkExpenseThenTrashPortfolio();
+
+      const response = await helpers.deleteTransaction({ id: expenseTx.id });
+      expect(response.statusCode).toBe(200);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+      expect(transactions.find((t) => t.id === expenseTx.id)).toBeUndefined();
+    });
+
+    it('should bulk-delete a transaction linked to a soft-deleted portfolio', async () => {
+      const expenseTx = await linkExpenseThenTrashPortfolio();
+
+      const response = await helpers.bulkDeleteTransactions({ payload: { transactionIds: [expenseTx.id] } });
+      expect(response.statusCode).toBe(200);
+
+      const result = helpers.extractResponse(response);
+      expect(result.deletedCount).toBe(1);
+      expect(result.deletedIds).toEqual([expenseTx.id]);
+
+      const transactions = await helpers.getTransactions({ raw: true });
+      expect(transactions.find((t) => t.id === expenseTx.id)).toBeUndefined();
+    });
+
+    it('should reverse the cash on a soft-deleted portfolio so a later restore shows the pre-link balance', async () => {
+      await helpers.updatePortfolioBalance({
+        portfolioId: portfolio.id,
+        currencyCode,
+        setAvailableCash: String(SEED_CASH),
+        setTotalCash: String(SEED_CASH),
+      });
+
+      const expenseTx = await linkExpenseThenTrashPortfolio();
+
+      const unlinkResponse = await helpers.unlinkTransactionFromPortfolio({ transactionId: expenseTx.id });
+      expect(unlinkResponse.statusCode).toBe(204);
+
+      const restoreResponse = await helpers.restorePortfolio({ portfolioId: portfolio.id });
+      expect(restoreResponse.statusCode).toBe(200);
+
+      const [balance] = await helpers.getPortfolioBalance({ portfolioId: portfolio.id, currencyCode, raw: true });
+      expect(balance!.availableCash).toBeNumericEqual(SEED_CASH);
+      expect(balance!.totalCash).toBeNumericEqual(SEED_CASH);
+    });
+
+    it('should delete a portfolio-to-portfolio transfer whose destination is soft-deleted and reverse the cash on both sides', async () => {
+      const destination = await helpers.createPortfolio({
+        payload: helpers.buildPortfolioPayload({ name: 'Destination Portfolio' }),
+        raw: true,
+      });
+
+      await helpers.updatePortfolioBalance({
+        portfolioId: portfolio.id,
+        currencyCode,
+        setAvailableCash: String(SEED_CASH),
+        setTotalCash: String(SEED_CASH),
+      });
+
+      const transfer = await helpers.createPortfolioTransfer({
+        fromPortfolioId: portfolio.id,
+        payload: helpers.buildPortfolioTransferPayload({
+          toPortfolioId: destination.id,
+          currencyCode,
+          amount: '300',
+        }),
+        raw: true,
+      });
+
+      const [balanceAfterTransfer] = await helpers.getPortfolioBalance({
+        portfolioId: portfolio.id,
+        currencyCode,
+        raw: true,
+      });
+      expect(balanceAfterTransfer!.availableCash).toBeNumericEqual(700);
+
+      const deleteResponse = await helpers.deletePortfolio({ portfolioId: destination.id });
+      expect(deleteResponse.statusCode).toBe(200);
+
+      const response = await helpers.deletePortfolioTransfer({
+        portfolioId: portfolio.id,
+        transferId: transfer.id,
+      });
+      expect(response.statusCode).toBe(204);
+
+      const [balance] = await helpers.getPortfolioBalance({ portfolioId: portfolio.id, currencyCode, raw: true });
+      expect(balance!.availableCash).toBeNumericEqual(SEED_CASH);
+      expect(balance!.totalCash).toBeNumericEqual(SEED_CASH);
+
+      const { data: transfers } = await helpers.listPortfolioTransfers({ portfolioId: portfolio.id, raw: true });
+      expect(transfers.find((t) => t.id === transfer.id)).toBeUndefined();
+
+      const restoreResponse = await helpers.restorePortfolio({ portfolioId: destination.id });
+      expect(restoreResponse.statusCode).toBe(200);
+
+      const [destinationBalance] = await helpers.getPortfolioBalance({
+        portfolioId: destination.id,
+        currencyCode,
+        raw: true,
+      });
+      expect(destinationBalance!.availableCash).toBeNumericEqual(0);
+      expect(destinationBalance!.totalCash).toBeNumericEqual(0);
+    });
+  });
+
   describe('Link with affectsCash=false (portfolio cash already reflects the money)', () => {
     const SEED_CASH = 1000;
     const TX_AMOUNT = 500;

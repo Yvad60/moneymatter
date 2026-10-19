@@ -1,27 +1,59 @@
 import { AIConnectionStatus, AIFeatureConfig, AI_FEATURE, AI_PROVIDER } from '@bt/shared/types';
+import { logger } from '@js/utils/logger';
 
 // The one place that decides which model answers an AI feature. The runtime resolver and
 // the settings screens both walk this ladder, so what runs and what the UI names cannot
 // drift apart.
 
-/** Paying Plus users get their own quota once GEMINI_PLUS_API_KEY is set; everyone else shares GEMINI_API_KEY. */
-export const getServerApiKey = ({ paidPlus = false }: { paidPlus?: boolean } = {}): string | null =>
-  (paidPlus && process.env.GEMINI_PLUS_API_KEY) || process.env.GEMINI_API_KEY || null;
+type ServerProvider = AI_PROVIDER.google | AI_PROVIDER.anthropic;
 
-interface ServerModel {
-  provider: AI_PROVIDER.google;
+export interface ServerModel {
+  provider: ServerProvider;
   model: string;
 }
 
-/** The included model per feature, served with the operator's key. */
-export const SERVER_MODELS: Record<AI_FEATURE, ServerModel> = {
+/** What every server-served AI call uses while its key works. Swapping providers starts here. */
+export const PRIMARY_SERVER_MODEL = {
+  provider: AI_PROVIDER.anthropic,
+  model: 'claude-haiku-5-5',
+} as const satisfies ServerModel;
+
+let primaryKeySuspendedUntil = 0;
+
+// ponytail: per-process and retried hourly, so a dead key fails one run per instance per hour.
+// Shared store plus a health probe if that matters.
+export const suspendPrimaryServerKey = ({ reason }: { reason: string }): void => {
+  primaryKeySuspendedUntil = Date.now() + 60 * 60 * 1000;
+  logger.error('Primary server model suspended: server-served features fall back to Gemini for an hour', {
+    reason,
+  });
+};
+
+const SERVER_API_KEY_ENV_VARS: Record<ServerProvider, string> = {
+  [AI_PROVIDER.anthropic]: 'ANTHROPIC_API_KEY',
+  [AI_PROVIDER.google]: 'GEMINI_API_KEY',
+};
+
+export const getServerApiKey = ({ provider = AI_PROVIDER.google }: { provider?: ServerProvider } = {}):
+  | string
+  | null => {
+  if (provider === PRIMARY_SERVER_MODEL.provider && Date.now() < primaryKeySuspendedUntil) return null;
+
+  return process.env[SERVER_API_KEY_ENV_VARS[provider]] || null;
+};
+
+/** The Gemini model per feature, used while the primary model has no usable key. */
+export const FALLBACK_SERVER_MODELS: Record<AI_FEATURE, ServerModel & { provider: AI_PROVIDER.google }> = {
   [AI_FEATURE.categorization]: { provider: AI_PROVIDER.google, model: 'gemma-4-31b-it' },
   [AI_FEATURE.statementParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.8-flash' },
   [AI_FEATURE.investmentTransactionsParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.8-flash' },
   [AI_FEATURE.receiptParsing]: { provider: AI_PROVIDER.google, model: 'gemini-3.5-flash-lite' },
 };
 
-/** The included model for the feature, or null when the user can't use it or no server key backs it. */
+/**
+ * The included model for the feature, or null when the user can't use it or no server key backs it.
+ * Callers fold the AI allowance into `serverKeysAllowed`.
+ */
 export function getServerModel({
   feature,
   serverKeysAllowed,
@@ -30,9 +62,9 @@ export function getServerModel({
   serverKeysAllowed: boolean;
 }): ServerModel | null {
   if (!serverKeysAllowed) return null;
+  if (getServerApiKey({ provider: PRIMARY_SERVER_MODEL.provider })) return PRIMARY_SERVER_MODEL;
 
-  const serverModel = SERVER_MODELS[feature];
-  return getServerApiKey() ? serverModel : null;
+  return getServerApiKey() ? FALLBACK_SERVER_MODELS[feature] : null;
 }
 
 /** `provider/model`, e.g. `anthropic/claude-sonnet-5` or `custom/llama3.2`. */
@@ -60,7 +92,7 @@ type ResolutionStep<C extends LadderConnection> =
 /**
  * Priority order: explicit feature config, then the user's first dialable connection, then
  * the included server model, but only for a user who owns no connections at all. Pure over
- * its inputs plus the server-key env vars.
+ * its inputs plus the server-key env vars and the Anthropic key suspension.
  *
  * A config pointing at a deleted connection, or a server pick the user can no longer use,
  * falls through as if unset. Pass `excludedConnectionIds` to re-run the walk with a

@@ -1,4 +1,15 @@
 import type { RecordId } from '@bt/shared/types';
+import {
+  type BudgetSuggestionAnswers,
+  BUDGET_PLAN_NAME_MAX_LENGTH,
+  BUDGET_SUGGESTION_DETAILS,
+  BUDGET_SUGGESTION_EATS_OUT,
+  BUDGET_SUGGESTION_HOUSING,
+  BUDGET_SUGGESTION_MAX_FOCUS_CATEGORIES,
+  BUDGET_SUGGESTION_PETS,
+  BUDGET_SUGGESTION_SUBSCRIPTIONS,
+  BUDGET_SUGGESTION_TRANSPORT,
+} from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import cc from 'currency-codes';
 import { z } from 'zod';
@@ -47,6 +58,26 @@ export const uniqueRecordIds = ({ min, max }: { min?: number; max?: number } = {
  * })
  */
 export const decimalMoney = () => z.number().transform((val) => Money.fromDecimal(val));
+
+/** A plain decimal (no Money transform) of at most 2 places, capped at 1e13; `positive` excludes 0. */
+export const boundedDecimalAmount = ({ positive = false }: { positive?: boolean } = {}) =>
+  (positive ? z.number().positive() : z.number().min(0))
+    .max(1e13)
+    .refine((value) => /^\d+(\.\d{1,2})?$/.test(String(value)), 'At most 2 decimal places');
+
+/** Name of a budget plan, line or line group. */
+export const budgetPlanName = () => z.string().trim().min(1).max(BUDGET_PLAN_NAME_MAX_LENGTH);
+
+export const budgetSuggestionAnswers = () =>
+  z.strictObject({
+    detail: z.enum(BUDGET_SUGGESTION_DETAILS).optional(),
+    housing: z.enum(BUDGET_SUGGESTION_HOUSING).optional(),
+    transport: z.enum(BUDGET_SUGGESTION_TRANSPORT).optional(),
+    pets: z.enum(BUDGET_SUGGESTION_PETS).optional(),
+    eatsOut: z.enum(BUDGET_SUGGESTION_EATS_OUT).optional(),
+    subscriptions: z.enum(BUDGET_SUGGESTION_SUBSCRIPTIONS).optional(),
+    focusCategoryIds: uniqueRecordIds({ max: BUDGET_SUGGESTION_MAX_FOCUS_CATEGORIES }).optional(),
+  }) satisfies z.ZodType<BudgetSuggestionAnswers>;
 
 /**
  * Canonical currency-code validator for API input.
@@ -154,13 +185,6 @@ export const booleanQuery = () =>
 export const dateString = () =>
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Date must be in YYYY-MM-DD format' });
 
-/**
- * A real calendar day in `YYYY-MM-DD` form. Extends `dateString()` (which only
- * checks the shape) by rejecting regex-matching but non-existent dates such as
- * `2020-13-45` via `Date.parse`.
- */
-const calendarDate = () => dateString().refine((value) => !Number.isNaN(Date.parse(value)), 'Invalid calendar date');
-
 type DateRangePrecision = 'date' | 'datetime';
 
 /**
@@ -177,7 +201,7 @@ export const dateBound = ({
   precision = 'date',
   offset = false,
 }: { precision?: DateRangePrecision; offset?: boolean } = {}): z.ZodType<string> =>
-  precision === 'datetime' ? z.string().datetime({ offset }) : calendarDate();
+  precision === 'datetime' ? z.string().datetime({ offset }) : z.iso.date('Invalid calendar date');
 
 // Compares two bounds as instants, so it is correct for calendar days, UTC
 // datetimes, and offset datetimes alike (each parses to a comparable epoch).

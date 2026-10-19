@@ -3,11 +3,13 @@ import fs from 'fs';
 import path from 'path';
 
 const SERVER_CARD_PATH = path.resolve(__dirname, '../../../../frontend/public/.well-known/mcp/server-card.json');
+const REGISTRY_SERVER_JSON_PATH = path.resolve(__dirname, '../../../../../server.json');
 const TOOLS_DIR = path.join(__dirname, 'tools');
 const PROMPTS_DIR = path.join(__dirname, 'prompts');
 
 interface ServerCard {
   serverInfo: { name: string; version: string };
+  transport: { type: string; url: string };
   tools: Array<{ name: string; description: string }>;
   prompts: Array<{ name: string; description: string }>;
 }
@@ -69,6 +71,15 @@ describe('MCP server-card drift', () => {
   it('serverInfo.version matches the version in createMcpServer()', () => {
     const card = readServerCard();
     expect(card.serverInfo.version).toBe(extractServerVersionFromSource());
+  });
+
+  it('registry server.json matches the server version and the card transport URL', () => {
+    const registry = JSON.parse(fs.readFileSync(REGISTRY_SERVER_JSON_PATH, 'utf-8'));
+    const card = readServerCard();
+
+    expect(registry.version).toBe(extractServerVersionFromSource());
+    expect(registry.remotes).toEqual([card.transport]);
+    expect(registry.description.length).toBeLessThanOrEqual(100);
   });
 
   it('every tool has a non-empty description', () => {

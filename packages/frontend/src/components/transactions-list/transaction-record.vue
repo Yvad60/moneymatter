@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'hover:bg-muted/50 grid w-full cursor-pointer rounded-md px-2 py-1 transition-colors [content-visibility:auto]',
+      'group/row hover:bg-muted/50 grid w-full cursor-pointer rounded-md px-2 py-1 transition-colors [content-visibility:auto]',
       showCheckbox
         ? 'grid-cols-[auto_minmax(0,1fr)_max-content] items-center gap-2'
         : shouldShowGroupedTransfer || isLoadingGroupedTransfer
@@ -25,9 +25,23 @@
       <div v-else class="size-4" />
     </label>
 
-    <div class="flex items-center gap-2 overflow-hidden">
-      <template v-if="!isTransferTransaction && !isPortfolioLinked && category">
-        <CategoryCircle :category="category" />
+    <div class="flex items-center gap-2 overflow-x-clip">
+      <template v-if="!isTransferTransaction && !linkTarget && category">
+        <div class="relative shrink-0">
+          <CategoryCircle :category="category" />
+          <ResponsiveTooltip v-if="showAccount && accountFrom" :content="accountFrom.name" :delay-duration="100">
+            <!-- Backing tracks the row's hover fill so the badge's cut-out never shows as a halo. -->
+            <span
+              class="absolute -right-1 -bottom-0.5 cursor-help rounded-sm bg-(--badge-backing) ring-2 ring-(--badge-backing) [--badge-backing:var(--card)] group-hover/row:[--badge-backing:color-mix(in_srgb,var(--muted)_50%,var(--card))]"
+              role="img"
+              :aria-label="accountFrom.name"
+              data-testid="transaction-account-badge"
+              @click="isTouch && $event.stopPropagation()"
+            >
+              <AccountLogo :account="accountFrom" solid class="size-3.5 rounded-sm ring-0" />
+            </span>
+          </ResponsiveTooltip>
+        </div>
       </template>
 
       <div :class="isCompactInline ? 'flex w-full min-w-0 items-center gap-2 text-left' : 'w-full text-left'">
@@ -84,25 +98,23 @@
             <span class="text-amount text-app-income-color whitespace-nowrap">{{ formattedIncomeAmount }}</span>
           </div>
         </template>
-        <template v-else-if="isPortfolioLinked">
+        <template v-else-if="linkTarget">
           <div :class="['flex items-center gap-1.5', compact && 'min-w-0']">
             <AccountLogo v-if="accountFrom" :account="accountFrom" class="size-5 shrink-0" />
             <span class="line-clamp-1 text-sm tracking-wider">
               {{ accountFrom?.name }}
             </span>
-            <ArrowRight :size="14" class="shrink-0 opacity-60" />
-            <BriefcaseIcon :size="14" class="text-app-transfer-color shrink-0" />
-            <template v-if="isLoadingPortfolioLink">
-              <div class="h-4 w-16 animate-pulse rounded bg-white/10" />
-            </template>
+            <ArrowRight :size="14" :class="['shrink-0 opacity-60', linkTarget.flowsToAccount && 'rotate-180']" />
+            <component :is="linkTarget.icon" :size="14" class="text-app-transfer-color shrink-0" />
+            <div v-if="linkTarget.isLoading" class="h-4 w-16 animate-pulse rounded bg-white/10" />
             <template v-else>
               <span
                 class="line-clamp-1 text-sm tracking-wider"
-                :class="{ 'text-muted-foreground line-through': isPortfolioDeleted }"
+                :class="{ 'text-muted-foreground line-through': linkTarget.isDeleted }"
               >
-                {{ portfolioName }}
+                {{ linkTarget.name }}
               </span>
-              <DeletedBadge v-if="isPortfolioDeleted" />
+              <DeletedBadge v-if="linkTarget.isDeleted" />
             </template>
           </div>
         </template>
@@ -228,6 +240,7 @@ import { buildMapUrl } from '@/common/utils/map-url';
 import { useOppositeTxRecord } from '@/composable/data-queries/opposite-tx-record';
 import type { BulkUnselectableReason } from '@/composable/transaction-selection';
 import { useTransactionPortfolioLink } from '@/composable/data-queries/portfolio-transfers';
+import { useTransactionVentureLink } from '@/composable/data-queries/venture/events';
 import { formatUIAmount } from '@/js/helpers';
 import { useAccountsStore, useCategoriesStore, useUserStore } from '@/stores';
 import {
@@ -245,8 +258,10 @@ import {
   InfoIcon,
   HandCoinsIcon,
   MapPinIcon,
+  RocketIcon,
   UsersIcon,
 } from '@lucide/vue';
+import { useMediaQuery } from '@vueuse/core';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -258,6 +273,9 @@ import SplitIndicator from './indicators/split-indicator.vue';
 import TagsIndicator, { type TagsIndicatorVariant } from '@/components/common/tags-indicator.vue';
 
 const { t } = useI18n();
+
+// On touch the tooltip opens on tap, which would also open the transaction behind it.
+const isTouch = useMediaQuery('(pointer: coarse)');
 
 const props = withDefaults(
   defineProps<{
@@ -274,6 +292,8 @@ const props = withDefaults(
     /** Set where planned rows already sit under their own collapsible header. */
     hidePlannedMarker?: boolean;
     tagsVariant?: TagsIndicatorVariant;
+    /** Badges the category circle with the account logo, so it applies to category-circle rows only. */
+    showAccount?: boolean;
   }>(),
   {
     asButton: true,
@@ -316,6 +336,31 @@ const portfolioLinkId = computed(() => (isPortfolioLinked.value ? transaction.va
 const { data: portfolioLinkData, isLoading: isLoadingPortfolioLink } = useTransactionPortfolioLink(portfolioLinkId);
 const portfolioName = computed(() => portfolioLinkData.value?.portfolioName ?? '');
 const isPortfolioDeleted = computed(() => portfolioLinkData.value?.isPortfolioDeleted ?? false);
+
+const { data: ventureLinkData, isLoading: isLoadingVentureLink } = useTransactionVentureLink(transaction);
+
+const linkTarget = computed(() => {
+  if (isPortfolioLinked.value) {
+    return {
+      icon: BriefcaseIcon,
+      name: portfolioName.value,
+      isDeleted: isPortfolioDeleted.value,
+      isLoading: isLoadingPortfolioLink.value,
+      flowsToAccount: false,
+    };
+  }
+  if (transaction.value.transferNature === TRANSACTION_TRANSFER_NATURE.transfer_to_venture) {
+    return {
+      icon: RocketIcon,
+      name: ventureLinkData.value?.dealName ?? '',
+      isDeleted: ventureLinkData.value?.isDealDeleted ?? false,
+      isLoading: isLoadingVentureLink.value,
+      // Distributions and exits pay out of the deal into the account.
+      flowsToAccount: transaction.value.transactionType === TRANSACTION_TYPES.income,
+    };
+  }
+  return null;
+});
 
 // Show grouped transfer display when we have both sides
 const shouldShowGroupedTransfer = computed(() => {

@@ -60,6 +60,7 @@
     "transactionIdNotExist": "Transakcia so zadaným id neexistuje!",
     "notAuthorizedToEdit": "Nemáte oprávnenie upravovať túto transakciu.",
     "cannotDeleteExternal": "Ručné mazanie externých transakcií nie je povolené",
+    "bulkDeleteLimitExceeded": "Naraz môžete zmazať najviac 500 transakcií. Zúžte výber a skúste to znova.",
     "unexpectedDeleteIssue": "Pri pokuse o zmazanie transakcie nastal neočakávaný problém",
     "linkSelfNotAllowed": "Pokus o prepojenie transakcie so sebou samou.",
     "linkSameTypeNotAllowed": "Pokus o prepojenie s transakciou rovnakého „transactionType\".",
@@ -113,7 +114,7 @@
       "survivorPending": "Ako ponechanú vyberte zaúčtovanú transakciu. Ak by zostala čakajúca, natrvalo by tak aj ostala.",
       "survivorNotSelected": "Ponechaná transakcia musí byť jednou z vybraných transakcií.",
       "differentAccounts": "Zlučovať možno len transakcie z rovnakého účtu.",
-      "budgetConflict": "Vybrané transakcie patria k rôznym rozpočtom. Pred zlúčením zjednoťte ich rozpočty.",
+      "budgetConflict": "Vybrané transakcie patria k rôznym sledovačom. Pred zlúčením zjednoťte ich sledovače.",
       "groupConflict": "Vybrané transakcie patria k rôznym skupinám transakcií. Pred zlúčením zjednoťte ich skupiny.",
       "subscriptionConflict": "Vybrané transakcie sú prepojené s rôznymi predplatnými. Pred zlúčením zjednoťte ich predplatné.",
       "accountDisconnected": "Nemožno obnoviť: účet už nie je pripojený k banke.",
@@ -127,12 +128,44 @@
     }
   },
   "budgets": {
-    "budgetNotFound": "Rozpočet sa nenašiel",
+    "budgetNotFound": "Sledovač sa nenašiel",
     "someTransactionIdsInvalid": "Niektoré ID transakcií sú neplatné",
     "transactionsAddedSuccessfully": "Transakcie boli úspešne pridané",
-    "cannotManuallyLinkToCategoryBudget": "Transakcie nemožno ručne prepojiť s rozpočtami podľa kategórií. Transakcie sa sledujú automaticky podľa kategórie.",
+    "cannotManuallyLinkToCategoryBudget": "Transakcie nemožno ručne prepojiť so sledovačmi podľa kategórií. Transakcie sa sledujú automaticky podľa kategórie.",
     "someCategoryIdsInvalid": "Niektoré ID kategórií sú neplatné, alebo neexistujú",
-    "notCategoryBudget": "Toto rozhranie je dostupné len pre rozpočty podľa kategórií"
+    "notCategoryBudget": "Toto rozhranie je dostupné len pre sledovače podľa kategórií"
+  },
+  "budgetPlans": {
+    "planNotFound": "Plán rozpočtu sa nenašiel.",
+    "activePlanExists": "Už máte aktívny plán rozpočtu.",
+    "baseCurrencyChanged": "Vaša základná mena sa zmenila v čase, keď bol tento plán rozpočtu zmazaný, preto ho už nemožno obnoviť.",
+    "epochInFuture": "Plán rozpočtu nemôže začínať v budúcnosti.",
+    "epochTooFarBack": "Plán rozpočtu nemôže začínať viac než {{max}} období pred dneškom.",
+    "intervalOutOfRange": "Tento interval je pre túto periodicitu príliš dlhý.",
+    "secondAnchorDayRequired": "Plán s periodicitou dvakrát mesačne potrebuje druhý deň v mesiaci.",
+    "secondAnchorDayNotAllowed": "Druhý deň v mesiaci sa vzťahuje len na plány s periodicitou dvakrát mesačne.",
+    "semiMonthlyDaysTooClose": "Oba dni plánu s periodicitou dvakrát mesačne musia byť od seba vzdialené aspoň 10 dní.",
+    "accountNotFound": "Jeden z vybraných účtov sa nenašiel.",
+    "lineNotFound": "Riadok rozpočtu sa nenašiel.",
+    "goalNotFound": "Cieľ rozpočtu sa nenašiel.",
+    "lineAlreadyArchived": "Tento riadok rozpočtu je už archivovaný.",
+    "lineNotArchived": "Tento riadok rozpočtu nie je archivovaný.",
+    "activeFromNotPeriodStart": "Dátum začiatku musí byť začiatkom minulého alebo aktuálneho obdobia tohto plánu.",
+    "effectiveFromOutsideLifetime": "Dátum účinnosti musí byť začiatkom minulého alebo aktuálneho obdobia v rámci trvania tohto riadku.",
+    "categoryNotFound": "Jedna z kategórií neexistuje.",
+    "lineCategoriesOverlap": "Inú z týchto kategórií v danom období už pokrýva iný riadok tohto plánu.",
+    "periodNotFound": "Obdobie rozpočtu sa nenašlo.",
+    "periodOutsideLifetime": "Toto obdobie je mimo trvania riadku rozpočtu.",
+    "groupNotFound": "Skupina riadkov sa nenašla.",
+    "groupNotEmpty": "Pred zmazaním tejto skupiny presuňte alebo archivujte jej riadky.",
+    "layoutInvalid": "Rozloženie musí obsahovať každú skupinu plánu práve raz a každý riadok plánu najviac raz.",
+    "openEndedGoalCannotSnooze": "Cieľ bez konečného dátumu nemožno odložiť.",
+    "zeroSumNeedsPool": "Udržanie hodnoty Pripravené na priradenie na 0 vyžaduje plán financovaný zo spoločného fondu.",
+    "suggestedGroups": {
+      "bills": "Účty",
+      "everyday": "Každodenné",
+      "life": "Život"
+    }
   },
   "tags": {
     "tagNotFound": "Štítok sa nenašiel",
@@ -220,8 +253,7 @@
     "accountIdNotFound": "Účet {{accountId}} sa nenašiel",
     "providerTypeMismatch": "Pripojenie {{connectionId}} je pre poskytovateľa {{actualType}}, nie {{expectedType}}",
     "providerAlreadyRegistered": "Poskytovateľ {{providerType}} je už zaregistrovaný. Duplicitných poskytovateľov nemožno registrovať.",
-    "providerNotRegistered": "Poskytovateľ {{providerType}} nie je zaregistrovaný. Dostupní poskytovatelia: {{available}}",
-    "missingRequiredProviders": "Chýbajú povinní poskytovatelia bankových údajov: {{missing}}. Uistite sa, že sú títo poskytovatelia zaregistrovaní pri spustení aplikácie."
+    "providerNotRegistered": "Poskytovateľ {{providerType}} nie je zaregistrovaný. Dostupní poskytovatelia: {{available}}"
   },
   "validation": {
     "dateInvalid": "„date\" je neplatný dátum."
@@ -256,7 +288,9 @@
     "transactionsAllDuplicates": "Za toto obdobie sa našlo {{count}} transakcií — všetky boli už importované.",
     "transactionsNoneInPeriod": "Poskytovateľ za toto obdobie nevrátil žiadne transakcie.",
     "apiError": "Chyba {{provider}} API: {{message}}",
+    "simplefinUnreachable": "SimpleFIN je dočasne nedostupný. Skúste to znova neskôr, prosím.",
     "currencySelectionRequired": "Účet „{{account}}\" nemá od banky uvedenú menu — pred pripojením mu menu vyberte.",
+    "providerNotAvailable": "Tento bankový poskytovateľ nie je pre nové pripojenia dostupný.",
     "monobank": {
       "invalidCredentialsFormat": "Neplatný formát prístupových údajov pre Monobank",
       "invalidApiToken": "Neplatný API token pre Monobank",
@@ -337,7 +371,7 @@
     "importInterruptedByServerUpdate": "Aktualizácia servera prerušila tento import. Už uložené transakcie zostali zachované. Pred opätovným importom súboru tento import zmažte v sekcii „História importov\", inak sa transakcie zduplikujú."
   },
   "statementParser": {
-    "invalidFile": "Neplatný súbor",
+    "imageTooLarge": "This image is over 3.75MB. Upload a smaller or lower-resolution image.",
     "textExtractionFailed": "Vyťaženie textu zlyhalo. PDF môže byť naskenovaný dokument. Vyťaženie z obrázka zatiaľ nie je implementované.",
     "failedToExtractText": "Text zo súboru sa nepodarilo vyťažiť.",
     "fileContentRequired": "Obsah súboru je povinný",
@@ -351,6 +385,7 @@
     "noBaseCurrency": "Používateľ nemá nastavenú základnú menu",
     "alreadyBaseCurrency": "Vybraná mena je už základnou menou",
     "baseCurrencyLockedByShares": "Základnú menu nemožno zmeniť, kým máte aktívne zdieľané zdroje. Najprv ich odoberte alebo opustite.",
+    "baseCurrencyLockedByBudgetPlan": "Základnú menu nemožno zmeniť, kým máte aktívny plán rozpočtu. Najprv plán zmažte.",
     "baseCurrencyLockedByHousehold": "Základnú menu nemožno zmeniť, kým ste súčasťou aktívnej domácnosti. Najprv odoberte alebo opustite svoje členstvo v domácnosti.",
     "baseCurrencyChangeInProgress": "Zmena základnej meny prebieha. Počkajte, prosím, kým sa dokončí.",
     "baseCurrencyChangeSyncInProgress": "Banková synchronizácia sa ešte dokončuje. Skúste zmeniť základnú menu znova o niekoľko minút, prosím.",

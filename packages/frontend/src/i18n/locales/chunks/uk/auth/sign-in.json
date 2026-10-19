@@ -6,6 +6,7 @@
       "submitButton": "Увійти",
       "noAccount": "Немає облікового запису?",
       "signupsDisabledTooltip": "Реєстрацію нових користувачів вимкнено адміністратором цього сервера",
+      "forgotPassword": "Забули пароль?",
       "errors": {
         "incorrectEmailOrPassword": "Неправильна електронна пошта або пароль.",
         "incorrectPassword": "Неправильний пароль.",
@@ -30,7 +31,8 @@
       "oauthButton": {
         "signIn": "Увійти через {provider}",
         "signUp": "Зареєструватися через {provider}"
-      }
+      },
+      "lastUsed": "Востаннє"
     }
   }
 }

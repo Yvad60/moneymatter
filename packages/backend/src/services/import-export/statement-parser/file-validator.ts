@@ -1,9 +1,13 @@
 /**
  * File validation utilities for statement parsing
- * Supports PDF, CSV, and TXT files
+ * Supports PDF, CSV, TXT and, when allowed, JPEG/PNG/WebP images
  */
-import type { StatementFileType } from '@bt/shared/types';
+import type { AttachmentMimeType, StatementFileType } from '@bt/shared/types';
+import { t } from '@i18n/index';
 import { logger } from '@js/utils';
+import { detectMimeType } from '@services/attachments/attachments.service';
+
+export type StatementImageMediaType = Exclude<AttachmentMimeType, 'application/pdf'>;
 
 /** Maximum file size (10MB) */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -14,17 +18,20 @@ const PDF_MAGIC_BYTES = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
 /** PKCS#7 signature container magic bytes (ASN.1 SEQUENCE tag) */
 const PKCS7_MAGIC_BYTE_START = 0x30;
 
-interface FileValidationResult {
-  valid: boolean;
-  /** Detected file type */
-  fileType?: StatementFileType;
-  /** If valid, contains the file buffer (possibly extracted from PKCS#7 for PDFs) */
-  fileBuffer?: Buffer;
-  error?: {
-    code: 'INVALID_FILE' | 'FILE_TOO_LARGE' | 'UNSUPPORTED_TYPE';
-    message: string;
-  };
-}
+/** PDF readers accept the %PDF header anywhere within this many leading bytes */
+const PDF_HEADER_SEARCH_BYTES = 1024;
+
+/** `fileBuffer` may be the PDF extracted from a PKCS#7 container rather than the upload itself. */
+type FileValidationResult =
+  | { valid: true; fileType: Exclude<StatementFileType, 'image'>; fileBuffer: Buffer }
+  | { valid: true; fileType: 'image'; fileBuffer: Buffer; imageMediaType: StatementImageMediaType }
+  | {
+      valid: false;
+      error: {
+        code: 'INVALID_FILE' | 'FILE_TOO_LARGE' | 'UNSUPPORTED_TYPE';
+        message: string;
+      };
+    };
 
 /**
  * Try to find and extract PDF content from a PKCS#7 signed document.
@@ -135,11 +142,17 @@ function detectFileType({ buffer }: { buffer: Buffer }): StatementFileType | nul
 
 /**
  * Validate a file buffer for statement parsing
- * - Detects file type (PDF, CSV, TXT)
+ * - Detects file type (PDF, CSV, TXT, and images when `allowImages`)
  * - Checks file size
  * - Extracts PDF from PKCS#7 signed containers if needed
  */
-export function validateFileBuffer({ buffer }: { buffer: Buffer }): FileValidationResult {
+export function validateFileBuffer({
+  buffer,
+  allowImages = false,
+}: {
+  buffer: Buffer;
+  allowImages?: boolean;
+}): FileValidationResult {
   // Check file size
   if (buffer.length > MAX_FILE_SIZE_BYTES) {
     logger.info('Import file validation failed', {
@@ -152,7 +165,7 @@ export function validateFileBuffer({ buffer }: { buffer: Buffer }): FileValidati
       valid: false,
       error: {
         code: 'FILE_TOO_LARGE',
-        message: `File exceeds maximum size of ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB`,
+        message: t({ key: 'statementParser.fileTooLarge', variables: { maxMb: MAX_FILE_SIZE_BYTES / 1024 / 1024 } }),
       },
     };
   }
@@ -165,9 +178,16 @@ export function validateFileBuffer({ buffer }: { buffer: Buffer }): FileValidati
       valid: false,
       error: {
         code: 'INVALID_FILE',
-        message: 'File is too small to be valid',
+        message: t({ key: 'statementParser.fileTooSmall' }),
       },
     };
+  }
+
+  if (allowImages) {
+    const mimeType = detectMimeType({ bytes: buffer });
+    if (mimeType && mimeType !== 'application/pdf') {
+      return { valid: true, fileType: 'image', fileBuffer: buffer, imageMediaType: mimeType };
+    }
   }
 
   // Check for PDF magic bytes
@@ -199,6 +219,17 @@ export function validateFileBuffer({ buffer }: { buffer: Buffer }): FileValidati
     }
   }
 
+  // PDF cross-reference offsets are relative to the header, so the parser
+  // must receive a buffer that starts at %PDF.
+  const pdfHeaderOffset = buffer.subarray(0, PDF_HEADER_SEARCH_BYTES).indexOf(PDF_MAGIC_BYTES);
+  if (pdfHeaderOffset > 0) {
+    return {
+      valid: true,
+      fileType: 'pdf',
+      fileBuffer: buffer.subarray(pdfHeaderOffset),
+    };
+  }
+
   // Try to detect text-based formats
   const detectedType = detectFileType({ buffer });
 
@@ -216,7 +247,9 @@ export function validateFileBuffer({ buffer }: { buffer: Buffer }): FileValidati
     valid: false,
     error: {
       code: 'UNSUPPORTED_TYPE',
-      message: 'Unsupported file type. Please upload a PDF, CSV, or TXT file.',
+      message: t({
+        key: allowImages ? 'statementParser.unsupportedFileTypeWithImages' : 'statementParser.unsupportedFileType',
+      }),
     },
   };
 }

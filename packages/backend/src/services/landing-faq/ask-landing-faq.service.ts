@@ -1,23 +1,52 @@
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
-import { AI_PROVIDER } from '@bt/shared/types';
+import { AINativeProvider, AI_PROVIDER } from '@bt/shared/types';
 import { t } from '@i18n/index';
 import { ServiceUnavailableError } from '@js/errors';
 import { logger } from '@js/utils/logger';
-import { createProviderModel } from '@services/ai/ai-client-factory';
-import { APICallError, Output, generateText } from 'ai';
-import { setTimeout as sleep } from 'node:timers/promises';
+import { type FallbackModel, generateTextWithFallback } from '@services/ai/generate-text-with-fallback';
+import { Output } from 'ai';
 import { z } from 'zod';
 
 import { LANDING_FAQ_KNOWLEDGE } from './knowledge';
 
-export const LANDING_FAQ_MODEL = 'gemini-3.5-flash-lite';
-export const LANDING_FAQ_FALLBACK_MODEL = 'gemini-3.8-flash';
+export const LANDING_FAQ_MODEL = 'claude-haiku-5-5';
+export const LANDING_FAQ_FALLBACK_MODEL = 'gemini-3.5-flash-lite';
+export const LANDING_FAQ_LAST_RESORT_MODEL = 'gemini-3.8-flash';
 
-// The answer is a lookup in the prompt, so each model runs at its lowest thinking level;
-// gemini-3.8-flash rejects 'minimal'. A busy primary is better retried on the fallback than
-// on itself; the fallback is the last resort, so it gets one SDK retry.
-const PRIMARY = { model: LANDING_FAQ_MODEL, thinkingLevel: 'minimal', maxRetries: 0 } as const;
-const FALLBACK = { model: LANDING_FAQ_FALLBACK_MODEL, thinkingLevel: 'low', maxRetries: 1 } as const;
+type ModelConfig = Pick<FallbackModel, 'maxRetries' | 'providerOptions'> & {
+  provider: AINativeProvider;
+  model: string;
+  apiKeyEnv: string;
+};
+
+const googleThinking = ({ thinkingLevel }: { thinkingLevel: 'minimal' | 'low' }) => ({
+  google: { thinkingConfig: { thinkingLevel } } satisfies GoogleGenerativeAIProviderOptions,
+});
+
+// Tried in order, across two providers so one provider's demand spike cannot take the FAQ down.
+// Landing-only keys keep this spend and quota separate from the server keys.
+const MODEL_CHAIN: ModelConfig[] = [
+  {
+    provider: AI_PROVIDER.anthropic,
+    model: LANDING_FAQ_MODEL,
+    apiKeyEnv: 'LANDING_FAQ_ANTHROPIC_API_KEY',
+    maxRetries: 0,
+  },
+  {
+    provider: AI_PROVIDER.google,
+    model: LANDING_FAQ_FALLBACK_MODEL,
+    apiKeyEnv: 'LANDING_FAQ_GEMINI_API_KEY',
+    providerOptions: googleThinking({ thinkingLevel: 'minimal' }),
+    maxRetries: 0,
+  },
+  {
+    provider: AI_PROVIDER.google,
+    model: LANDING_FAQ_LAST_RESORT_MODEL,
+    apiKeyEnv: 'LANDING_FAQ_GEMINI_API_KEY',
+    providerOptions: googleThinking({ thinkingLevel: 'low' }), // gemini-3.8-flash rejects 'minimal'
+    maxRetries: 1, // last resort: nothing left to fall back to
+  },
+];
 
 // `unknown` is the signal worth tracking: a question about MoneyMatter that the knowledge text
 // cannot answer. `off_topic` keeps unrelated questions out of that list.
@@ -32,11 +61,11 @@ type LandingFaqAnswer = z.infer<typeof answerSchema>;
 // spent before any visible text, so a tight ceiling returns empty text.
 const MAX_OUTPUT_TOKENS = 2_000;
 
-// The primary usually answers within a few seconds but sometimes stalls for 30s+. The fallback
+// A model usually answers within a few seconds but sometimes stalls for 30s+. The next one
 // starts only after this delay so the common path makes one billed call.
 export const HEDGE_AFTER_MS = 6_000;
 
-// Hedge delay plus one attempt stays inside the landing client's 45s fetch timeout.
+// A hedge delay per fallback plus one attempt stays inside the landing client's 45s fetch timeout.
 const ATTEMPT_TIMEOUT_MS = 25_000;
 
 const SYSTEM_PROMPT = `You answer visitor questions on the MoneyMatter landing page.
@@ -54,102 +83,66 @@ Rules:
 Knowledge:
 ${LANDING_FAQ_KNOWLEDGE}`;
 
-type ModelConfig = typeof PRIMARY | typeof FALLBACK;
-
-const generateOnce = async ({
-  model,
-  thinkingLevel,
-  maxRetries,
-  question,
-  apiKey,
-  signal,
-}: ModelConfig & { question: string; apiKey: string; signal: AbortSignal }) => {
-  const { output, usage, finishReason } = await generateText({
-    model: createProviderModel({ provider: AI_PROVIDER.google, model, apiKey }),
-    system: SYSTEM_PROMPT,
-    prompt: question,
-    output: Output.object({ schema: answerSchema }),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-    providerOptions: { google: { thinkingConfig: { thinkingLevel } } satisfies GoogleGenerativeAIProviderOptions },
-    abortSignal: AbortSignal.any([signal, AbortSignal.timeout(ATTEMPT_TIMEOUT_MS)]),
-    maxRetries,
-  });
-
-  const answer = output.answer.trim();
-
-  if (!answer) {
-    throw new Error(
-      `Model returned no visible text (finishReason: ${finishReason}, outputTokens: ${usage?.outputTokens})`,
-    );
-  }
-
-  return { answer, status: output.status, usage, model };
-};
+let missingKeysLogged = false;
 
 export const askLandingFaq = async ({ question }: { question: string }): Promise<LandingFaqAnswer> => {
-  // A key on its own Google project, so landing spend and quota stay separate from the
-  // server key that runs paying users' AI features.
-  const apiKey = process.env.LANDING_FAQ_GEMINI_API_KEY;
+  // A model whose key is absent is skipped, so the FAQ keeps answering on whichever provider is configured.
+  const chain = MODEL_CHAIN.flatMap(({ apiKeyEnv, ...config }): FallbackModel[] => {
+    const apiKey = process.env[apiKeyEnv];
+    return apiKey ? [{ ...config, apiKey }] : [];
+  });
 
-  if (!apiKey) {
-    logger.error({ message: '[Landing FAQ] LANDING_FAQ_GEMINI_API_KEY is not configured' });
+  if (!missingKeysLogged && chain.length < MODEL_CHAIN.length) {
+    missingKeysLogged = true;
+    const missing = [...new Set(MODEL_CHAIN.map(({ apiKeyEnv }) => apiKeyEnv).filter((name) => !process.env[name]))];
+    // info, not warn: warn is forwarded to Sentry as a billed event.
+    logger.info('[Landing FAQ] Models skipped, key not configured', { missing });
+  }
+
+  if (chain.length === 0) {
+    logger.error({ message: '[Landing FAQ] No landing FAQ API key is configured' });
     throw new ServiceUnavailableError({ message: t({ key: 'landingFaq.unavailable' }) });
   }
 
   const startedAt = Date.now();
-  // Aborted once one model has answered, so the other request stops instead of finishing unused.
-  const controller = new AbortController();
-
-  const attempt = async (config: ModelConfig) => {
-    const attemptStartedAt = Date.now();
-
-    try {
-      return await generateOnce({ ...config, question, apiKey, signal: controller.signal });
-    } catch (error) {
-      // A loser cancelled after the other model answered is expected, not a failure.
-      if (!controller.signal.aborted) {
-        logger.warn('[Landing FAQ] Attempt failed', {
-          model: config.model,
-          durationMs: Date.now() - attemptStartedAt,
-          errorName: (error as Error).name,
-          statusCode: APICallError.isInstance(error) ? error.statusCode : undefined,
-          error: (error as Error).message,
-        });
-      }
-      throw error;
-    }
-  };
-
-  const primary = attempt(PRIMARY);
-  const primaryFailed = new Promise<void>((resolve) => {
-    primary.catch(() => resolve());
-  });
-  const fallback = Promise.race([sleep(HEDGE_AFTER_MS, undefined, { signal: controller.signal }), primaryFailed]).then(
-    () => attempt(FALLBACK),
-  );
 
   try {
-    const { answer, status, usage, model } = await Promise.any([primary, fallback]);
+    const { result, model } = await generateTextWithFallback({
+      label: 'Landing FAQ',
+      chain,
+      request: {
+        system: SYSTEM_PROMPT,
+        prompt: question,
+        output: Output.object({ schema: answerSchema }),
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      },
+      validate: ({ result: { output, finishReason, usage } }) => {
+        if (!output.answer.trim()) {
+          throw new Error(
+            `Model returned no visible text (finishReason: ${finishReason}, outputTokens: ${usage?.outputTokens})`,
+          );
+        }
+      },
+      hedgeAfterMs: HEDGE_AFTER_MS,
+      attemptTimeoutMs: ATTEMPT_TIMEOUT_MS,
+    });
+    const { output, usage } = result;
 
     logger.info('[Landing FAQ] Answered', {
-      model,
-      status,
+      model: model.model,
+      status: output.status,
       durationMs: Date.now() - startedAt,
       inputTokens: usage?.inputTokens,
       cachedInputTokens: usage?.inputTokenDetails?.cacheReadTokens,
       outputTokens: usage?.outputTokens,
     });
 
-    return { answer, status };
+    return { answer: output.answer.trim(), status: output.status };
   } catch (error) {
-    const fallbackError = error instanceof AggregateError ? error.errors[1] : error;
-
     logger.error(
-      { message: '[Landing FAQ] AI call failed', error: fallbackError as Error },
+      { message: '[Landing FAQ] AI call failed', error: error as Error },
       { durationMs: Date.now() - startedAt },
     );
     throw new ServiceUnavailableError({ message: t({ key: 'landingFaq.unavailable' }) });
-  } finally {
-    controller.abort();
   }
 };

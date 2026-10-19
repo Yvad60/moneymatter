@@ -1,0 +1,253 @@
+---
+import AlternativeLayout from '@/layouts/alternative-layout.astro';
+
+const checkedOn = '9 October 2026';
+const DOCS_IMPORT_URL = 'https://docs.moneymatter.app/import/other-import-sources/#wallet-by-budgetbakers';
+const DOCS_TRANSFERS_URL = 'https://docs.moneymatter.app/transfers-and-refunds/how-transfers-work/';
+
+const AT_A_GLANCE = [
+  { value: '40 days', label: 'Cloud trial, no card' },
+  { value: 'AGPL-3.0', label: 'Open source' },
+  { value: '$0', label: 'Self-hosted' },
+  { value: '100+', label: 'Tools for your AI assistant' },
+];
+
+const HIGHLIGHTS = [
+  {
+    title: 'AI that does the sorting',
+    items: [
+      {
+        lead: 'Auto-categorization',
+        text: 'AI categorizes new transactions after every bank sync and import, and follows instructions you write for it.',
+      },
+      {
+        lead: 'Statement parsing',
+        text: 'Upload a bank statement as PDF, CSV or text and AI turns it into transactions. Password-protected PDFs work too.',
+      },
+      {
+        lead: 'Your own model',
+        text: 'Use Anthropic, OpenAI, Google or any OpenAI-compatible endpoint, on every plan.',
+      },
+      {
+        lead: 'MCP server',
+        text: 'Connect Claude or ChatGPT with 100+ tools and three access levels: read, write, or write and delete.',
+      },
+    ],
+  },
+  {
+    title: 'Reports that answer questions',
+    items: [
+      {
+        lead: 'Pivot tables',
+        text: 'Slice by category, payee or tag across weeks, months, quarters or years, and save the views you reuse.',
+      },
+      {
+        lead: 'Cash flow',
+        text: 'Income against expenses, with a money-flow diagram from each income source to each category.',
+      },
+      { lead: 'Trends comparison', text: 'This period against the previous one, category by category.' },
+      { lead: 'FIRE planner', text: 'Built on your real spending and savings rate. On the Plus plan.' },
+    ],
+  },
+  {
+    title: 'Your whole net worth',
+    items: [
+      { lead: 'Loans', text: 'A payoff projection, and what an overpayment changes.' },
+      { lead: 'Vehicles', text: 'Value drops on a depreciation schedule you can override.' },
+      { lead: 'Venture deals', text: 'Capital calls, distributions, TVPI, DPI and IRR for angel and SPV investments.' },
+      { lead: 'Portfolios', text: 'Stocks, ETFs and crypto with cost basis and returns.' },
+    ],
+  },
+  {
+    title: 'Tools to keep the books clean',
+    items: [
+      { lead: 'Refunds', text: 'Link a refund to its purchase, so spending goes down and income stays honest.' },
+      {
+        lead: 'Splits and groups',
+        text: 'Split one transaction across categories, including bank-synced ones, and bundle related ones into a group.',
+      },
+      {
+        lead: 'Automations',
+        text: 'Rules with ten kinds of conditions. Preview a rule, then apply it to past transactions.',
+      },
+      {
+        lead: 'Transfer matching',
+        text: 'Turn two existing transactions into a transfer, with suggestions for likely pairs.',
+      },
+      { lead: 'Reconciliation', text: 'One page for duplicate, unwanted and stuck pending bank transactions.' },
+      { lead: 'Categories', text: 'Three levels deep. Create, rename and move them at any level.' },
+    ],
+  },
+  {
+    title: 'Built in the open',
+    items: [
+      { lead: 'Public roadmap', text: 'Vote on what gets built next.' },
+      { lead: 'Frequent releases', text: '21 shipped in September 2026, each one listed on GitHub.' },
+      { lead: 'Self-hosting', text: 'Free with Docker, with every feature on.' },
+    ],
+  },
+  {
+    title: 'Your data stays yours',
+    items: [
+      {
+        lead: 'Backup and restore',
+        text: 'Download a full backup of your account and restore it later, on the cloud or on your own server.',
+      },
+      { lead: 'Export, always', text: 'On every plan, and still there after a trial or plan ends.' },
+      { lead: 'Published price', text: '$30 or $55 a year, before tax. It is on the website.' },
+    ],
+  },
+];
+
+const COMPARISON = [
+  {
+    feature: 'Source code and hosting',
+    competitor: 'Not published. Cloud only',
+    moneymatter: 'Open source. Use the cloud or self-host for free',
+  },
+  {
+    feature: 'Price',
+    competitor: 'Not listed on the website. Shown in the app, and it differs by country and app store',
+    moneymatter: '$30 a year for Essential, $55 a year for Plus, after a 40-day trial without a card',
+  },
+  {
+    feature: 'Getting your data out',
+    competitor: 'CSV and XLS export of transactions, on Premium',
+    moneymatter: 'Export on every plan, plus a full account backup you can restore',
+  },
+  {
+    feature: 'Refunds',
+    competitor: 'Recorded as separate income',
+    moneymatter: 'Linked to the original purchase',
+  },
+  {
+    feature: 'AI',
+    competitor: 'Automatic categorization, receipt scanning, and an MCP server for your own assistant',
+    moneymatter: 'Categorization, statement parsing, an MCP server, and your own model inside the app',
+  },
+  {
+    feature: 'Beyond bank accounts',
+    competitor: 'Stocks, ETFs and crypto. Simple debts you lent or borrowed',
+    moneymatter: 'Stocks, ETFs and crypto. Loans with payoff projections, vehicles and venture deals',
+  },
+  {
+    feature: 'Bank sync',
+    competitor: 'Premium. Wallet says it connects to over 15,000 institutions',
+    moneymatter:
+      'Plus plan, through LunchFlow, SimpleFIN, Monobank and Walutomat. LunchFlow and SimpleFIN need their own account',
+  },
+  {
+    feature: 'Apps',
+    competitor: 'iOS, Android and web, with offline mode on mobile',
+    moneymatter: 'Web app built for phones too; add it to your home screen. No native apps, no offline mode',
+  },
+  {
+    feature: 'Free use',
+    competitor: 'Free plan for manual tracking',
+    moneymatter: 'Free when self-hosted. On the cloud, the trial is followed by a paid plan',
+  },
+];
+
+const STEPS = [
+  "Set Wallet's language to English or Spanish, then export your records as CSV. On the web app, select the records and choose Export. The iOS app has no export.",
+  'In MoneyMatter, open Settings, then Import/Export, and pick Wallet (BudgetBakers). Upload the file, or several files at once.',
+  'For each Wallet account, create a new account, link it to one you already have, or skip it.',
+  'Map each Wallet category to one of yours, or create it during the import.',
+  'Review the possible duplicates and confirm.',
+];
+
+const IMPORTED = [
+  'Every record, with its category and payee.',
+  'Labels, as tags. A record with several labels gets several tags.',
+  'Transfers between your Wallet accounts, joined back into one transfer each.',
+  'Several export files in one go, up to about 10 MB and 100,000 rows together.',
+];
+
+const IMPORT_LIMITS = [
+  'The Wallet export must be in English or Spanish. Other languages stop the import.',
+  'Budgets, planned payments and goals are not imported.',
+  'Duplicates are checked only in accounts you link to existing ones, and joined transfers are not checked.',
+  'Skipping an account also drops every transfer to or from it, so balances can differ from Wallet.',
+];
+
+const STAY_ON_WALLET = [
+  'You want a native phone app that works offline.',
+  'You only track by hand and the free plan covers it.',
+  'You export Wallet in a language other than English or Spanish. MoneyMatter cannot read those files yet.',
+];
+
+const FAQ = [
+  {
+    question: 'Do I need Wallet Premium to move my data?',
+    answer:
+      "Yes, for the export. Wallet's CSV export is a Premium feature, and MoneyMatter imports that CSV file. If you are on the free plan, you would need Premium for long enough to export.",
+  },
+  {
+    question: 'Are my budgets and planned payments imported?',
+    answer:
+      'No. The importer brings in records, categories, payees, labels and transfers. Budgets and recurring payments are set up again in MoneyMatter.',
+  },
+  {
+    question: 'What happens to transfers between my accounts?',
+    answer:
+      'Wallet stores a transfer as two records. MoneyMatter joins them into one transfer when both have the same date and time, sit in different accounts, and their amounts are within 1% of each other. A transfer record with no partner comes in as money moved outside the accounts you track.',
+  },
+  {
+    question: 'Can I check the result before anything is saved?',
+    answer:
+      'Yes. You map each Wallet account and category first, then a review step lists possible duplicates. Nothing is written until you confirm.',
+  },
+  {
+    question: 'Is there a MoneyMatter mobile app?',
+    answer:
+      'Not a native one. MoneyMatter is a web app with a phone layout, and you can add it to your home screen. It needs a connection to work.',
+  },
+];
+
+const SOURCES = [
+  { label: 'Wallet product page', href: 'https://budgetbakers.com/en/products/wallet/' },
+  { label: 'Wallet downloads', href: 'https://budgetbakers.com/en/products/wallet/download' },
+  { label: 'Wallet bank sync', href: 'https://budgetbakers.com/en/products/wallet/features/bank-sync/' },
+  { label: 'Wallet MCP server', href: 'https://budgetbakers.com/en/products/wallet/integrations/mcp/' },
+  { label: 'BudgetBakers security', href: 'https://budgetbakers.com/en/security/' },
+  { label: 'BudgetBakers help: export', href: 'https://support.budgetbakers.com/hc/en-us/articles/7151606064018' },
+  { label: 'BudgetBakers help: plans', href: 'https://support.budgetbakers.com/hc/en-us/articles/7151349344018' },
+  { label: 'BudgetBakers help: backups', href: 'https://support.budgetbakers.com/hc/en-us/articles/10105401036690' },
+  { label: 'BudgetBakers feedback: linking refunds', href: 'https://feedback.budgetbakers.com/191' },
+];
+---
+
+<AlternativeLayout
+  title="Open Source Wallet by BudgetBakers Alternative | MoneyMatter"
+  description="MoneyMatter is an open-source, self-hostable alternative to Wallet by BudgetBakers. Import your Wallet records, labels and transfers from a CSV export."
+  competitor="Wallet by BudgetBakers"
+  competitorShort="Wallet"
+  heading="An open-source alternative to Wallet by BudgetBakers"
+  intro="MoneyMatter is an open-source personal finance tracker. Try the cloud free for 40 days with no card, or host it yourself for free. Its Wallet importer brings your records, labels and transfers with you."
+  checkedOn={checkedOn}
+  importLead="The import takes a few minutes."
+  atAGlance={AT_A_GLANCE}
+  highlights={HIGHLIGHTS}
+  comparison={COMPARISON}
+  importGuideUrl={DOCS_IMPORT_URL}
+  steps={STEPS}
+  screenshot={{
+    name: 'import-sources',
+    width: 1344,
+    height: 1082,
+    alt: 'MoneyMatter import options, including the Wallet (BudgetBakers) importer',
+  }}
+  imported={IMPORTED}
+  importLimits={IMPORT_LIMITS}
+  faq={FAQ}
+  betterFit={STAY_ON_WALLET}
+  trademarkNote="Wallet and BudgetBakers are trademarks of BudgetBakers; MoneyMatter is not affiliated with them."
+  sources={SOURCES}
+>
+  <p slot="import-note" class="text-muted-foreground mt-8 max-w-2xl text-sm">
+    Two records are joined into one transfer when they share a date and time, sit in different accounts, and their
+    amounts are within 1% of each other. See <a href={DOCS_TRANSFERS_URL} class="text-primary-text hover:underline"
+      >how transfers work</a
+    >.
+  </p>
+</AlternativeLayout>

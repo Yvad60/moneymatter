@@ -37,6 +37,14 @@ describe('Portfolio Balances E2E', () => {
           setTotalCash: '100.00',
         });
         expect(unknownPortfolio.statusCode).toBe(ERROR_CODES.NotFoundError);
+
+        await helpers.deletePortfolio({ portfolioId: portfolio.id });
+        const trashedPortfolio = await helpers.updatePortfolioBalance({
+          portfolioId: portfolio.id,
+          currencyCode: global.BASE_CURRENCY.code,
+          setTotalCash: '100.00',
+        });
+        expect(trashedPortfolio.statusCode).toBe(ERROR_CODES.NotFoundError);
       }, 30000);
     });
 

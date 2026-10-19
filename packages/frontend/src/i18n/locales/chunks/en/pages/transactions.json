@@ -60,14 +60,14 @@
       },
       "payees": {
         "label": "Payees",
-        "selectedOne": "1 Payee selected",
+        "selectedOne": "1 payee selected",
         "selectedMany": "{n} Payees selected"
       },
       "removeFilter": "Remove filter",
       "menu": {
         "type": "Type",
         "tags": "Tags",
-        "budgets": "Budgets",
+        "budgets": "Trackers",
         "amount": "Amount range",
         "note": "Notes"
       },
@@ -89,9 +89,11 @@
     },
     "bulkEdit": {
       "selectAll": "Select all",
+      "selectAllShort": "All",
       "cancelSelection": "Cancel selection",
       "editButton": "Edit",
       "selectedCount": "{count} selected",
+      "matchingCount": "Total: {count}",
       "dialogTitle": "Edit {count} transactions",
       "dialogDescription": "Changes will be applied to all selected transactions. Only filled fields will be updated.",
       "categoryLabel": "Category",
@@ -137,23 +139,23 @@
         "noGroupsMessage": "No groups yet. Create one first.",
         "noSearchResultsMessage": "No groups match your search.",
         "addingText": "Adding...",
-        "buttonLabel": "Add to Group",
+        "buttonLabel": "Add to group",
         "cancelButton": "Cancel",
         "transactionCountLabel": "transactions"
       },
       "createGroupDialog": {
-        "title": "Create Transaction Group",
+        "title": "Create transaction group",
         "descriptionPrefix": "Group",
         "groupNameLabel": "Name",
         "groupNamePlaceholder": "e.g. May salary transfer",
         "noteLabel": "Note (optional)",
         "notePlaceholder": "Optional description...",
         "creatingText": "Creating...",
-        "buttonLabel": "Create Group",
+        "buttonLabel": "Create group",
         "cancelButton": "Cancel"
       },
       "groupsPage": {
-        "title": "Transaction Groups",
+        "title": "Transaction groups",
         "searchPlaceholder": "Search groups...",
         "noGroupsMessage": "No transaction groups yet.",
         "emptyStateHint": "Select transactions on the Transactions page and click \"Create Group\" to get started.",
@@ -245,6 +247,31 @@
       "gotIt": "Got it",
       "openDetails": "Open details",
       "tooManyTags": "Up to {max} tags per transaction"
+    },
+    "savedViews": {
+      "trigger": "Views",
+      "empty": "No saved views yet. Set up filters, then save them as a view.",
+      "modified": "Filters changed",
+      "update": "Update “{name}” with current filters",
+      "updateShort": "Update view",
+      "revert": "Revert",
+      "saveNew": "Save as new view",
+      "actions": "View actions",
+      "rename": "Rename",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "saveTitle": "Save view",
+      "renameTitle": "Rename view",
+      "dialogDescription": "A view keeps the current filters and sorting so you can apply them again in one click.",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Groceries, last 3 months",
+      "savedToast": "View saved",
+      "updatedToast": "View updated",
+      "deletedToast": "View deleted",
+      "saveError": "Couldn't save your views. Try again.",
+      "deleteTitle": "Delete view “{name}”?",
+      "deleteDescription": "Your transactions are not affected. This can't be undone.",
+      "filtersCount": "{count} filter | {count} filters"
     }
   },
   "records": {

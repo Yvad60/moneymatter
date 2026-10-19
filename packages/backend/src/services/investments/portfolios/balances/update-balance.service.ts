@@ -27,10 +27,12 @@ const updatePortfolioBalanceImpl = async ({
   setAvailableCash,
   setTotalCash,
 }: UpdatePortfolioBalanceParams) => {
-  // Verify portfolio exists and user owns it
+  // Soft-deleted portfolios are accepted: transfer reversals must land on a trashed
+  // portfolio so its cash is right after a restore.
   await findOrThrowNotFound({
     query: Portfolios.findOne({
       where: { id: portfolioId, userId },
+      paranoid: false,
     }),
     message: t({ key: 'investments.portfolioNotFound' }),
   });

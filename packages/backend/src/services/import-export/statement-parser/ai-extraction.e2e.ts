@@ -1,11 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   ENCRYPTED_STATEMENT_PASSWORD,
+  PNG_1X1_BASE64,
   STATEMENT_PDF_FIXTURES,
   readStatementPdfFixture,
 } from '@tests/fixtures/statement-parser-fixtures';
 import * as helpers from '@tests/helpers';
 import { enableServerModel, useSelfHostWithoutServerAiKeys } from '@tests/helpers/ai-test-env';
+import { makeRequest } from '@tests/helpers/common';
 import {
   createFirstConnection,
   createOpenAiConnection,
@@ -22,6 +24,7 @@ import {
   getCustomEndpointContentMock,
   getCustomEndpointModelNotFoundMock,
   getCustomEndpointOfflineMock,
+  getCustomEndpointVllmMock,
   getCustomEndpointWebPageMocks,
 } from '@tests/mocks/openai-compatible/mock-api';
 import { createOpenAiAuthErrorMock } from '@tests/mocks/openai/mock-api';
@@ -143,6 +146,7 @@ describe('Statement parser AI extraction against a dead endpoint', () => {
   it('tells a user with no AI models to add one', async () => {
     const response = await helpers.statementExtract({ payload: { fileBase64: STATEMENT_FILE_BASE64 } });
 
+    expect(response.statusCode).toBe(422);
     expect(errorMessage({ response })).toMatch(/no ai model configured/i);
   });
 });
@@ -151,7 +155,61 @@ describe('Statement parser AI extraction against a dead endpoint', () => {
 const AI_CSV_REPLY = [
   'Testbanken,4321,2026-06-01,2026-06-30,SEK',
   '2026-06-01,Card purchase,LIDL STOCKHOLM,42.10,E,1000.00,95',
+  '2026-06-02,Hotel booking,HOTEL BERLIN,1150.00,E,,90,99.90,eur,Ref 8F2K91',
 ].join('\n');
+
+describe('Statement parser extraction of an image', () => {
+  useSelfHostWithoutServerAiKeys();
+
+  it('sends the image itself to the model and reads the transactions it answers with', async () => {
+    await createFirstConnection();
+    let requestBody = '';
+    global.mswMockServer.use(
+      getCustomEndpointVllmMock({
+        content: AI_CSV_REPLY,
+        onBody: (body) => {
+          requestBody = body;
+        },
+      }),
+    );
+
+    const result = await helpers.statementExtract({ payload: { fileBase64: PNG_1X1_BASE64 }, raw: true });
+
+    expect(requestBody).toContain('"type":"image_url"');
+    expect(requestBody).toContain(`data:image/png;base64,${PNG_1X1_BASE64}`);
+    expect(result.fileType).toBe('image');
+    expect(result.transactions).toHaveLength(2);
+    expect(result.transactions[0]).toMatchObject({ amount: 42.1, type: 'expense', merchant: 'LIDL STOCKHOLM' });
+    expect(result.transactions[0]?.originalAmount).toBeUndefined();
+    expect(result.transactions[1]).toMatchObject({
+      amount: 1150,
+      originalAmount: 99.9,
+      originalCurrencyCode: 'EUR',
+      externalReference: 'Ref 8F2K91',
+    });
+  });
+
+  it("dates the prompt with today in the user's timezone", async () => {
+    await createFirstConnection();
+    let requestBody = '';
+    global.mswMockServer.use(
+      getCustomEndpointVllmMock({
+        content: AI_CSV_REPLY,
+        onBody: (body) => {
+          requestBody = body;
+        },
+      }),
+    );
+
+    await helpers.statementExtract({
+      payload: { fileBase64: PNG_1X1_BASE64, timezone: 'Pacific/Kiritimati' },
+      raw: true,
+    });
+
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Kiritimati' }).format(new Date());
+    expect(requestBody).toContain(`Today is ${today}.`);
+  });
+});
 
 function encryptedPdfBase64(): string {
   return readStatementPdfFixture({ file: STATEMENT_PDF_FIXTURES.encrypted }).toString('base64');
@@ -188,7 +246,80 @@ describe('Statement parser extraction of an encrypted PDF', () => {
 
     expect(result.fileType).toBe('pdf');
     expect(result.metadata.currencyCode).toBe('SEK');
-    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions).toHaveLength(2);
     expect(result.transactions[0]).toMatchObject({ amount: 42.1, type: 'expense', merchant: 'LIDL STOCKHOLM' });
+  });
+});
+
+describe('Statement parser extraction that yields nothing usable', () => {
+  useSelfHostWithoutServerAiKeys();
+
+  const METADATA_ONLY_REPLY = 'Testbanken,4321,2026-06-01,2026-06-30,SEK';
+
+  it('answers 422 and says no transactions were found when the model returns metadata only', async () => {
+    await createFirstConnection();
+    global.mswMockServer.use(getCustomEndpointVllmMock({ content: METADATA_ONLY_REPLY }));
+
+    const response = await helpers.statementExtract({ payload: { fileBase64: PNG_1X1_BASE64 } });
+
+    expect(response.statusCode).toBe(422);
+    expect(errorMessage({ response })).toMatch(/no transactions found/i);
+  });
+
+  it('words the no-transactions answer in the language of the request', async () => {
+    await createFirstConnection();
+    global.mswMockServer.use(getCustomEndpointVllmMock({ content: METADATA_ONLY_REPLY }));
+
+    const response = await makeRequest({
+      method: 'post',
+      url: '/import/text-source/extract?lang=uk',
+      payload: { fileBase64: PNG_1X1_BASE64 },
+    });
+
+    expect(response.statusCode).toBe(422);
+    expect(errorMessage({ response })).toMatch(/не знайдено транзакцій/);
+  });
+
+  it('keeps the language of the request when an English request lands while the AI is answering', async () => {
+    await createFirstConnection();
+    global.mswMockServer.use(
+      getCustomEndpointVllmMock({
+        content: METADATA_ONLY_REPLY,
+        onBody: () => makeRequest({ method: 'get', url: '/user/settings', headers: { 'Accept-Language': 'en' } }),
+      }),
+    );
+
+    const response = await makeRequest({
+      method: 'post',
+      url: '/import/text-source/extract?lang=uk',
+      payload: { fileBase64: PNG_1X1_BASE64 },
+    });
+
+    expect(response.statusCode).toBe(422);
+    expect(errorMessage({ response })).toMatch(/не знайдено транзакцій/);
+  });
+
+  it('answers 422 when every row the model returned has an unreadable date', async () => {
+    await createFirstConnection();
+    global.mswMockServer.use(
+      getCustomEndpointVllmMock({
+        content: [METADATA_ONLY_REPLY, 'sometime last week,Card purchase,LIDL,42.10,E,,90'].join('\n'),
+      }),
+    );
+
+    const response = await helpers.statementExtract({ payload: { fileBase64: PNG_1X1_BASE64 } });
+
+    expect(response.statusCode).toBe(422);
+    expect(errorMessage({ response })).toMatch(/readable date/i);
+  });
+
+  it('answers 502 when the AI endpoint is down', async () => {
+    await createFirstConnection();
+    global.mswMockServer.use(getCustomEndpointOfflineMock());
+
+    const response = await helpers.statementExtract({ payload: { fileBase64: PNG_1X1_BASE64 } });
+
+    expect(response.statusCode).toBe(502);
+    expect(errorMessage({ response })).toMatch(/did not respond/i);
   });
 });

@@ -18,7 +18,7 @@
       </template>
 
       <div class="relative">
-        <template v-if="isLeadingIconExist">
+        <template v-if="$slots.iconLeading">
           <div :class="['absolute top-0 left-0 flex h-full items-center px-4', leadingIconCssClass]">
             <slot name="iconLeading" />
           </div>
@@ -44,14 +44,14 @@
           :class="
             cn(
               'border-input bg-input-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 md:h-9',
-              isTrailIconExist && 'pr-12',
-              isLeadingIconExist && 'pl-10',
+              $slots.iconTrailing && 'pr-12',
+              $slots.iconLeading && 'pl-10',
               (computedAttrs.class as string) ?? '',
             )
           "
         />
 
-        <template v-if="isTrailIconExist">
+        <template v-if="$slots.iconTrailing">
           <div :class="cn('absolute top-0 right-0 flex h-full items-center px-6', trailingIconCssClass)">
             <slot name="iconTrailing" />
           </div>
@@ -59,7 +59,7 @@
       </div>
     </FieldLabel>
 
-    <template v-if="isSubLabelExist">
+    <template v-if="$slots.subLabel">
       <div class="absolute top-0 right-0 text-base font-normal [&_a]:text-white [&_a]:no-underline">
         <slot name="subLabel" />
       </div>
@@ -109,7 +109,7 @@ const emits = defineEmits<{
   (e: MODEL_EVENTS.input, payload: string | number | null): void;
 }>();
 
-const slots = defineSlots<{
+defineSlots<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'label-right'(): any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -230,10 +230,6 @@ const minValue = computed<number>(() => {
   return Number(attrs.min);
 });
 
-const isSubLabelExist = computed(() => !!slots.subLabel);
-const isTrailIconExist = computed(() => !!slots.iconTrailing);
-const isLeadingIconExist = computed(() => !!slots.iconLeading);
-
 onMounted(() => {
   if (props.autofocus) {
     inputFieldRef.value!.focus();
@@ -256,5 +252,6 @@ input[type='number']::-webkit-inner-spin-button {
 
 input[type='number'] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 </style>

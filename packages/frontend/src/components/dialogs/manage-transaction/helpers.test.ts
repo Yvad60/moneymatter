@@ -1,4 +1,5 @@
 import { OUT_OF_WALLET_ACCOUNT_MOCK, VERBOSE_PAYMENT_TYPES } from '@/common/const';
+import type { FormattedCategory } from '@/common/types';
 import {
   ACCOUNT_TYPES,
   AccountModel,
@@ -27,6 +28,8 @@ import {
   getDestinationAmount,
   getFormTypeFromTransaction,
   getTxTypeFromFormType,
+  getUnlistedCategoryIds,
+  isConnectedAccount,
   isTxEditableAsManual,
   prepopulateForm,
   resolveFormIsPlanned,
@@ -532,6 +535,20 @@ describe('components/modals/modify-record/helpers', () => {
     });
   });
 
+  describe('isConnectedAccount', () => {
+    it('is false for the out-of-wallet account', () => {
+      expect(isConnectedAccount({ account: OUT_OF_WALLET_ACCOUNT_MOCK })).toBe(false);
+    });
+
+    it('is false for a system account', () => {
+      expect(isConnectedAccount({ account: { type: ACCOUNT_TYPES.system } })).toBe(false);
+    });
+
+    it('is true for a bank-connected account', () => {
+      expect(isConnectedAccount({ account: { type: ACCOUNT_TYPES.monobank } })).toBe(true);
+    });
+  });
+
   describe('resolveFormIsPlanned', () => {
     const buildForm = (overrides: Partial<UI_FORM_STRUCT>): UI_FORM_STRUCT =>
       ({ type: FORM_TYPES.expense, ...overrides }) as UI_FORM_STRUCT;
@@ -579,5 +596,33 @@ describe('components/modals/modify-record/helpers', () => {
         state: 'untouched',
       });
     });
+  });
+});
+
+describe('getUnlistedCategoryIds', () => {
+  const categories = [
+    { id: 'income', subCategories: [{ id: 'salary', subCategories: [] }] },
+    { id: 'food', subCategories: [{ id: 'groceries', subCategories: [] }] },
+  ] as unknown as FormattedCategory[];
+
+  it('lists only income categories and their subcategories for income', () => {
+    const unlisted = getUnlistedCategoryIds({ categories, incomeCategoryIds: ['income'], isIncome: true });
+    expect([...unlisted!].sort()).toEqual(['food', 'groceries']);
+  });
+
+  it('leaves income categories out for expenses', () => {
+    const unlisted = getUnlistedCategoryIds({ categories, incomeCategoryIds: ['income'], isIncome: false });
+    expect([...unlisted!].sort()).toEqual(['income', 'salary']);
+  });
+
+  it('filters nothing when no income categories are set', () => {
+    expect(getUnlistedCategoryIds({ categories, incomeCategoryIds: [], isIncome: true })).toBeUndefined();
+  });
+
+  it('filters nothing when the filter would leave the list empty', () => {
+    expect(getUnlistedCategoryIds({ categories, incomeCategoryIds: ['deleted'], isIncome: true })).toBeUndefined();
+    expect(
+      getUnlistedCategoryIds({ categories, incomeCategoryIds: ['income', 'food'], isIncome: false }),
+    ).toBeUndefined();
   });
 });

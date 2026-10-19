@@ -349,7 +349,7 @@ const handleSubmit = async () => {
           :model-value="form.maxOccurrences ?? undefined"
           type="number"
           :label="$t('planned.subscriptions.form.maxOccurrencesLabel')"
-          :placeholder="$t('planned.subscriptions.form.maxOccurrencesPlaceholder')"
+          :placeholder="$t('planned.subscriptions.form.maxOccurrencesInstallmentPlaceholder')"
           :error-message="getFieldErrorMessage('form.maxOccurrences')"
           only-positive
           @update:model-value="(v: string | number | null) => (form.maxOccurrences = v ? Number(v) : null)"

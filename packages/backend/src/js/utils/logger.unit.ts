@@ -21,7 +21,7 @@ jest.mock('./sentry', () => ({
 import { NotFoundError, UnexpectedError, ValidationError } from '@js/errors';
 
 // eslint-disable-next-line import/first
-import { logger } from './logger';
+import { createMessageRateLimiter, logger } from './logger';
 
 describe('logger.error Sentry capture', () => {
   afterEach(() => {
@@ -56,5 +56,102 @@ describe('logger.error Sentry capture', () => {
     logger.error({ error: new ValidationError({ message: 'x' }), message: 'ctx' });
 
     expect(captureException).not.toHaveBeenCalled();
+  });
+});
+
+describe('createMessageRateLimiter', () => {
+  const HOUR = 60 * 60 * 1000;
+
+  it('allows `limit` calls per message per window, then refuses', () => {
+    const allow = createMessageRateLimiter({ limit: 3, windowMs: HOUR, maxKeys: 10 });
+    const results = Array.from({ length: 5 }, (_, i) => allow({ message: 'a', now: 1000 + i }));
+
+    expect(results).toEqual([true, true, true, false, false]);
+  });
+
+  it('counts each distinct message separately', () => {
+    const allow = createMessageRateLimiter({ limit: 1, windowMs: HOUR, maxKeys: 10 });
+
+    expect(allow({ message: 'a', now: 1000 })).toBe(true);
+    expect(allow({ message: 'a', now: 1001 })).toBe(false);
+    expect(allow({ message: 'b', now: 1002 })).toBe(true);
+  });
+
+  it('allows the message again once the window rolls over', () => {
+    const allow = createMessageRateLimiter({ limit: 1, windowMs: HOUR, maxKeys: 10 });
+
+    expect(allow({ message: 'a', now: 1000 })).toBe(true);
+    expect(allow({ message: 'a', now: 1000 + HOUR - 1 })).toBe(false);
+    expect(allow({ message: 'a', now: 1000 + HOUR })).toBe(true);
+  });
+
+  it('refuses unseen messages once `maxKeys` are tracked, until the window rolls over', () => {
+    const allow = createMessageRateLimiter({ limit: 5, windowMs: HOUR, maxKeys: 2 });
+
+    expect(allow({ message: 'a', now: 1000 })).toBe(true);
+    expect(allow({ message: 'b', now: 1000 })).toBe(true);
+    expect(allow({ message: 'c', now: 1000 })).toBe(false);
+    expect(allow({ message: 'a', now: 1000 })).toBe(true);
+    expect(allow({ message: 'c', now: 1000 + HOUR })).toBe(true);
+  });
+});
+
+describe('logger Sentry volume guard', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('sends a repeated warn message to Sentry at most 20 times', () => {
+    for (let i = 0; i < 30; i++) logger.warn('looping warn', { i });
+
+    expect(captureMessage).toHaveBeenCalledTimes(20);
+    expect(captureMessage).toHaveBeenCalledWith('looping warn', 'warning');
+  });
+
+  describe('daily total cap', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const CAP_MARKER = 'Sentry warn daily cap reached; further warns are dropped from Sentry';
+
+    const warnsSent = () => captureMessage.mock.calls.filter(([message]) => message !== CAP_MARKER);
+    const markersSent = () => captureMessage.mock.calls.filter(([message]) => message === CAP_MARKER);
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('sends at most 100 distinct warns per day, plus one marker per capped window', () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+
+      // A fresh module: the shared `logger` has daily slots spent by other tests.
+      let fresh!: typeof logger;
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        ({ logger: fresh } = require('./logger'));
+      });
+
+      for (let i = 0; i < 150; i++) fresh.warn(`warn ${i}`);
+
+      expect(warnsSent()).toHaveLength(100);
+      expect(markersSent()).toEqual([[CAP_MARKER, 'warning']]);
+
+      jest.setSystemTime(Date.now() + DAY);
+      for (let i = 0; i < 150; i++) fresh.warn(`next day warn ${i}`);
+
+      expect(warnsSent()).toHaveLength(200);
+      expect(markersSent()).toHaveLength(2);
+    });
+  });
+
+  it('does not throttle logger.error', () => {
+    for (let i = 0; i < 30; i++) logger.error('looping error');
+
+    expect(captureMessage).toHaveBeenCalledTimes(30);
+  });
+
+  it('never sends logger.info to Sentry', () => {
+    logger.info('just info');
+
+    expect(captureMessage).not.toHaveBeenCalled();
   });
 });

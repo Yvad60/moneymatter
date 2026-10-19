@@ -17,7 +17,7 @@ const props = defineProps<{ categorizedAt: string; isMobileMode: boolean }>();
 const emit = defineEmits<{ back: [] }>();
 
 const { format } = useDateLocale();
-const { visibleColumns } = useTableColumns();
+const { visibleColumns, setColumnWidth } = useTableColumns();
 
 const {
   sorting,
@@ -85,6 +85,7 @@ const onSortingChange = (value: TableSorting) => {
       class="min-h-0 flex-1"
       :transactions="transactions"
       :visible-columns="visibleColumns"
+      @resize-column="setColumnWidth"
       :sorting="sorting"
       :has-next-page="hasNextPage"
       :is-fetching-next-page="isFetchingNextPage"

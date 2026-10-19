@@ -31,7 +31,7 @@ import {
   readLatestRecordsExclusions,
   readLatestRecordsTagsVariant,
 } from './latest-records-config';
-import { useIncludePlannedConfig } from './use-include-planned-config';
+import { useIncludePlannedConfig, useWidgetConfigFlag } from './use-include-planned-config';
 
 // Days ahead threshold for "upcoming" payments shown in the widget.
 const UPCOMING_DAYS_WINDOW = 3;
@@ -54,6 +54,10 @@ const transferNatures = computed(() => buildLatestRecordsTransferNatures(exclusi
 const excludeBalanceAdjustments = computed(() => exclusions.value.excludeBalanceAdjustments);
 const { includePlanned } = useIncludePlannedConfig();
 const tagsVariant = computed(() => readLatestRecordsTagsVariant({ widgetConfig: widgetConfigRef?.value }));
+const { isOn: showAccount } = useWidgetConfigFlag({
+  key: 'showAccount',
+  saveErrorKey: 'widgets.latestRecords.settings.showAccountSaveError',
+});
 
 const { data: transactions, isFetching: isTxFetching } = useQuery({
   queryKey: [...VUE_QUERY_CACHE_KEYS.widgetLatestRecords, transferNatures, excludeBalanceAdjustments, includePlanned],
@@ -185,7 +189,7 @@ const isDataEmpty = computed(() => !isTxFetching.value && pastTransactions.value
         <ListIcon class="size-32" />
       </EmptyState>
     </template>
-    <ScrollArea v-else class="-mx-2 min-h-0 flex-1" viewport-class="px-2 md:overscroll-contain">
+    <ScrollArea v-else class="-mx-2 min-h-0 flex-1" viewport-class="px-2 md:overscroll-contain-if-scrollable">
       <!-- Scheduled payment rows: one row per item, overdue first, sorted by dueDate -->
       <template v-if="includeScheduled && scheduledRows.length > 0">
         <div
@@ -245,6 +249,7 @@ const isDataEmpty = computed(() => !isTxFetching.value && pastTransactions.value
         :transactions="pastTransactions"
         :max-display="txMaxDisplay"
         :tags-variant="tagsVariant"
+        :show-account="showAccount"
       />
     </ScrollArea>
 

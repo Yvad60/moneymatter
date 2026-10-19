@@ -8,6 +8,7 @@ import {
 import { t } from '@i18n/index';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import * as helpers from '@tests/helpers';
+import { useSelfHost } from '@tests/helpers/self-host';
 import { FixedTransaction, MOCK_IDENTIFICATION_HASH_1 } from '@tests/mocks/enablebanking/data';
 import { format, subDays } from 'date-fns';
 
@@ -54,6 +55,8 @@ const stuckNotifications = () => helpers.getNotifications({ type: NOTIFICATION_T
 
 const payloadIds = ({ notification }: { notification: { payload: unknown } }) =>
   [...(notification.payload as StuckPendingNotificationPayload).transactionIds].toSorted();
+
+useSelfHost();
 
 describe('notifyStuckPending', () => {
   beforeEach(async () => {

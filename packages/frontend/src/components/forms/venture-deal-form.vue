@@ -89,8 +89,8 @@ watch(
     form.name = d.name;
     form.platformId = d.platformId ?? NO_PLATFORM;
     form.currencyCode = d.currencyCode;
-    form.principal = d.principal;
-    form.entryFee = d.entryFee;
+    form.principal = String(Number(d.principal));
+    form.entryFee = String(Number(d.entryFee));
     form.spvSubtype = d.spvSubtype ?? VENTURE_SPV_SUBTYPE.multi_company;
     form.targetCompany = d.targetCompany ?? '';
     form.investmentDate = parseApiDate(d.investmentDate);
@@ -165,7 +165,7 @@ const onSubmit = async () => {
 </script>
 
 <template>
-  <form class="grid w-full max-w-[600px] gap-4" @submit.prevent="onSubmit">
+  <form class="grid w-full max-w-150 gap-4" @submit.prevent="onSubmit">
     <InputField
       v-model="form.name"
       :label="$t('venture.deals.form.nameLabel')"

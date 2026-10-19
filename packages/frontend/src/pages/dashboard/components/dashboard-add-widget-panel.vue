@@ -14,7 +14,7 @@ const emit = defineEmits<{
 <template>
   <div v-if="availableWidgets.length" class="border-border rounded-lg border border-dashed p-4">
     <p class="text-muted-foreground mb-3 text-sm font-medium">{{ $t('dashboard.editMode.addWidgets') }}</p>
-    <div class="grid gap-2">
+    <div class="grid grid-cols-1 gap-2">
       <button
         v-for="widget in availableWidgets"
         :key="widget.id"
@@ -24,7 +24,7 @@ const emit = defineEmits<{
         <PlusIcon class="text-muted-foreground size-4 shrink-0" />
         <div class="min-w-0">
           <p class="text-sm font-medium">{{ $t(widget.name) }}</p>
-          <p class="text-muted-foreground truncate text-xs">{{ $t(widget.description) }}</p>
+          <p class="text-muted-foreground line-clamp-2 text-xs">{{ $t(widget.description) }}</p>
         </div>
       </button>
     </div>

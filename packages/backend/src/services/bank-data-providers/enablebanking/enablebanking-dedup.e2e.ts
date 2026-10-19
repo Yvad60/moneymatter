@@ -10,9 +10,12 @@ import { Money } from '@common/types/money';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import Transactions from '@models/transactions.model';
 import * as helpers from '@tests/helpers';
+import { useSelfHost } from '@tests/helpers/self-host';
 import { FixedTransaction, MOCK_IDENTIFICATION_HASH_1 } from '@tests/mocks/enablebanking/data';
 
 import { ReferenceNumberScheme } from './types';
+
+useSelfHost();
 
 /**
  * E2E tests for the Enable Banking transaction dedup improvements.

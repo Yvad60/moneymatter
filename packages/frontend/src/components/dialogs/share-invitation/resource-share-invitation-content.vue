@@ -66,6 +66,7 @@ const acceptMutation = useMutation({
   onSuccess: async (data) => {
     childState.value = 'accepted';
     acceptedResource.value = { type: data.share.resourceType, id: data.share.resourceId };
+    emit('accepted', { acceptedAccountId: acceptedAccountId.value });
     addSuccessNotification(t('dialogs.shareInvitationDialog.acceptSuccess'));
     queryClient.invalidateQueries({ queryKey: VUE_QUERY_CACHE_KEYS.shareInvitationsReceived });
     if (data.share.resourceType === RESOURCE_TYPES.budget) {
@@ -89,7 +90,6 @@ const acceptMutation = useMutation({
       addErrorNotification(t('dialogs.shareInvitationDialog.acceptDataRefreshFailed'));
       captureException({ error: refreshErr, context: { source: 'shareInvitationAcceptDataRefresh' } });
     }
-    emit('accepted', { acceptedAccountId: acceptedAccountId.value });
   },
   onError: (err: unknown) => {
     const { message } = extractApiError(err);

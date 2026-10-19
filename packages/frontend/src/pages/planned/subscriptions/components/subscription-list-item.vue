@@ -29,6 +29,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [subscription: SubscriptionListItem];
+  'select-linked': [subscription: SubscriptionListItem];
   pay: [subscription: SubscriptionListItem];
   'toggle-active': [subscription: SubscriptionListItem];
   delete: [subscription: SubscriptionListItem];
@@ -165,7 +166,7 @@ const due = computed<{ label: string; chipClass: string } | null>(() => {
       class="col-start-2 row-start-1 flex items-center justify-end gap-1 justify-self-end @[700px]:contents @sm:gap-2"
       @click.stop
     >
-      <div class="@[700px]:col-start-4 @[700px]:row-start-1">
+      <div class="@[700px]:col-start-4 @[700px]:row-start-1" @click="emit('select-linked', subscription)">
         <LinkedTransactionsBadge :count="subscription.linkedTransactionsCount" />
       </div>
 

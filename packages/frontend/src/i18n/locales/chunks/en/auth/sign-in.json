@@ -6,6 +6,7 @@
       "submitButton": "Log in",
       "noAccount": "Don't have an account?",
       "signupsDisabledTooltip": "New signups are disabled by the administrator of this instance",
+      "forgotPassword": "Forgot password?",
       "errors": {
         "incorrectEmailOrPassword": "Incorrect email or password.",
         "incorrectPassword": "Incorrect password.",
@@ -24,13 +25,14 @@
     "shared": {
       "divider": "Or continue with",
       "passkeyButton": {
-        "signIn": "Sign in with Passkey",
-        "register": "Add Passkey"
+        "signIn": "Sign in with passkey",
+        "register": "Add passkey"
       },
       "oauthButton": {
         "signIn": "Sign in with {provider}",
         "signUp": "Sign up with {provider}"
-      }
+      },
+      "lastUsed": "Last used"
     }
   }
 }

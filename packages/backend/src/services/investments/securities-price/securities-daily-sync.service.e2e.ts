@@ -6,6 +6,7 @@ import Portfolios from '@models/investments/portfolios.model';
 import Securities from '@models/investments/securities.model';
 import SecurityPricing from '@models/investments/security-pricing.model';
 import { restClient } from '@polygon.io/client-js';
+import { RateLimitService } from '@services/common/rate-limit.service';
 import * as helpers from '@tests/helpers';
 import alpha from 'alphavantage';
 import { format, isToday, startOfDay, subDays } from 'date-fns';
@@ -564,6 +565,10 @@ describe('Securities Daily Sync Service (via API Endpoint)', () => {
         () => new Promise((resolve) => setTimeout(() => resolve({ quotes: [] }), 300)),
       );
 
+      // The route allows one sync per user per window; this test is about the
+      // sync lock, so both requests must get past the rate limiter.
+      const rateLimitSpy = jest.spyOn(RateLimitService, 'checkRateLimit').mockResolvedValue({ allowed: true });
+
       const firstSyncPromise = helpers.triggerSecuritiesSync();
       const secondSyncPromise = helpers.triggerSecuritiesSync();
 
@@ -591,6 +596,7 @@ describe('Securities Daily Sync Service (via API Endpoint)', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 
+      rateLimitSpy.mockRestore();
       mockedYahooChart.mockClear();
     });
   });

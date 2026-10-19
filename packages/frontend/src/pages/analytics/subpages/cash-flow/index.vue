@@ -3,7 +3,7 @@
     <ReportControls v-model:period="selectedPeriod">
       <GranularitySelector
         v-model="selectedGranularity"
-        :granularities="CASH_FLOW_GRANULARITIES"
+        :granularities="PAGE_GRANULARITIES"
         label-key-prefix="analytics.cashFlow.granularity"
       />
       <ChartTypeSwitcher v-model="selectedChartType" />
@@ -112,7 +112,7 @@ import Popover from '@/components/lib/ui/popover/Popover.vue';
 import PopoverContent from '@/components/lib/ui/popover/PopoverContent.vue';
 import PopoverTrigger from '@/components/lib/ui/popover/PopoverTrigger.vue';
 import { useDateLocale } from '@/composable/use-date-locale';
-import type { endpointsTypes } from '@bt/shared/types';
+import { CASH_FLOW_GRANULARITIES, type CashFlowGranularity } from '@bt/shared/types';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import { useLocalStorage, useSessionStorage } from '@vueuse/core';
 import { differenceInDays, endOfMonth, startOfMonth, subDays, subMonths } from 'date-fns';
@@ -141,6 +141,10 @@ const { format } = useDateLocale();
 
 // Constants
 const DEFAULT_PERIOD_MONTHS = 12;
+type PageGranularity = Exclude<CashFlowGranularity, 'daily'>;
+const PAGE_GRANULARITIES = CASH_FLOW_GRANULARITIES.filter(
+  (granularity): granularity is PageGranularity => granularity !== 'daily',
+);
 
 // Helper to get default period
 const getDefaultPeriod = (): Period => ({
@@ -153,12 +157,7 @@ const periodSerializer = createPeriodSerializer({ getDefaultPeriod });
 // State with persistence using VueUse
 // localStorage - persists across sessions
 const selectedChartType = useLocalStorage<ChartType>('cash-flow-chart-type', 'mirrored');
-const CASH_FLOW_GRANULARITIES = [
-  'monthly',
-  'biweekly',
-  'weekly',
-] as const satisfies endpointsTypes.CashFlowGranularity[];
-const selectedGranularity = useLocalStorage<endpointsTypes.CashFlowGranularity>('cash-flow-granularity', 'monthly');
+const selectedGranularity = useLocalStorage<PageGranularity>('cash-flow-granularity', 'monthly');
 
 // sessionStorage - clears when tab closes
 const selectedPeriod = useSessionStorage<Period>('cash-flow-period', getDefaultPeriod(), {

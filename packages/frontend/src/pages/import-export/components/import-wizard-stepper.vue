@@ -20,6 +20,8 @@ const props = defineProps<{
   steps: WizardStep[];
   currentStepKey: string;
   completedStepKeys: Set<string>;
+  /** Drops the card frame, for hosts that are already a card (e.g. a dialog). */
+  bare?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -44,7 +46,7 @@ function onStepClick({ step }: { step: WizardStep }) {
 </script>
 
 <template>
-  <div class="bg-card rounded-xl border px-4 py-3">
+  <div :class="!bare && 'bg-card rounded-xl border px-4 py-3'">
     <div class="flex items-center">
       <template v-for="(step, index) in steps" :key="step.key">
         <!-- Connector between steps; fills once the step is reached -->

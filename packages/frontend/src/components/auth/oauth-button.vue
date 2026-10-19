@@ -1,13 +1,15 @@
 <template>
-  <Button type="button" variant="outline" class="w-full gap-2" :disabled="isLoading" @click="handleClick">
+  <Button type="button" variant="outline" class="relative w-full gap-2" :disabled="isLoading" @click="handleClick">
     <slot name="icon">
       <component :is="providerIcon" v-if="providerIcon" class="size-5" />
     </slot>
     <span>{{ buttonText }}</span>
+    <LastUsedBadge v-if="isLastUsed" class="absolute -top-2.25 right-2.5" />
   </Button>
 </template>
 
 <script lang="ts" setup>
+import LastUsedBadge from '@/components/auth/last-used-badge.vue';
 import { Button } from '@/components/lib/ui/button';
 import { OAUTH_PROVIDER } from '@bt/shared/types';
 import { computed } from 'vue';
@@ -17,6 +19,7 @@ interface Props {
   provider: OAUTH_PROVIDER;
   mode?: 'signin' | 'signup';
   isLoading?: boolean;
+  isLastUsed?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {

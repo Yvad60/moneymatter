@@ -15,6 +15,7 @@ const I18N_CHUNKS = [
   'auth/sign-in',
   'auth/sign-up',
   'auth/verify-email',
+  'auth/password-reset',
   'auth/welcome',
   // Main pages
   'pages/dashboard',
@@ -24,6 +25,7 @@ const I18N_CHUNKS = [
   'pages/import-shared',
   'pages/transactions',
   'pages/budgets',
+  'pages/budget-plans',
   'pages/budget-details',
   'pages/analytics',
   'pages/investments',

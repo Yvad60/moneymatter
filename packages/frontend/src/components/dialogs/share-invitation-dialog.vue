@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { listReceivedShareInvitations } from '@/api/share';
+import { type InvitationListItem, listReceivedShareInvitations } from '@/api/share';
 import { VUE_QUERY_CACHE_KEYS } from '@/common/const/vue-query';
 import ResponsiveDialog from '@/components/common/responsive-dialog.vue';
 import { Button } from '@/components/lib/ui/button';
 import { RESOURCE_TYPES } from '@bt/shared/types';
 import { useQuery } from '@tanstack/vue-query';
 import { UsersIcon } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 
 import HouseholdInvitationContent from './share-invitation/household-invitation-content.vue';
 import ResourceShareInvitationContent from './share-invitation/resource-share-invitation-content.vue';
@@ -52,16 +52,29 @@ const {
   enabled: isOpen,
 });
 
-const matchingPending = computed(
-  () => pendingInvitations.value?.find((invitation) => invitation.token === props.token) ?? null,
+// Once the recipient accepts or declines, the invitation drops out of the refetched list
+// while the child still has its result screen to show, so the last match is kept.
+const matchingPending = shallowRef<InvitationListItem | null>(null);
+const actedToken = ref('');
+watch(
+  [pendingInvitations, () => props.token],
+  () => {
+    const found = pendingInvitations.value?.find((invitation) => invitation.token === props.token);
+    if (found) matchingPending.value = found;
+    else if (actedToken.value !== props.token) matchingPending.value = null;
+  },
+  { immediate: true },
 );
+const markActed = () => {
+  actedToken.value = props.token;
+};
 
 const phase = computed<'loading' | 'pending' | 'not-found' | 'error'>(() => {
   // Surface query failure explicitly — without this, isFetched stays false on error and
   // the dialog would render an eternal "Loading…" with no retry path for the recipient.
+  if (matchingPending.value) return 'pending';
   if (isPendingError.value) return 'error';
-  if (!isPendingFetched.value) return 'loading';
-  return matchingPending.value ? 'pending' : 'not-found';
+  return isPendingFetched.value ? 'not-found' : 'loading';
 });
 
 const closeDialog = () => emit('close');
@@ -123,9 +136,17 @@ const retryFetchInvitations = () => {
         v-else-if="matchingPending && matchingPending.resourceType === RESOURCE_TYPES.household"
         :invitation="matchingPending"
         @close="closeDialog"
+        @accepted="markActed"
+        @declined="markActed"
       />
 
-      <ResourceShareInvitationContent v-else-if="matchingPending" :invitation="matchingPending" @close="closeDialog" />
+      <ResourceShareInvitationContent
+        v-else-if="matchingPending"
+        :invitation="matchingPending"
+        @close="closeDialog"
+        @accepted="markActed"
+        @declined="markActed"
+      />
     </div>
   </ResponsiveDialog>
 </template>

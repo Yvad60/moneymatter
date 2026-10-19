@@ -62,8 +62,7 @@ describe('getLoanCostSplit', () => {
     expect(result.hasInterest).toBe(true);
     expect(result.principalPercent).toBeCloseTo(80, 5);
     expect(result.interestPercent).toBeCloseTo(20, 5);
-    // 25,000 interest / 100,000 principal × 100 = 25¢ per $1 borrowed.
-    expect(result.interestPerDollarCents).toBe(25);
+    expect(result.interestToPrincipalRatio).toBeCloseTo(0.25, 5);
   });
 
   it('collapses to principal-only when interest is null', () => {
@@ -72,20 +71,13 @@ describe('getLoanCostSplit', () => {
     expect(result.hasInterest).toBe(false);
     expect(result.principalPercent).toBe(100);
     expect(result.interestPercent).toBe(0);
-    expect(result.interestPerDollarCents).toBeNull();
+    expect(result.interestToPrincipalRatio).toBeNull();
   });
 
   it('treats zero interest as no interest', () => {
     const result = getLoanCostSplit({ principal: 100000, estimatedInterest: 0 });
     expect(result.hasInterest).toBe(false);
-    expect(result.interestPerDollarCents).toBeNull();
+    expect(result.interestToPrincipalRatio).toBeNull();
     expect(result.principalPercent).toBe(100);
-  });
-
-  it('rounds cents-per-dollar to the nearest cent', () => {
-    // 3,333 / 100,000 × 100 = 3.333 → 3¢.
-    expect(getLoanCostSplit({ principal: 100000, estimatedInterest: 3333 }).interestPerDollarCents).toBe(3);
-    // 3,666 / 100,000 × 100 = 3.666 → 4¢.
-    expect(getLoanCostSplit({ principal: 100000, estimatedInterest: 3666 }).interestPerDollarCents).toBe(4);
   });
 });

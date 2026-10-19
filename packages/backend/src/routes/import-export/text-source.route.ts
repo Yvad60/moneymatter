@@ -7,7 +7,6 @@ import {
 } from '@controllers/statement-parser';
 import { authenticateSession } from '@middlewares/better-auth';
 import { checkBaseCurrencyLock } from '@middlewares/check-base-currency-lock';
-import { validateEndpoint } from '@middlewares/validations';
 import { Router } from 'express';
 
 const router = Router({});
@@ -16,33 +15,21 @@ const router = Router({});
  * Estimate the cost of extracting transactions from a statement file
  * POST /import/text-source/estimate-cost
  *
- * Supports PDF, CSV, and TXT files
+ * Supports PDF, CSV, TXT and image (JPEG, PNG, WebP) files
  * Body: { fileBase64: string, password?: string }
  * Returns: StatementCostEstimate
  */
-router.post(
-  '/text-source/estimate-cost',
-  authenticateSession,
-  checkBaseCurrencyLock,
-  validateEndpoint(estimateCostController.schema),
-  estimateCostController.handler,
-);
+router.post('/text-source/estimate-cost', authenticateSession, checkBaseCurrencyLock, estimateCostController);
 
 /**
  * Extract transactions from a statement file using AI
  * POST /import/text-source/extract
  *
- * Supports PDF, CSV, and TXT files
+ * Supports PDF, CSV, TXT and image (JPEG, PNG, WebP) files
  * Body: { fileBase64: string, password?: string }
  * Returns: StatementExtractionResult
  */
-router.post(
-  '/text-source/extract',
-  authenticateSession,
-  checkBaseCurrencyLock,
-  validateEndpoint(extractController.schema),
-  extractController.handler,
-);
+router.post('/text-source/extract', authenticateSession, checkBaseCurrencyLock, extractController);
 
 /**
  * Detect duplicate transactions for statement import
@@ -52,13 +39,7 @@ router.post(
  * Body: { accountId: number, transactions: ExtractedTransaction[] }
  * Returns: StatementDetectDuplicatesResponse
  */
-router.post(
-  '/text-source/detect-duplicates',
-  authenticateSession,
-  checkBaseCurrencyLock,
-  validateEndpoint(detectDuplicatesController.schema),
-  detectDuplicatesController.handler,
-);
+router.post('/text-source/detect-duplicates', authenticateSession, checkBaseCurrencyLock, detectDuplicatesController);
 
 /**
  * Execute statement import - create transactions in the database
@@ -68,13 +49,7 @@ router.post(
  * Body: StatementExecuteImportRequest
  * Returns: StatementExecuteImportQueuedResponse
  */
-router.post(
-  '/text-source/execute',
-  authenticateSession,
-  checkBaseCurrencyLock,
-  validateEndpoint(executeImportController.schema),
-  executeImportController.handler,
-);
+router.post('/text-source/execute', authenticateSession, checkBaseCurrencyLock, executeImportController);
 
 /**
  * Status of a statement import job
@@ -82,11 +57,6 @@ router.post(
  *
  * Returns: StatementImportProgress
  */
-router.get(
-  '/text-source/execute/status/:jobId',
-  authenticateSession,
-  validateEndpoint(importStatusController.schema),
-  importStatusController.handler,
-);
+router.get('/text-source/execute/status/:jobId', authenticateSession, importStatusController);
 
 export default router;

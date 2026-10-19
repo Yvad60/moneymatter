@@ -54,7 +54,8 @@
       }
     },
     "errors": {
-      "copyToClipboardFailed": "Failed to copy to clipboard"
+      "copyToClipboardFailed": "Failed to copy to clipboard",
+      "settingsSaveFailed": "Couldn't save your settings. Please try again."
     },
     "notifications": {
       "subscriptionCurrencyNotConnected": "Subscriptions summary can't convert {currencies} to your base currency. Connect the currency in Settings → Currencies.",
@@ -127,7 +128,7 @@
       },
       "statementParsing": {
         "name": "Statement Parser",
-        "description": "Extract transactions from bank statements (PDF, CSV, TXT) using AI"
+        "description": "Extract transactions from bank statements (PDF, CSV, TXT), receipts and screenshots using AI"
       },
       "investmentTransactionsParsing": {
         "name": "Investment transactions import",
@@ -150,7 +151,7 @@
         "error": "Failed to unlink transactions!"
       },
       "record": {
-        "addedByTooltip": "This transaction was attached to the budget by {handle}",
+        "addedByTooltip": "This transaction was attached to the tracker by {handle}",
         "externalLinkTooltip": "Open external link",
         "locationTooltip": "Open location on the map",
         "attachmentsTooltip": "Has attachments",
@@ -286,6 +287,7 @@
     }
   },
   "validation": {
+    "required": "Field is required",
     "minLength": "Minimal length is {length}.",
     "emailInvalid": "Please enter a valid email address.",
     "passwordsNoMatch": "Passwords don't match"

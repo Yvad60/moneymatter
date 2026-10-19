@@ -1,4 +1,5 @@
 import { AI_FEATURE, type AiMapImportCategoriesResponse } from '@bt/shared/types';
+import { t } from '@i18n/index';
 import { ValidationError } from '@js/errors';
 import { logger } from '@js/utils';
 import { CacheClient } from '@js/utils/cache';
@@ -13,6 +14,7 @@ import {
 } from '@services/ai';
 import { assignShortIds } from '@services/ai-categorization/utils/assign-short-ids';
 import { normalizeToken } from '@services/ai-categorization/utils/parse-response';
+import { trackAiUsage } from '@services/ai/track-ai-usage';
 import { resolveAiExtractionFailure } from '@services/import-export/core/ai-extraction-failure';
 import { generateText } from 'ai';
 import { createHash } from 'crypto';
@@ -150,6 +152,7 @@ Match each source name to the best existing category, or "none". Output one line
       maxRetries,
       maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
     });
+    await trackAiUsage({ userId, feature: AI_FEATURE.categorization, aiClient, usage });
 
     // A truncated answer silently loses the sources after the cut, which would
     // read as "the AI found no match" instead of an error.
@@ -171,7 +174,7 @@ Match each source name to the best existing category, or "none". Output one line
 
     if (answered.size === 0) {
       logger.info('[AI Category Mapping] Unparseable AI response', { userId, excerpt: text.slice(0, 500) });
-      throw new ValidationError({ message: 'Failed to parse AI response. The output was not in expected format.' });
+      throw new ValidationError({ message: t({ key: 'importExport.aiUnparseableResponse' }) });
     }
     if (answered.size < sources.length) {
       logger.warn('[AI Category Mapping] AI answered only some sources', {

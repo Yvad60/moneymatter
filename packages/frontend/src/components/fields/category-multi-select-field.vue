@@ -69,6 +69,7 @@
                 :is-searching="isSearching"
                 :is-selected="isSelected"
                 :get-descendant-count="getDescendantCount"
+                :taken-by="takenBy"
                 @toggle="toggleCategory"
               />
             </div>
@@ -83,7 +84,8 @@
 <script setup lang="ts">
 import { type FormattedCategory } from '@/common/types';
 import { collectDescendantIds } from '@/components/common/combobox-categories.helpers';
-import { FieldError, FieldLabel } from '@/components/fields';
+import FieldError from '@/components/fields/components/field-error.vue';
+import FieldLabel from '@/components/fields/components/field-label.vue';
 import CategoryItem from '@/components/fields/category-multi-select-item.vue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/lib/ui/popover';
 import { cn } from '@/lib/utils';
@@ -101,12 +103,18 @@ const props = withDefaults(
     placeholder?: string;
     errorMessage?: string;
     disabled?: boolean;
+    /** Category id to the name of the owner that blocks selecting it. */
+    takenBy?: Record<string, string>;
+    /** Ids rendered as chips; defaults to `modelValue`. */
+    chipIds?: string[];
   }>(),
   {
     label: undefined,
     modelValue: () => [],
     placeholder: undefined,
     errorMessage: undefined,
+    takenBy: () => ({}),
+    chipIds: undefined,
   },
 );
 
@@ -128,7 +136,7 @@ const placeholderText = computed(() => props.placeholder ?? t('fields.categoryMu
 const selectedCategoryIds = computed(() => new Set(props.modelValue ?? []));
 
 const selectedCategories = computed(() => {
-  const ids = props.modelValue ?? [];
+  const ids = props.chipIds ?? props.modelValue ?? [];
   return ids.map((id) => categoriesMap.value[id]).filter((cat): cat is FormattedCategory => cat !== undefined);
 });
 
@@ -188,7 +196,7 @@ const toggleCategory = (categoryId: string) => {
   const currentIds = new Set(props.modelValue ?? []);
   const category = categoriesMap.value[categoryId];
 
-  if (!category) return;
+  if (!category || (!currentIds.has(categoryId) && props.takenBy[categoryId])) return;
 
   // Find the category in the formatted structure to get its descendants
   const formattedCategory = findCategory(availableCategories.value, (cat) => cat.id === categoryId);

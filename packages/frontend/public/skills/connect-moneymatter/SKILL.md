@@ -2,7 +2,7 @@
 
 MoneyMatter exposes a remote Model Context Protocol (MCP) server. Connecting an
 agent to this server gives the agent OAuth-secured access to the user's
-financial data (accounts, transactions, budgets, subscriptions, transaction
+financial data (accounts, transactions, trackers, subscriptions, transaction
 automations, categories, tags, cash flow, balance history, investment
 portfolios, holdings, and investment transactions). The agent can read these
 records and — when the user grants the corresponding scopes — create, edit,
@@ -20,13 +20,13 @@ ChatGPT to MoneyMatter", "let my AI see my finances", or similar.
 
 ## OAuth scopes
 
-| Scope            | Purpose                                                         |
-| ---------------- | --------------------------------------------------------------- |
-| `finance:read`   | Read accounts, transactions, budgets, subscriptions, analytics  |
-| `finance:write`  | Create and edit transactions, budgets, subscriptions, and more  |
-| `finance:delete` | Permanently delete records (transactions, budgets, portfolios…) |
-| `profile:read`   | Read the user's profile (name, email, base currency)            |
-| `offline_access` | Receive a refresh token so sessions survive expiration          |
+| Scope            | Purpose                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| `finance:read`   | Read accounts, transactions, trackers, subscriptions, analytics  |
+| `finance:write`  | Create and edit transactions, trackers, subscriptions, and more  |
+| `finance:delete` | Permanently delete records (transactions, trackers, portfolios…) |
+| `profile:read`   | Read the user's profile (name, email, base currency)             |
+| `offline_access` | Receive a refresh token so sessions survive expiration           |
 
 The MoneyMatter consent screen lets the user grant or deny `finance:write` and
 `finance:delete` independently. Always request the narrowest set of scopes
@@ -56,14 +56,14 @@ page.
 | `search_transactions`                   | Filter transactions by date, category, tag, amount, etc.                                                         |
 | `get_categories`                        | List spending/income categories                                                                                  |
 | `get_tags`                              | List transaction tags                                                                                            |
-| `get_budgets`                           | Budgets with progress and overspend state                                                                        |
-| `create_budget`                         | Create a new budget with limit, date range, categories (`finance:write`)                                         |
-| `update_budget`                         | Update name, date range, limit, or categories of a budget (`finance:write`)                                      |
-| `delete_budget`                         | Permanently delete a budget and its transaction links (`finance:delete`)                                         |
-| `archive_budget`                        | Archive or restore a budget — active ↔ archived (`finance:write`)                                                |
-| `add_transactions_to_budget`            | Link transactions to a manual budget (`finance:write`)                                                           |
-| `remove_transactions_from_budget`       | Unlink transactions from a budget (`finance:write`)                                                              |
-| `get_budget_spending_stats`             | Category breakdown and time-series spending for a budget                                                         |
+| `get_budgets`                           | Trackers ("budget" in tool names) with progress and overspend state                                              |
+| `create_budget`                         | Create a new tracker with limit, date range, categories (`finance:write`)                                        |
+| `update_budget`                         | Update name, date range, limit, or categories of a tracker (`finance:write`)                                     |
+| `delete_budget`                         | Permanently delete a tracker and its transaction links (`finance:delete`)                                        |
+| `archive_budget`                        | Archive or restore a tracker — active ↔ archived (`finance:write`)                                               |
+| `add_transactions_to_budget`            | Link transactions to a manual tracker (`finance:write`)                                                          |
+| `remove_transactions_from_budget`       | Unlink transactions from a tracker (`finance:write`)                                                             |
+| `get_budget_spending_stats`             | Category breakdown and time-series spending for a tracker                                                        |
 | `get_spending_by_categories`            | Aggregate spending by category over a range                                                                      |
 | `get_cash_flow`                         | Income vs expenses over a range                                                                                  |
 | `get_balance_history`                   | Time-series of account balances                                                                                  |
@@ -113,11 +113,11 @@ page.
 | `update_transaction_automation`         | Change a rule name, conditions, actions, or enabled state (`finance:write`)                                      |
 | `delete_transaction_automation`         | Permanently delete an automation rule (`finance:delete`)                                                         |
 | `reorder_transaction_automations`       | Set the top-to-bottom evaluation order of the automation rules (`finance:write`)                                 |
-| `create_transaction`                    | Create an income, expense, or transfer with optional splits/tags/original-currency amount (`finance:write`)      |
-| `update_transaction`                    | Update amount, date, category, tags, note, splits, or original-currency amount (`finance:write`)                 |
+| `create_transaction`                    | Create income, expense, or transfer with optional splits/tags/payee/original-currency amount (`finance:write`)   |
+| `update_transaction`                    | Update amount, date, category, payee, tags, note, splits, or original-currency amount (`finance:write`)          |
 | `delete_transaction`                    | Permanently delete a transaction; transfer pairs are deleted together (`finance:delete`)                         |
 | `create_attachment_upload_url`          | Get a short-lived URL to upload receipt files (JPEG/PNG/WebP/PDF) to a transaction over HTTP (`finance:write`)   |
-| `bulk_update_transactions`              | Update category, note, or tags on multiple transactions at once (`finance:write`)                                |
+| `bulk_update_transactions`              | Update category, payee, note, or tags on multiple transactions at once (`finance:write`)                         |
 | `split_transaction`                     | Split a transaction across multiple categories (`finance:write`)                                                 |
 | `delete_split`                          | Delete a single split by split ID (`finance:delete`)                                                             |
 | `link_transfer`                         | Link two existing transactions as a transfer pair (`finance:write`)                                              |

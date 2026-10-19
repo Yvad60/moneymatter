@@ -9,6 +9,15 @@ if (!process.env.APPLICATION_JWT_SECRET) {
   process.env.APPLICATION_JWT_SECRET = 'unit-test-secret';
 }
 
+// `@models/index` constructs the Sequelize instance at module load; it needs a
+// dialect and connection params even though unit tests never open a connection.
+process.env.APPLICATION_DB_DIALECT ??= 'postgres';
+process.env.APPLICATION_DB_HOST ??= 'localhost';
+process.env.APPLICATION_DB_PORT ??= '5432';
+process.env.APPLICATION_DB_USERNAME ??= 'postgres';
+process.env.APPLICATION_DB_PASSWORD ??= 'postgres';
+process.env.APPLICATION_DB_DATABASE ??= 'unit_tests';
+
 // Mock the redis-client module to prevent actual Redis connections in unit tests
 jest.mock('@root/redis-client', () => ({
   redisClient: {
@@ -19,6 +28,7 @@ jest.mock('@root/redis-client', () => ({
     keys: jest.fn().mockResolvedValue([]),
     mget: jest.fn().mockResolvedValue([]),
     incr: jest.fn().mockResolvedValue(1),
+    incrby: jest.fn().mockResolvedValue(1),
     expire: jest.fn().mockResolvedValue(1),
     ttl: jest.fn().mockResolvedValue(-1),
     ping: jest.fn().mockResolvedValue('PONG'),

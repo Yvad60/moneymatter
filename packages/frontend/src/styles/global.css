@@ -527,6 +527,20 @@
   }
 }
 
+@keyframes overscroll-contain {
+  from,
+  to {
+    overscroll-behavior: contain;
+  }
+}
+
+/* A scroll timeline is inactive while the element has nothing to scroll, so a
+   list that fits passes the gesture to the page instead of rubber-banding. */
+@utility overscroll-contain-if-scrollable {
+  animation: overscroll-contain linear both;
+  animation-timeline: scroll(self);
+}
+
 .datetime-raw-input::-webkit-inner-spin-button,
 .datetime-raw-input::-webkit-calendar-picker-indicator,
 .date-raw-input::-webkit-inner-spin-button,
@@ -576,4 +590,25 @@ select:focus-visible,
 [data-reka-scroll-area-viewport]:focus-visible,
 [data-reka-scroll-area-viewport]:focus {
   outline: none;
+}
+
+/*
+  PostHog surveys render in a shadow root and style it from custom properties set inline
+  on the host div, using one fixed color set from the PostHog dashboard. Custom properties
+  inherit into the shadow root, so `!important` here lets the popup follow the app theme.
+*/
+[class^='PostHogSurvey-'] {
+  --ph-survey-background-color: var(--card) !important;
+  --ph-survey-text-primary-color: var(--card-foreground) !important;
+  --ph-survey-text-subtle-color: var(--muted-foreground) !important;
+  --ph-survey-border-color: var(--border) !important;
+  --ph-survey-submit-button-color: var(--primary) !important;
+  --ph-survey-submit-button-text-color: var(--primary-foreground) !important;
+  --ph-survey-input-background: var(--input-background) !important;
+  --ph-survey-input-text-color: var(--foreground) !important;
+  --ph-survey-outline-color: var(--ring) !important;
+  --ph-survey-rating-bg-color: var(--accent) !important;
+  --ph-survey-rating-text-color: var(--accent-foreground) !important;
+  --ph-survey-rating-active-bg-color: var(--primary) !important;
+  --ph-survey-rating-active-text-color: var(--primary-foreground) !important;
 }

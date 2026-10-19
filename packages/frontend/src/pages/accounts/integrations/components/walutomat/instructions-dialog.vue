@@ -77,7 +77,7 @@
           content-class="space-y-2"
         >
           <p>{{ t('pages.integrations.walutomat.instructions.step3Intro') }}</p>
-          <ul class="list-inside list-disc space-y-1">
+          <ul class="list-disc space-y-1 pl-5">
             <li>
               <i18n-t keypath="pages.integrations.walutomat.instructions.step3ApiKeyDesc" tag="span">
                 <template #apiKey>

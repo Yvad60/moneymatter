@@ -1,4 +1,4 @@
-import { SubscriptionMatchingRules } from '@bt/shared/types';
+import { ACCOUNT_TYPES, SubscriptionMatchingRules } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import { findOrThrowNotFound } from '@common/utils/find-or-throw-not-found';
 import { t } from '@i18n/index';
@@ -112,5 +112,22 @@ export const assertAutoRecordConsistent = ({
     throw new ValidationError({
       message: t({ key: 'subscriptions.validation.autoRecord.excludesMatching' }),
     });
+  }
+};
+
+export const assertAutoRecordAccountIsManual = async ({
+  autoRecord,
+  accountId,
+  userId,
+}: {
+  autoRecord: boolean;
+  accountId: string | null | undefined;
+  userId: number;
+}): Promise<void> => {
+  if (!autoRecord || accountId == null) return;
+
+  const account = await Accounts.getAccountById({ userId, id: accountId });
+  if (account && account.type !== ACCOUNT_TYPES.system) {
+    throw new ValidationError({ message: t({ key: 'transactions.manualOnConnectedAccount' }) });
   }
 };

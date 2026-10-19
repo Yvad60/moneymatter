@@ -1,13 +1,21 @@
 import { AIFeatureConfig, AI_FEATURE } from '@bt/shared/types';
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { SERVER_MODELS, pickResolutionStep, type LadderConnection } from './resolution-ladder';
+import {
+  FALLBACK_SERVER_MODELS,
+  PRIMARY_SERVER_MODEL,
+  pickResolutionStep,
+  suspendPrimaryServerKey,
+  type LadderConnection,
+} from './resolution-ladder';
 
-const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY'] as const;
+jest.mock('@js/utils/logger', () => ({ logger: { error: jest.fn() } }));
+
+const SERVER_KEY_ENV_VARS = ['GEMINI_API_KEY', 'ANTHROPIC_API_KEY'] as const;
 
 // Its default model is a Google one, so GEMINI_API_KEY is what backs the server arm here.
 const FEATURE = AI_FEATURE.categorization;
-const SERVER_MODEL = SERVER_MODELS[FEATURE];
+const SERVER_MODEL = FALLBACK_SERVER_MODELS[FEATURE];
 
 const FIRST: LadderConnection = { id: 'conn-1', status: 'valid' };
 const SECOND: LadderConnection = { id: 'conn-2', status: 'valid' };
@@ -27,7 +35,13 @@ function pick({
   serverKeysAllowed?: boolean;
   excludedConnectionIds?: ReadonlySet<string>;
 } = {}) {
-  return pickResolutionStep({ feature: FEATURE, config, connections, serverKeysAllowed, excludedConnectionIds });
+  return pickResolutionStep({
+    feature: FEATURE,
+    config,
+    connections,
+    serverKeysAllowed,
+    excludedConnectionIds,
+  });
 }
 
 describe('pickResolutionStep', () => {
@@ -46,6 +60,7 @@ describe('pickResolutionStep', () => {
       if (value === undefined) delete process.env[envVar];
       else process.env[envVar] = value;
     }
+    jest.restoreAllMocks();
   });
 
   describe('configured connection', () => {
@@ -152,6 +167,37 @@ describe('pickResolutionStep', () => {
         kind: 'all-connections-down',
         connection: SECOND,
       });
+    });
+  });
+
+  describe('primary server model', () => {
+    beforeEach(() => {
+      process.env.GEMINI_API_KEY = 'server-key';
+      process.env.ANTHROPIC_API_KEY = 'anthropic-key';
+    });
+
+    it('takes precedence over the Gemini model while its key is set', () => {
+      expect(pick()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
+      expect(pick({ config: PICK_SERVER })).toEqual({ kind: 'configured-server', model: PRIMARY_SERVER_MODEL });
+      expect(pick({ serverKeysAllowed: false })).toEqual({ kind: 'unserved' });
+    });
+
+    it('needs no Gemini key', () => {
+      delete process.env.GEMINI_API_KEY;
+
+      expect(pick()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
+    });
+
+    it('falls back to the Gemini model for an hour after a suspension', () => {
+      // The clock runs two hours behind, so the suspension is over once it is restored.
+      const suspendedAt = Date.now() - 2 * 60 * 60 * 1000;
+      const now = jest.spyOn(Date, 'now').mockReturnValue(suspendedAt);
+      suspendPrimaryServerKey({ reason: 'test' });
+
+      expect(pick()).toEqual({ kind: 'server-default', model: SERVER_MODEL });
+
+      now.mockReturnValue(suspendedAt + 61 * 60 * 1000);
+      expect(pick()).toEqual({ kind: 'server-default', model: PRIMARY_SERVER_MODEL });
     });
   });
 });

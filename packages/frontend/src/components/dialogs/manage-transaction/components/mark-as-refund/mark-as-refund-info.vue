@@ -25,27 +25,27 @@ const [UseBodyTemplate, BodyContent] = createReusableTemplate();
 
   <UseBodyTemplate>
     <h4 class="mt-3 mb-1 font-semibold">{{ t('dialogs.manageTransaction.refundInfo.howItWorks.title') }}</h4>
-    <ul class="text-muted-foreground list-inside list-disc text-sm">
+    <ul class="text-muted-foreground list-disc pl-5 text-sm">
       <li>{{ t('dialogs.manageTransaction.refundInfo.howItWorks.expenseRefund') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.howItWorks.incomeRefund') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.howItWorks.noOriginal') }}</li>
     </ul>
 
     <h4 class="mt-3 mb-1 font-semibold">{{ t('dialogs.manageTransaction.refundInfo.benefits.title') }}</h4>
-    <ul class="text-muted-foreground list-inside list-disc text-sm">
+    <ul class="text-muted-foreground list-disc pl-5 text-sm">
       <li>{{ t('dialogs.manageTransaction.refundInfo.benefits.accuracy') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.benefits.tracking') }}</li>
     </ul>
 
     <h4 class="mt-3 mb-1 font-semibold">{{ t('dialogs.manageTransaction.refundInfo.notes.title') }}</h4>
-    <ul class="text-muted-foreground list-inside list-disc text-sm">
+    <ul class="text-muted-foreground list-disc pl-5 text-sm">
       <li>{{ t('dialogs.manageTransaction.refundInfo.notes.recordKeeping') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.notes.noBalanceAdjust') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.notes.canUnlink') }}</li>
     </ul>
 
     <h4 class="mt-3 mb-1 font-semibold">{{ t('dialogs.manageTransaction.refundInfo.examples.title') }}</h4>
-    <ul class="text-muted-foreground list-inside list-disc text-sm">
+    <ul class="text-muted-foreground list-disc pl-5 text-sm">
       <li>{{ t('dialogs.manageTransaction.refundInfo.examples.customerPayment') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.examples.vendorRefund') }}</li>
       <li>{{ t('dialogs.manageTransaction.refundInfo.examples.noOriginalTx') }}</li>

@@ -3,14 +3,19 @@ import posthog from 'posthog-js';
 import type { FaqOutcome } from './ask-faq';
 import { config } from './config';
 
-export type DemoStartLocation = 'hero' | 'hero_screenshot';
+export type DemoStartLocation = 'hero' | 'hero_screenshot' | 'demo_link';
 
 type LandingAnalyticsEvent =
   | {
       event: 'landing_cta_clicked';
       properties: { location: 'header' | 'hero' | 'cta_section' | 'self_host' | 'pricing'; action: string };
     }
-  | { event: 'landing_roadmap_clicked'; properties: { location: 'hero' | 'pricing' | 'community' } }
+  | { event: 'landing_roadmap_clicked'; properties: { location: 'hero' | 'community' } }
+  | { event: 'landing_premium_early_access_clicked'; properties: { location: 'pricing' } }
+  | {
+      event: 'landing_premium_early_access_submitted';
+      properties: { with_email: true; email: string } | { with_email: false };
+    }
   | {
       event: 'landing_github_clicked';
       properties: {
@@ -63,13 +68,24 @@ export function initPostHog(): void {
   });
 }
 
-export function trackAnalyticsEvent(eventData: LandingAnalyticsEvent): void {
-  if (!isPostHogEnabled()) return;
+/**
+ * Returns false when the event has nowhere to go (disabled, Do Not Track, capture threw).
+ * True still overstates it: an ad blocker can drop the request, and on_request_error stays quiet.
+ */
+export function trackAnalyticsEvent(eventData: LandingAnalyticsEvent): boolean {
+  if (!isPostHogEnabled() || posthog.has_opted_out_capturing()) return false;
 
   const { event, properties } = eventData;
 
-  posthog.capture(event, {
-    source: 'landing',
-    ...properties,
-  });
+  // Tracking runs inside user flows such as starting the demo, which must not fail with it.
+  try {
+    posthog.capture(event, {
+      source: 'landing',
+      ...properties,
+    });
+    return true;
+  } catch (error) {
+    console.error('Failed to track analytics event:', error);
+    return false;
+  }
 }

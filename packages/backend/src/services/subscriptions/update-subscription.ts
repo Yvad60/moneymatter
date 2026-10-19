@@ -17,6 +17,7 @@ import { Op } from 'sequelize';
 import { ensureNextPeriodExists, reconcileInstallmentCompletion } from './ensure-next-period';
 import {
   assertAmountCurrencyConsistent,
+  assertAutoRecordAccountIsManual,
   assertAutoRecordConsistent,
   findSubscriptionOrThrow,
   validateAccountOwnership,
@@ -105,6 +106,11 @@ export const updateSubscription = withTransaction(
       expectedCurrencyCode:
         fields.expectedCurrencyCode !== undefined ? fields.expectedCurrencyCode : subscription.expectedCurrencyCode,
       matchingRules: fields.matchingRules !== undefined ? fields.matchingRules : subscription.matchingRules,
+    });
+    await assertAutoRecordAccountIsManual({
+      autoRecord: fields.autoRecord !== undefined ? fields.autoRecord : subscription.autoRecord,
+      accountId: fields.accountId !== undefined ? fields.accountId : subscription.accountId,
+      userId,
     });
 
     // Refuse lowering the payment count below the periods already paid/skipped —

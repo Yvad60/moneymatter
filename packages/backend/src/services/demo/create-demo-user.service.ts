@@ -2,6 +2,7 @@ import { USER_ROLES } from '@bt/shared/types';
 import { authPool } from '@config/auth';
 import { logger } from '@js/utils/logger';
 import { createUser } from '@models/users.model';
+import { DEMO_EMAIL_DOMAIN } from '@services/demo/demo-config';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,7 +18,7 @@ interface DemoUserResult {
  */
 export async function createDemoUserFast(): Promise<DemoUserResult> {
   const demoId = uuidv4();
-  const demoEmail = `demo-${demoId}@demo.local`;
+  const demoEmail = `demo-${demoId}@${DEMO_EMAIL_DOMAIN}`;
   const demoUsername = `demo-${demoId.slice(0, 8)}`;
   const demoPassword = uuidv4();
 

@@ -8,6 +8,7 @@ import { ValidationError } from '@js/errors';
 import { logger } from '@js/utils/logger';
 import * as categoriesService from '@services/categories.service';
 import * as tagsService from '@services/tags';
+import { patchUserSettings } from '@services/user-settings/patch-settings';
 import * as userService from '@services/user.service';
 import { forgetSignup, recordSignup } from '@services/user/signups-open.service';
 import { randomBytes } from 'crypto';
@@ -239,5 +240,10 @@ export async function seedUserDefaults({ userId, locale: providedLocale }: { use
       userId,
       tags: defaultTags,
     });
+  }
+
+  const incomeCategory = categoryKeyToId.get('income');
+  if (incomeCategory) {
+    await patchUserSettings({ userId, patch: { incomeCategoryIds: [incomeCategory.id] } });
   }
 }
