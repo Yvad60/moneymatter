@@ -1,0 +1,16 @@
+# Optional overlay: run the backend and frontend images built and pushed by
+# GitHub Actions to GHCR, instead of pulling upstream or building locally.
+#
+# Usage (merge on top of the base file, from this folder):
+#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+#
+# Runtime configuration is unchanged: this overlay only replaces the `image:`
+# field the base file points at.
+
+services:
+  backend:
+    image: ghcr.io/yvad60/budget-tracker-be:${IMAGE_TAG:-latest}
+
+  frontend:
+    image: ghcr.io/yvad60/budget-tracker-fe:${IMAGE_TAG:-latest}
