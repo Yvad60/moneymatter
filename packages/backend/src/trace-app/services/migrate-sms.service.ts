@@ -1,14 +1,20 @@
-import { ACCOUNT_CATEGORIES, ACCOUNT_TYPES, PAYMENT_TYPES, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES, type RecordId } from "@bt/shared/types";
-import { Money } from "@common/types/money";
-import * as accountsService from "@services/accounts.service";
-import * as Accounts from "@models/accounts.model";
-import * as transactionsService from "@services/transactions";
-import fs from "fs";
-import path from "path";
-import { type CreateTransactionInternal } from "../../serializers";
-import { BkSmsParser } from "../parsers/bk.parser";
-import { MtnMomoSmsParser } from "../parsers/mtn-momo.parser";
-import { type SMSTransaction, type SMSTransactionType } from "../parsers/sms-parser.shared";
+import {
+  ACCOUNT_CATEGORIES,
+  ACCOUNT_TYPES,
+  PAYMENT_TYPES,
+  TRANSACTION_TRANSFER_NATURE,
+  TRANSACTION_TYPES,
+  type RecordId,
+} from '@bt/shared/types';
+import { Money } from '@common/types/money';
+import * as Accounts from '@models/accounts.model';
+import * as accountsService from '@services/accounts.service';
+import * as transactionsService from '@services/transactions';
+
+import { type CreateTransactionInternal } from '../../serializers';
+import { BkSmsParser } from '../parsers/bk.parser';
+import { MtnMomoSmsParser } from '../parsers/mtn-momo.parser';
+import { type SMSTransaction, type SMSTransactionType } from '../parsers/sms-parser.shared';
 
 /**
  * None of these SMS types resolve to a destination account inside the app
@@ -22,16 +28,16 @@ const SMS_TYPE_TO_TRANSACTION_TYPE: Record<SMSTransactionType, TRANSACTION_TYPES
   savings: TRANSACTION_TYPES.expense,
 };
 
-type SmsSource = "mtnMomo" | "bk";
+type SmsSource = 'mtnMomo' | 'bk';
 
 /** `externalId` convention used to find the one system account each SMS
  *  source books against, independent of what the user later renames it to. */
 const SMS_SOURCE_ACCOUNT: Record<SmsSource, { externalId: string; name: string }> = {
-  mtnMomo: { externalId: "sms-source:mtnMomo", name: "MTN Mobile Money" },
-  bk: { externalId: "sms-source:bk", name: "Bank of Kigali" },
+  mtnMomo: { externalId: 'sms-source:mtnMomo', name: 'MTN Mobile Money' },
+  bk: { externalId: 'sms-source:bk', name: 'Bank of Kigali' },
 };
 
-const SMS_CURRENCY_CODE = "RWF";
+const SMS_CURRENCY_CODE = 'RWF';
 
 /**
  * Finds the conventional per-user system account for an SMS source
@@ -40,13 +46,7 @@ const SMS_CURRENCY_CODE = "RWF";
  * source. Keeps account resolution out of the client: the mobile app only
  * ever sends raw SMS text, never an accountId.
  */
-async function resolveSmsSourceAccountId({
-  userId,
-  source,
-}: {
-  userId: number;
-  source: SmsSource;
-}): Promise<RecordId> {
+async function resolveSmsSourceAccountId({ userId, source }: { userId: number; source: SmsSource }): Promise<RecordId> {
   const { externalId, name } = SMS_SOURCE_ACCOUNT[source];
 
   const existingAccounts = await Accounts.getAccounts({ userId, type: ACCOUNT_TYPES.system });
@@ -78,24 +78,14 @@ type RawSmsMessage = {
   timestamp: number;
 };
 
-const UNPARSED_SMS_LOG_PATH = path.join(__dirname, "../../../data/unparsed-sms.json");
-
-function logUnparsedMessages(migrated: ReturnType<typeof parseMessages>) {
-  const unparsed = migrated.filter((entry) => entry.parsed === null);
-  console.log(unparsed);
-
-  fs.mkdirSync(path.dirname(UNPARSED_SMS_LOG_PATH), { recursive: true });
-  fs.writeFileSync(UNPARSED_SMS_LOG_PATH, JSON.stringify(unparsed, null, 2));
-}
-
 function parseMessages({ mtnMomo, bk }: { mtnMomo: RawSmsMessage[]; bk: RawSmsMessage[] }) {
   const bkParser = new BkSmsParser();
   const mtnMomoParser = new MtnMomoSmsParser();
 
   return [
-    ...bk.map((message) => ({ source: "bk" as const, original: message, parsed: bkParser.parse(message.body) })),
+    ...bk.map((message) => ({ source: 'bk' as const, original: message, parsed: bkParser.parse(message.body) })),
     ...mtnMomo.map((message) => ({
-      source: "mtnMomo" as const,
+      source: 'mtnMomo' as const,
       original: message,
       parsed: mtnMomoParser.parse(message.body),
     })),
@@ -135,11 +125,9 @@ export async function migrateSmsTransactions({
 }) {
   const migrated = parseMessages({ mtnMomo, bk });
 
-  logUnparsedMessages(migrated);
-
   const accountIdBySource: Record<SmsSource, RecordId> = {
-    mtnMomo: await resolveSmsSourceAccountId({ userId, source: "mtnMomo" }),
-    bk: await resolveSmsSourceAccountId({ userId, source: "bk" }),
+    mtnMomo: await resolveSmsSourceAccountId({ userId, source: 'mtnMomo' }),
+    bk: await resolveSmsSourceAccountId({ userId, source: 'bk' }),
   };
 
   const results = await Promise.all(
@@ -164,6 +152,8 @@ export async function migrateSmsTransactions({
   return {
     status: true,
     created: results.filter((result) => result.success).length,
-    failed: results.filter((result): result is { success: false; original: RawSmsMessage; error: string } => !result.success),
+    failed: results.filter(
+      (result): result is { success: false; original: RawSmsMessage; error: string } => !result.success,
+    ),
   };
 }
