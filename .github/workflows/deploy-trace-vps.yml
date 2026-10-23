@@ -27,6 +27,32 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Decide which images need rebuilding. Manual runs, a new branch, an
+      # unreachable previous commit, or a workflow change rebuild both.
+      - name: Detect changed images
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -e
+          backend=true
+          frontend=true
+          if [ "${{ github.event_name }}" = "push" ] \
+            && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+            echo "$changed"
+            if ! echo "$changed" | grep -q '^.github/workflows/deploy-trace-vps.yml$'; then
+              shared='^(package(-lock)?\.json|post-install\.sh|tsconfig\.json|patches/|packages/shared/)'
+              echo "$changed" | grep -qE "$shared|^packages/backend/|^self-hosting/" || backend=false
+              echo "$changed" | grep -qE "$shared|^packages/(frontend|landing)/|^self-hosting/frontend/" || frontend=false
+            fi
+          fi
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -42,6 +68,7 @@ jobs:
         run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push backend
+        if: steps.changes.outputs.backend == 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
@@ -51,10 +78,13 @@ jobs:
           tags: |
             ${{ env.BACKEND_IMAGE }}:latest
             ${{ env.BACKEND_IMAGE }}:sha-${{ steps.sha.outputs.short }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
           build-args: |
             SENTRY_RELEASE=${{ github.sha }}
 
       - name: Build and push frontend
+        if: steps.changes.outputs.frontend == 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
@@ -64,6 +94,8 @@ jobs:
           tags: |
             ${{ env.FRONTEND_IMAGE }}:latest
             ${{ env.FRONTEND_IMAGE }}:sha-${{ steps.sha.outputs.short }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
           build-args: |
             VITE_SENTRY_RELEASE=${{ github.sha }}
             VITE_APP_COMMIT_HASH=${{ github.sha }}
