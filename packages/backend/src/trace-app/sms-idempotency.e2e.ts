@@ -1,5 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import * as transactionsService from '@services/transactions/create-transaction';
 import * as helpers from '@tests/helpers';
+import { ConnectionError } from 'sequelize';
 
 const momoReceived = ({ ftId, timestamp }: { ftId: string; timestamp: number }) => ({
   id: null,
@@ -15,12 +17,12 @@ const momoTransferWithoutId = ({ timestamp }: { timestamp: number }) => ({
   timestamp,
 });
 
-describe('POST /trace/migrate-sms-transactions idempotency', () => {
-  const authenticate = async () => {
-    const user = await helpers.getUserInfo({ raw: true });
-    helpers.configureTraceAuth({ userId: user.id });
-  };
+const authenticate = async () => {
+  const user = await helpers.getUserInfo({ raw: true });
+  helpers.configureTraceAuth({ userId: user.id });
+};
 
+describe('POST /trace/migrate-sms-transactions idempotency', () => {
   it('creates a transaction once and skips the same SMS when it is synced again', async () => {
     await authenticate();
     const mtnMomo = [momoReceived({ ftId: '10000000001', timestamp: 1000 })];
@@ -86,6 +88,65 @@ describe('POST /trace/migrate-sms-transactions idempotency', () => {
     expect(second.created).toBe(0);
     expect(second.duplicatesSkipped).toBe(1);
     expect((await helpers.getTransactions({ raw: true })).length).toBe(1);
+  });
+
+  it('skips repeated SMS without a provider reference inside one batch', async () => {
+    await authenticate();
+    const mtnMomo = [momoTransferWithoutId({ timestamp: 1000 }), momoTransferWithoutId({ timestamp: 1000 })];
+
+    const result = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
+
+    expect(result.created).toBe(1);
+    expect(result.duplicatesSkipped).toBe(1);
+    expect((await helpers.getTransactions({ raw: true })).length).toBe(1);
+  });
+
+  describe('failure handling', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('holds the sync time before a message that failed on a connection error', async () => {
+      await authenticate();
+      const original = transactionsService.createTransaction;
+      jest.spyOn(transactionsService, 'createTransaction').mockImplementation(async (params) => {
+        if (params.originalId === '10000000008') throw new ConnectionError(new Error('db down'));
+        return original(params);
+      });
+
+      const result = await helpers.migrateSmsTransactions({
+        mtnMomo: [
+          momoReceived({ ftId: '10000000007', timestamp: 7000 }),
+          momoReceived({ ftId: '10000000008', timestamp: 8000 }),
+          momoReceived({ ftId: '10000000009', timestamp: 9000 }),
+        ],
+        raw: true,
+      });
+
+      expect(result.created).toBe(2);
+      expect(result.failed.length).toBe(1);
+      expect((await helpers.getLatestSmsSyncTime({ raw: true })).latestTime).toBe(7999);
+    });
+
+    it('moves the sync time past a message that failed for a non-retryable reason', async () => {
+      await authenticate();
+      const original = transactionsService.createTransaction;
+      jest.spyOn(transactionsService, 'createTransaction').mockImplementation(async (params) => {
+        if (params.originalId === '10000000011') throw new Error('rejected');
+        return original(params);
+      });
+
+      const result = await helpers.migrateSmsTransactions({
+        mtnMomo: [
+          momoReceived({ ftId: '10000000010', timestamp: 10000 }),
+          momoReceived({ ftId: '10000000011', timestamp: 11000 }),
+        ],
+        raw: true,
+      });
+
+      expect(result.failed.length).toBe(1);
+      expect((await helpers.getLatestSmsSyncTime({ raw: true })).latestTime).toBe(11000);
+    });
   });
 
   describe('advanceCursor', () => {

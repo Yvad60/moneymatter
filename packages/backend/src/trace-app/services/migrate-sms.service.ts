@@ -11,6 +11,7 @@ import * as Accounts from '@models/accounts.model';
 import * as Transactions from '@models/transactions.model';
 import * as accountsService from '@services/accounts.service';
 import * as transactionsService from '@services/transactions';
+import { ConnectionError, TimeoutError, UniqueConstraintError } from 'sequelize';
 
 import { type CreateTransactionInternal } from '../../serializers';
 import { BkSmsParser } from '../parsers/bk.parser';
@@ -222,6 +223,7 @@ export async function migrateSmsTransactions({
         duplicatesSkipped += 1;
         return false;
       }
+      seenFingerprints.add(fingerprint);
       return true;
     }
 
@@ -247,27 +249,42 @@ export async function migrateSmsTransactions({
         await transactionsService.createTransaction(params);
         return { success: true as const, original: entry.original };
       } catch (error) {
+        // Lost a race with a concurrent sync that booked the same provider reference.
+        if (error instanceof UniqueConstraintError) {
+          return { success: true as const, duplicate: true as const, original: entry.original };
+        }
         return {
           success: false as const,
           original: entry.original,
           error: (error as Error).message,
+          retryable: error instanceof ConnectionError || error instanceof TimeoutError,
         };
       }
     }),
   );
 
-  // Advance even when some messages failed: they are likely unparseable and would never succeed on retry.
+  const raceDuplicates = results.filter((result) => 'duplicate' in result).length;
+  duplicatesSkipped += raceDuplicates;
+
+  // Unparseable or rejected messages never succeed on retry, so they must not hold the cursor back.
+  // Infrastructure errors (db connection, timeout) do succeed later, so the cursor stops before them.
+  const retryableTimestamps = results.flatMap((result) =>
+    !result.success && result.retryable ? [result.original.timestamp] : [],
+  );
   const newestTimestamp = Math.max(...[...mtnMomo, ...bk].map((message) => message.timestamp));
-  if (advanceCursor && Number.isFinite(newestTimestamp)) {
-    await advanceLatestSmsSyncTimestamp({ userId, timestamp: newestTimestamp });
+  const cursorTimestamp =
+    retryableTimestamps.length > 0 ? Math.min(newestTimestamp, Math.min(...retryableTimestamps) - 1) : newestTimestamp;
+  if (advanceCursor && Number.isFinite(cursorTimestamp)) {
+    await advanceLatestSmsSyncTimestamp({ userId, timestamp: cursorTimestamp });
   }
 
   return {
     status: true,
-    created: results.filter((result) => result.success).length,
+    created: results.filter((result) => result.success && !('duplicate' in result)).length,
     duplicatesSkipped,
     failed: results.filter(
-      (result): result is { success: false; original: RawSmsMessage; error: string } => !result.success,
+      (result): result is { success: false; original: RawSmsMessage; error: string; retryable: boolean } =>
+        !result.success,
     ),
   };
 }
