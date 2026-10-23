@@ -16,6 +16,7 @@ export const migrateSMSTransactionsController = createController(
     body: z.object({
       mtnMomo: z.array(rawSmsMessageSchema),
       bk: z.array(rawSmsMessageSchema),
+      advanceCursor: z.boolean().optional(),
     }),
   }),
   async ({ body, user }) => {

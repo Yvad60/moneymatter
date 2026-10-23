@@ -15,17 +15,19 @@ export function migrateSmsTransactions<R extends boolean | undefined = undefined
   mtnMomo = [],
   bk = [],
   apiKey = TRACE_TEST_API_KEY,
+  advanceCursor,
   raw,
 }: {
   mtnMomo?: RawSmsMessage[];
   bk?: RawSmsMessage[];
   apiKey?: string;
+  advanceCursor?: boolean;
   raw?: R;
 } = {}) {
   return makeRequest<Awaited<ReturnType<typeof apiMigrateSmsTransactions>>, R>({
     method: 'post',
     url: '/trace/migrate-sms-transactions',
-    payload: { mtnMomo, bk },
+    payload: { mtnMomo, bk, advanceCursor },
     headers: { 'x-api-key': apiKey },
     raw,
   });

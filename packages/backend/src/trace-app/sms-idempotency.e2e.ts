@@ -8,6 +8,13 @@ const momoReceived = ({ ftId, timestamp }: { ftId: string; timestamp: number }) 
   timestamp,
 });
 
+const momoTransferWithoutId = ({ timestamp }: { timestamp: number }) => ({
+  id: null,
+  address: 'M-Money',
+  body: '*165*S*15500 RWF transferred to Alex MUKAMANA (250788000111) at 2026-01-10 12:02:14 .Fee: 250RWF.Balance: 1181RWF.Dial *182*1*3# and send money abroad *RW#',
+  timestamp,
+});
+
 describe('POST /trace/migrate-sms-transactions idempotency', () => {
   const authenticate = async () => {
     const user = await helpers.getUserInfo({ raw: true });
@@ -66,5 +73,44 @@ describe('POST /trace/migrate-sms-transactions idempotency', () => {
 
     expect(res.statusCode).toBe(401);
     expect((await helpers.getTransactions({ raw: true })).length).toBe(0);
+  });
+
+  it('skips an SMS without a provider reference when the same moment, amount and direction already exists', async () => {
+    await authenticate();
+    const mtnMomo = [momoTransferWithoutId({ timestamp: 1000 })];
+
+    const first = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
+    const second = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
+
+    expect(first.created).toBe(1);
+    expect(second.created).toBe(0);
+    expect(second.duplicatesSkipped).toBe(1);
+    expect((await helpers.getTransactions({ raw: true })).length).toBe(1);
+  });
+
+  describe('advanceCursor', () => {
+    it('moves the sync time forward by default', async () => {
+      await authenticate();
+
+      await helpers.migrateSmsTransactions({
+        mtnMomo: [momoReceived({ ftId: '10000000005', timestamp: 5000 })],
+        raw: true,
+      });
+
+      expect((await helpers.getLatestSmsSyncTime({ raw: true })).latestTime).toBe(5000);
+    });
+
+    it('leaves the sync time untouched when advanceCursor is false', async () => {
+      await authenticate();
+
+      const result = await helpers.migrateSmsTransactions({
+        mtnMomo: [momoReceived({ ftId: '10000000006', timestamp: 6000 })],
+        advanceCursor: false,
+        raw: true,
+      });
+
+      expect(result.created).toBe(1);
+      expect((await helpers.getLatestSmsSyncTime({ raw: true })).latestTime).toBeNull();
+    });
   });
 });
