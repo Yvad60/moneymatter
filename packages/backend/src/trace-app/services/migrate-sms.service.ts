@@ -15,6 +15,7 @@ import { type CreateTransactionInternal } from '../../serializers';
 import { BkSmsParser } from '../parsers/bk.parser';
 import { MtnMomoSmsParser } from '../parsers/mtn-momo.parser';
 import { type SMSTransaction, type SMSTransactionType } from '../parsers/sms-parser.shared';
+import { advanceLatestSmsSyncTimestamp } from './sms-sync-state.service';
 
 /**
  * None of these SMS types resolve to a destination account inside the app
@@ -148,6 +149,12 @@ export async function migrateSmsTransactions({
         }
       }),
   );
+
+  // Advance even when some messages failed: they are likely unparseable and would never succeed on retry.
+  const newestTimestamp = Math.max(...[...mtnMomo, ...bk].map((message) => message.timestamp));
+  if (Number.isFinite(newestTimestamp)) {
+    await advanceLatestSmsSyncTimestamp({ userId, timestamp: newestTimestamp });
+  }
 
   return {
     status: true,

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { createController } from '../controllers/helpers/controller-factory';
 import { migrateSmsTransactions } from './services/migrate-sms.service';
+import { getLatestSmsSyncTimestamp } from './services/sms-sync-state.service';
 
 const rawSmsMessageSchema = z.object({
   id: z.string().nullable(),
@@ -27,3 +28,12 @@ export const migrateSMSTransactionsController = createController(
     };
   },
 );
+
+export const getLatestSyncTimeController = createController(z.object({}), async ({ user }) => {
+  if (!user) {
+    throw new Error('getLatestSyncTimeController requires an authenticated user');
+  }
+  return {
+    data: { latestTime: await getLatestSmsSyncTimestamp({ userId: user.id }) },
+  };
+});
