@@ -2,6 +2,7 @@
   "pages": {
     "budgets": {
       "transactionsList": {
+        "loadError": "Transakcie sa nepodarilo načítať.",
         "selectionModeWarning": "Režim výberu — vyberte transakcie na odpojenie",
         "selectAll": "Vybrať všetko",
         "selected": "Vybraných: {count}",
@@ -15,7 +16,9 @@
         "resetFilters": "Vynulovať filtre",
         "addTransactions": "Pridať transakcie",
         "add": "Pridať",
-        "loadingMore": "Načítavanie ďalších..."
+        "loadingMore": "Načítavanie ďalších...",
+        "unlinkError": "Režim výberu — vyberte transakcie na odpojenie",
+        "addError": "Transakcie sa nepodarilo pridať do skupiny"
       }
     },
     "budgetDetails": {
@@ -57,11 +60,45 @@
         "income": "Príjmy",
         "expenses": "Výdavky",
         "incomeLabel": "Príjmy:",
-        "expensesLabel": "Výdavky:"
+        "expensesLabel": "Výdavky:",
+        "kpi": {
+          "dailyPace": "Denné tempo",
+          "perDay": "/ deň",
+          "allowedPerDay": "povolené {amount} / deň · {elapsed} z {total} dní",
+          "daysElapsed": "{elapsed} z {total} dní",
+          "projectedTotal": "Predpokladané celkom",
+          "projectedLimit": "pri tomto tempe · limit {amount}",
+          "averagePerDay": "Priemerne za deň",
+          "firstTransaction": "Prvá transakcia",
+          "lastTransaction": "Posledná transakcia",
+          "transactions": "Transakcie",
+          "avgAmount": "priem. {amount}",
+          "biggestDay": "Deň s najväčšími výdavkami",
+          "shareOfTotal": "{percent} % z celku"
+        },
+        "byCategory": "Podľa kategórií",
+        "categoriesCount": "{count} kategória | {count} kategórie | {count} kategórií",
+        "byCurrency": "Podľa meny",
+        "asPaid": "v zaplatenej mene",
+        "timeline": "Časová os",
+        "todayMarker": "dnes {date}",
+        "timelineAria": "Kumulatívne výdavky v čase so stĺpcami za jednotlivé obdobia",
+        "limitLabel": "limit {amount}",
+        "cumulativeLabel": "Kumulatívne",
+        "legend": {
+          "cumulative": "Vyčerpané, kumulatívne",
+          "evenPace": "Rovnomerné tempo k limitu",
+          "projection": "Projekcia",
+          "daily": "Za deň",
+          "weekly": "Za týždeň",
+          "monthly": "Za mesiac"
+        },
+        "topPayees": "Najčastejšie protistrany",
+        "bySpend": "podľa výdavkov",
+        "noPayee": "Bez protistrany",
+        "txCount": "{count} tr."
       },
       "sharing": {
-        "title": "Zdieľanie",
-        "description": "Spravujte, kto môže tento sledovač vidieť a prispievať doň.",
         "inviteAnother": "Pozvite niekoho",
         "membersHeading": "Členovia",
         "pendingHeading": "Čakajúce pozvánky",

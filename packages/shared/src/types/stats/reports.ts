@@ -1,4 +1,5 @@
 import type { AccountModel } from '../accounts';
+import type { EntityLogoFields } from '../entity-logo';
 import type { RecordId } from '../record-id';
 
 export interface GetBalanceHistoryPayload {
@@ -18,6 +19,11 @@ export type SpendingStructureByType = { name: string; color: string; income: num
 export type GetSpendingsByCategoriesByTypeReturnType = {
   [categoryId: RecordId]: SpendingStructureByType;
 };
+/** One entry per calendar month of the requested range, oldest first. `month` is `yyyy-MM`. */
+export type MonthlySpendingsByCategoriesByType = {
+  month: string;
+  categories: GetSpendingsByCategoriesByTypeReturnType;
+}[];
 
 // Cash Flow Analytics
 export const CASH_FLOW_GRANULARITIES = ['monthly', 'biweekly', 'weekly', 'daily'] as const;
@@ -91,20 +97,14 @@ export interface PivotColumn {
   label: string;
 }
 
-export interface PivotRow {
+// The logo fields are set for the payee dimension only and absent for every other one.
+export interface PivotRow extends Partial<EntityLogoFields> {
   // categoryId | payeeId | tagId, or a synthetic bucket id for the residual row
   // ('uncategorized' | 'unassigned' | 'untagged').
   id: string;
   label: string;
   // Hex color when the dimension carries one (categories), else null.
   color: string | null;
-  // Brand domain (e.g. "netflix.com") for the payee dimension, so the client can render the
-  // payee's logo; null when the payee has no resolved logo. Absent for every other dimension.
-  logoDomain?: string | null;
-  // Custom monogram letters + '#rrggbb' background for the payee dimension, taking
-  // priority over logoDomain when set. Absent for every other dimension.
-  logoInitials?: string | null;
-  logoColor?: string | null;
   // Subcategory child rows point at their parent row id; parents/flat rows are null.
   parentId: string | null;
   kind: 'flat' | 'parent' | 'child';

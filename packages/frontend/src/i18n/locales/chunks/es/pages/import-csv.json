@@ -325,6 +325,12 @@
         "errorColumns": {
           "row": "Fila",
           "error": "Error"
+        },
+        "rowErrors": {
+          "payeeDefaultTagsFailed": "La transacción fue importada, pero las etiquetas por defecto del beneficiario no pudieron ser aplicadas.",
+          "accountUnresolved": "La cuenta de este registro no pudo ser resuelta, por lo que el registro fue omitido.",
+          "readBackFailed": "La transacción fue creada pero no se pudo leer de nuevo, por lo que falta en el recuento importado.",
+          "generic": "Esta fila no pudo ser importada."
         }
       }
     }

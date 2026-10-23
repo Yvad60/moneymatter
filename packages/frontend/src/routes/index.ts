@@ -168,18 +168,18 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // The "Budget" (budget plans). "Trackers" are the `budgets` routes under /planned.
+      // The "Budget" (budget plans). Trackers live under /planned.
       {
         path: '/budget',
         name: ROUTES_NAMES.budget,
         component: () => import('@/pages/budget/budget.vue'),
-        meta: { navSection: 'budget', i18nChunks: ['pages/budget-plans'] },
+        meta: { navSection: 'planned', i18nChunks: ['pages/budget-plans'] },
       },
       {
         path: '/budget/:planId',
         name: ROUTES_NAMES.budgetPlan,
         component: () => import('@/pages/budget/budget-plan.vue'),
-        meta: { navSection: 'budget', i18nChunks: ['pages/budget-plans'] },
+        meta: { navSection: 'planned', i18nChunks: ['pages/budget-plans'] },
       },
       {
         path: '/planned',
@@ -198,48 +198,33 @@ const routes: RouteRecordRaw[] = [
             name: ROUTES_NAMES.plannedSubscriptionDetails,
             component: () => import('@/pages/planned/subscriptions/subscription-details.vue'),
           },
-          // Shown as "Trackers"; route names, pages and the API keep "budgets".
           {
             path: 'trackers',
-            name: ROUTES_NAMES.plannedBudgets,
-            component: () => import('@/pages/budgets/budgets.vue'),
+            name: ROUTES_NAMES.plannedTrackers,
+            component: () => import('@/pages/trackers/trackers.vue'),
             meta: { i18nChunks: ['pages/budgets'] },
           },
           {
             path: 'trackers/:id',
-            name: ROUTES_NAMES.plannedBudgetDetails,
-            component: () => import('@/pages/budgets/budgets-info/index.vue'),
+            name: ROUTES_NAMES.plannedTrackerDetails,
+            component: () => import('@/pages/trackers/trackers-info/index.vue'),
             meta: {
               i18nChunks: ['pages/budgets', 'pages/budget-details', 'pages/transactions'],
             },
           },
         ],
       },
-      // Backward-compat redirects for old budget URLs
       {
-        path: '/budgets',
-        name: ROUTES_NAMES.budgets,
-        redirect: { name: ROUTES_NAMES.plannedBudgets },
+        path: '/goals',
+        name: ROUTES_NAMES.goals,
+        component: () => import('@/pages/goals/goals.vue'),
+        meta: { navSection: 'planned', i18nChunks: ['pages/goals'] },
       },
       {
-        path: '/budgets/:id',
-        name: ROUTES_NAMES.budgetsInfo,
-        redirect: (to) => ({
-          name: ROUTES_NAMES.plannedBudgetDetails,
-          params: { id: to.params.id },
-        }),
-      },
-      // /planned/budgets URLs are in bookmarks and sent notification links.
-      {
-        path: '/planned/budgets',
-        redirect: { name: ROUTES_NAMES.plannedBudgets },
-      },
-      {
-        path: '/planned/budgets/:id',
-        redirect: (to) => ({
-          name: ROUTES_NAMES.plannedBudgetDetails,
-          params: { id: to.params.id },
-        }),
+        path: '/goals/:goalId',
+        name: ROUTES_NAMES.goalDetails,
+        component: () => import('@/pages/goals/goal-details.vue'),
+        meta: { navSection: 'planned', i18nChunks: ['pages/goals'] },
       },
       // Backward-compat redirects for the old /planned/subscriptions URLs, so links
       // already sent (e.g. payment reminder emails) still resolve after the rename
@@ -438,7 +423,7 @@ const routes: RouteRecordRaw[] = [
             path: 'data-management/import/text-source',
             name: ROUTES_NAMES.importStatement,
             component: () => import('@/pages/import-export/statement-parser/index.vue'),
-            meta: { i18nChunks: ['pages/import-statement', 'settings/data-management'] },
+            meta: { i18nChunks: ['pages/import-statement', 'pages/import-shared', 'settings/data-management'] },
           },
           {
             path: 'data-management/import/ynab',

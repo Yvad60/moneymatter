@@ -472,11 +472,11 @@ describe('Data export (POST /user/data-export)', () => {
   });
 
   describe('Multiple domain coverage', () => {
-    it('exports budgets, subscriptions, portfolios, and vehicles when their groups are enabled', async () => {
+    it('exports trackers, subscriptions, portfolios, and vehicles when their groups are enabled', async () => {
       const account = await helpers.createAccount({ raw: true });
       const category = await helpers.addCustomCategory({ name: 'MultiCat', color: '#AABBCC', raw: true });
-      await helpers.createCustomBudget({
-        name: 'Export budget',
+      await helpers.createTracker({
+        name: 'Export tracker',
         limitAmount: 100000,
         categoryIds: [category.id],
         raw: true,
@@ -510,8 +510,8 @@ describe('Data export (POST /user/data-export)', () => {
       const archive = helpers.parseExportArchive({ buffer: response.body });
       const json = archive.json as Record<string, unknown[]>;
 
-      expect(Array.isArray(json.budgets)).toBe(true);
-      expect((json.budgets as Array<Record<string, unknown>>).some((b) => b.name === 'Export budget')).toBe(true);
+      expect(Array.isArray(json.trackers)).toBe(true);
+      expect((json.trackers as Array<Record<string, unknown>>).some((b) => b.name === 'Export tracker')).toBe(true);
 
       expect(Array.isArray(json.subscriptions)).toBe(true);
       expect((json.subscriptions as Array<Record<string, unknown>>).some((s) => s.name === 'Multi subscription')).toBe(
@@ -585,25 +585,25 @@ describe('Data export (POST /user/data-export)', () => {
       expect(unpinned!.Tags).toBe('');
     });
 
-    it('handles budgets with NULL limitAmount without crashing', async () => {
-      // Budget.limitAmount is nullable; the transformer must guard the
-      // `.toNumber()` call so a budget without a cap exports as an empty cell
+    it('handles trackers with NULL limitAmount without crashing', async () => {
+      // Tracker.limitAmount is nullable; the transformer must guard the
+      // `.toNumber()` call so a tracker without a cap exports as an empty cell
       // rather than 500'ing the whole request.
       const category = await helpers.addCustomCategory({ name: 'NoLimitCat', color: '#AABBCC', raw: true });
-      await helpers.createCustomBudget({
-        name: 'Open-ended budget',
+      await helpers.createTracker({
+        name: 'Open-ended tracker',
         categoryIds: [category.id],
-        // limitAmount intentionally omitted – should be allowed by the budgets API.
+        // limitAmount intentionally omitted – should be allowed by the trackers API.
         raw: true,
       });
 
       const response = await helpers.exportData({ format: 'csv' });
       expect(response.statusCode).toBe(200);
       const archive = helpers.parseExportArchive({ buffer: response.body });
-      const budgetsCsv = archive.files.get('budgets.csv');
-      expect(budgetsCsv).toBeDefined();
-      const rows = helpers.parseExportCsv({ buffer: budgetsCsv! });
-      const seeded = rows.find((r) => r.Name === 'Open-ended budget');
+      const trackersCsv = archive.files.get('trackers.csv');
+      expect(trackersCsv).toBeDefined();
+      const rows = helpers.parseExportCsv({ buffer: trackersCsv! });
+      const seeded = rows.find((r) => r.Name === 'Open-ended tracker');
       expect(seeded).toBeDefined();
       expect(seeded?.LimitAmount).toBe('');
     });
@@ -1519,6 +1519,85 @@ describe('Data export (POST /user/data-export)', () => {
 
       expect(data.budget_lines.map((row) => [row.plan, row.line])).toEqual([['Live plan', 'Live line']]);
       expect(data.budget_periods.map((row) => [row.plan, row.line])).toEqual([['Live plan', 'Live line']]);
+    });
+  });
+
+  describe('Goals', () => {
+    it('exports goals with decimal amounts, named account shares and fixed amounts', async () => {
+      const savings = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Goal savings' }),
+        raw: true,
+      });
+      const cash = await helpers.createAccount({
+        payload: helpers.buildAccountPayload({ name: 'Goal cash' }),
+        raw: true,
+      });
+      await helpers.createGoal({
+        payload: {
+          name: 'Trip',
+          targetAmount: 2500.5,
+          targetDate: '2030-06-01',
+          plannedMonthly: 150,
+          accounts: [
+            { accountId: savings.id, sharePercent: 60 },
+            { accountId: cash.id, fixedAmount: 500 },
+          ],
+        },
+        raw: true,
+      });
+      const car = await helpers.createGoal({
+        payload: { name: 'Car', targetAmount: 10000, accounts: [{ accountId: savings.id, sharePercent: 40 }] },
+        raw: true,
+      });
+      await helpers.updateGoal({ goalId: car.id, payload: { status: 'paused' }, raw: true });
+
+      const response = await helpers.exportData({ format: 'json', groups: ['budgets'] });
+      expect(response.statusCode).toBe(200);
+      const data = helpers.parseExportArchive({ buffer: response.body }).json as {
+        goals: Array<Record<string, unknown>>;
+      };
+      const currency = global.BASE_CURRENCY_CODE;
+
+      expect(data.goals).toEqual([
+        {
+          name: 'Trip',
+          status: 'active',
+          targetAmount: 2500.5,
+          currency,
+          targetDate: '2030-06-01',
+          plannedMonthly: 150,
+          accounts: [`Goal cash: 500 ${currency} fixed`, 'Goal savings: 60%'],
+          achievedAt: '',
+          achievedAmount: null,
+        },
+        {
+          name: 'Car',
+          status: 'paused',
+          targetAmount: 10000,
+          currency,
+          targetDate: '',
+          plannedMonthly: null,
+          accounts: ['Goal savings: 40%'],
+          achievedAt: '',
+          achievedAmount: null,
+        },
+      ]);
+
+      const csv = await helpers.exportData({ format: 'csv', groups: ['budgets'] });
+      const rows = helpers.parseExportCsv({
+        buffer: helpers.parseExportArchive({ buffer: csv.body }).files.get('goals.csv')!,
+      });
+      expect(rows.find((row) => row.Name === 'Trip')).toMatchObject({
+        TargetAmount: '2500.5',
+        Accounts: `Goal cash: 500 ${currency} fixed; Goal savings: 60%`,
+      });
+    });
+
+    it('emits an empty goals file for a user without goals', async () => {
+      const response = await helpers.exportData({ format: 'json', groups: ['budgets'] });
+      expect(response.statusCode).toBe(200);
+      const data = helpers.parseExportArchive({ buffer: response.body }).json as { goals: unknown[] };
+      expect(data.goals).toEqual([]);
     });
   });
 

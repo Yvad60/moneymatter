@@ -58,6 +58,7 @@
         "unknownLocation": "Neznáma poloha",
         "lastActive": "Naposledy aktívna: {date}",
         "noSessions": "Nenašli sa žiadne aktívne relácie",
+        "loadError": "Vaše aktívne relácie sa nepodarilo načítať.",
         "revokeAllButton": "Odhlásiť zo všetkých ostatných relácií",
         "deviceTypes": {
           "unknownDevice": "Neznáme zariadenie",
@@ -70,7 +71,6 @@
           "daysAgo": "pred {count} dňom | pred {count} dňami | pred {count} dňami"
         },
         "notifications": {
-          "loadFailed": "Relácie sa nepodarilo načítať",
           "revokeSuccess": "Relácia ukončená",
           "revokeFailed": "Reláciu sa nepodarilo ukončiť",
           "revokeAllSuccess": "Všetky ostatné relácie boli odhlásené",
@@ -120,6 +120,10 @@
           "setFailed": "Heslo sa nepodarilo nastaviť",
           "unexpectedError": "Vyskytla sa neočakávaná chyba",
           "updateFailed": "Heslo sa nepodarilo aktualizovať"
+        },
+        "errors": {
+          "incorrectCurrentPassword": "Súčasné heslo je nesprávne.",
+          "passwordAlreadySet": "Váš účet už má nastavené heslo. Na jeho zmenu použite formulár."
         }
       },
       "dangerZone": "Nebezpečná zóna",
@@ -248,11 +252,27 @@
             "noRecords": "Nebol obnovený žiadny záznam.",
             "doneButton": "Hotovo"
           },
+          "warnings": {
+            "sharesSkipped": "Vynechaný {count} riadok z „{table}“: zdieľané zdroje odkazujú na používateľov, ktorí na tejto inštancii neexistujú. | Vynechané {count} riadky z „{table}“: zdieľané zdroje odkazujú na používateľov, ktorí na tejto inštancii neexistujú. | Vynechaných {count} riadkov z „{table}“: zdieľané zdroje odkazujú na používateľov, ktorí na tejto inštancii neexistujú.",
+            "mccCodeMissing": "Zahodené {count} pravidlo MCC, ktorého kód kategórie obchodníka na tejto inštancii neexistuje. | Zahodené {count} pravidlá MCC, ktorých kódy kategórie obchodníka na tejto inštancii neexistujú. | Zahodených {count} pravidiel MCC, ktorých kódy kategórie obchodníka na tejto inštancii neexistujú.",
+            "currencyMissing": "Vynechaná {count} mena, ktorá na tejto inštancii nie je k dispozícii. | Vynechané {count} meny, ktoré na tejto inštancii nie sú k dispozícii. | Vynechaných {count} mien, ktoré na tejto inštancii nie sú k dispozícii.",
+            "unknownTableIgnored": "Záloha obsahuje neznámu tabuľku „{table}“; bola ignorovaná.",
+            "unknownColumnDropped": "Zahodený neznámy stĺpec v „{table}“: {columns}. | Zahodené neznáme stĺpce v „{table}“: {columns}.",
+            "tableMissingTreatedEmpty": "Záloha neobsahuje súbor pre „{table}“; považuje sa za prázdnu.",
+            "settingsReset": "Uložené nastavenia nezodpovedali aktuálnemu formátu a boli obnovené na predvolené hodnoty.",
+            "fireSettingsReset": "Uložené nastavenia FIRE nezodpovedali aktuálnemu formátu a boli obnovené na predvolené hodnoty.",
+            "noSettings": "Záloha neobsahovala žiadne uložené nastavenia; boli použité predvolené hodnoty.",
+            "foreignReferenceDropped": "Zahodený {count} riadok z „{table}“, ktorého „{column}“ odkazoval na dáta mimo tejto zálohy. | Zahodené {count} riadky z „{table}“, ktorých „{column}“ odkazoval na dáta mimo tejto zálohy. | Zahodených {count} riadkov z „{table}“, ktorých „{column}“ odkazoval na dáta mimo tejto zálohy.",
+            "invalidRowDropped": "Zahodený {count} riadok z „{table}“, ktorý neprešiel validáciou. | Zahodené {count} riadky z „{table}“, ktoré neprešli validáciou. | Zahodených {count} riadkov z „{table}“, ktoré neprešli validáciou.",
+            "foreignReferenceNulled": "Vymazané „{column}“ v {count} riadku v „{table}“, ktorý odkazoval na dáta mimo tejto zálohy. | Vymazané „{column}“ v {count} riadkoch v „{table}“, ktoré odkazovali na dáta mimo tejto zálohy. | Vymazané „{column}“ v {count} riadkoch v „{table}“, ktoré odkazovali na dáta mimo tejto zálohy.",
+            "unknown": "Niektoré dáta v zálohe boli počas obnovy vynechané alebo upravené."
+          },
           "failed": {
             "title": "Obnova zlyhala",
             "genericError": "Pri obnove vašej zálohy sa niečo pokazilo.",
             "unconfirmed": "Stav obnovy sa nepodarilo overiť. Načítajte stránku znova a skontrolujte svoje údaje.",
-            "closeButton": "Zavrieť"
+            "closeButton": "Zavrieť",
+            "technicalDetails": "Technické podrobnosti"
           },
           "overlay": {
             "title": "Obnovujú sa vaše údaje",

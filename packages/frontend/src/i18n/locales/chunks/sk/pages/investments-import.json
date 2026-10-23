@@ -75,6 +75,38 @@
       "estimateFailed": "Cenu importu sa nepodarilo odhadnúť",
       "csvParseFailed": "Súbor CSV sa nepodarilo spracovať. Skontrolujte formát súboru a skúste to znova."
     },
+    "errors": {
+      "csv": {
+        "empty": "CSV súbor CSV je prázdny.",
+        "noHeaders": "CSV súbor nemá riadok s hlavičkou.",
+        "forbiddenHeader": "Hlavička CSV používa vyhradený názov (napr. __proto__).",
+        "tooManyRows": "CSV prekračuje limit {max} riadkov.",
+        "parseError": "Súbor CSV sa nepodarilo analyzovať. Skontrolujte, že je to platný súbor CSV."
+      }
+    },
+    "warnings": {
+      "csvRowMissingSymbol": "Riadok {row}: chýba symbol",
+      "csvRowInvalidDate": "Riadok {row}: nerozpoznateľný dátum „{value}“",
+      "csvRowUnmappedSide": "Riadok {row}: nenamapovaná hodnota typu „{value}“",
+      "csvRowInvalidQuantity": "Riadok {row}: neplatné množstvo „{value}“",
+      "csvRowInvalidPrice": "Riadok {row}: neplatná cena „{value}“",
+      "csvRowInvalidFees": "Riadok {row}: neplatné poplatky „{value}“",
+      "aiRowsDropped": "AI vrátila {count} riadok, ktorý sa nepodarilo analyzovať (nesprávny dátum, typ alebo čísla), preto bol vynechaný. | AI vrátila {count} riadky, ktoré sa nepodarilo analyzovať (nesprávny dátum, typ alebo čísla), preto boli vynechané. | AI vrátila {count} riadkov, ktoré sa nepodarilo analyzovať (nesprávny dátum, typ alebo čísla), preto boli vynechané.",
+      "csvRowsInvalid": "{count} z {total} riadkov CSV bol vynechaný: | {count} z {total} riadkov CSV boli vynechané: | {count} z {total} riadkov CSV bolo vynechaných:",
+      "csvRowsSkipped": "{count} riadok bol vynechaný, pretože jeho hodnota typu je namapovaná na „Vynechať“. | {count} riadky boli vynechané, pretože ich hodnota typu je namapovaná na „Vynechať“. | {count} riadkov bolo vynechaných, pretože ich hodnota typu je namapovaná na „Vynechať“.",
+      "unsupportedQuoteCurrency": "{symbol}: {count} riadok má nepodporovanú menu obchodu. | {symbol}: {count} riadky majú nepodporovanú menu obchodu. | {symbol}: {count} riadkov má nepodporovanú menu obchodu.",
+      "duplicateCheckFailed": "Kontrolu možných duplikátov sa nepodarilo vykonať. Svoje existujúce transakcie skontrolujte manuálne.",
+      "providerLookupFailed": "Symbol „{symbol}“ sa nepodarilo vyhľadať u poskytovateľa trhových dát. Skúste to znova neskôr.",
+      "noResolvedSecurity": "Vynechané „{symbol}“: nebol vybraný žiadny cenný papier.",
+      "noCurrency": "Vynechané „{symbol}“: nebola vybraná žiadna mena.",
+      "portfolioNotFound": "Vynechané „{symbol}“: cieľové portfólio sa nenašlo.",
+      "holdingSetupFailed": "Vynechané „{symbol}“: jeho pozíciu sa nepodarilo vytvoriť.",
+      "holdingSetupFailedWithReason": "Vynechané „{symbol}“: {reason}",
+      "unsupportedCategory": "Vynechaná transakcia „{symbol}“ {side} z {date}: táto kategória ešte nie je podporovaná.",
+      "transactionFailed": "Import transakcie „{symbol}“ {side} z {date} sa nepodaril.",
+      "transactionFailedWithReason": "Import transakcie „{symbol}“ {side} z {date} sa nepodaril: {reason}",
+      "unknown": "Niektoré riadky sa možno neimportovali tak, ako sa očakávalo."
+    },
     "columnMapping": {
       "rowsAndDelimiter": "{rows} riadkov · oddeľovač „{delimiter}\"",
       "backToUpload": "Späť",

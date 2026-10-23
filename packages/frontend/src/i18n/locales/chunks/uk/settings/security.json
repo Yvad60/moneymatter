@@ -58,6 +58,7 @@
         "unknownLocation": "Невідоме місцезнаходження",
         "lastActive": "Остання активність: {date}",
         "noSessions": "Активних сесій не знайдено",
+        "loadError": "Не вдалося завантажити активні сесії.",
         "revokeAllButton": "Вийти з усіх інших сесій",
         "deviceTypes": {
           "unknownDevice": "Невідомий пристрій",
@@ -70,7 +71,6 @@
           "daysAgo": "{count} день тому | {count} дні тому | {count} днів тому"
         },
         "notifications": {
-          "loadFailed": "Не вдалося завантажити сесії",
           "revokeSuccess": "Сесію відкликано",
           "revokeFailed": "Не вдалося відкликати сесію",
           "revokeAllSuccess": "З усіх інших сесій виконано вихід",

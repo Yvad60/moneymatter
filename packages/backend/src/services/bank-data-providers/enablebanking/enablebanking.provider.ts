@@ -25,6 +25,7 @@ import {
 } from '@models/transactions-query';
 import Transactions from '@models/transactions.model';
 import { getUserDefaultCategory } from '@models/users.model';
+import { FRONTEND_BASE_URL } from '@root/config';
 import {
   BaseBankDataProvider,
   DateRange,
@@ -95,7 +96,7 @@ import {
 
 type ReconcileSkipReason = EditMergeSkipReason | 'dependent_rows' | 'categorization_conflict';
 
-const getRedirectUrl = () => process.env.ENABLE_BANKING_REDIRECT_URL || 'http://localhost:8100/bank-callback';
+const getRedirectUrl = () => process.env.ENABLE_BANKING_REDIRECT_URL || `${FRONTEND_BASE_URL}/bank-callback`;
 
 /**
  * Enable Banking provider implementation
@@ -2144,7 +2145,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
   /**
    * Conservative gate for reconcile pass (b). Names what would be silently lost
    * by destroying the orphan – dependent rows (transferId, refundLinked, splits,
-   * tags, refunds, budgets, subscriptions, group membership) or a user-mutable
+   * tags, refunds, trackers, subscriptions, group membership) or a user-mutable
    * scalar that diverges from the canonical. Returns null when the orphan is safe
    * to delete.
    *
@@ -2185,7 +2186,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
     const TransactionTags = (await import('@models/transaction-tags.model')).default;
     const TransactionSplits = (await import('@models/transaction-splits.model')).default;
     const RefundTransactions = (await import('@models/refund-transactions.model')).default;
-    const BudgetTransactions = (await import('@models/budget-transactions.model')).default;
+    const TrackerTransactions = (await import('@models/tracker-transactions.model')).default;
     const SubscriptionTransactions = (await import('@models/subscription-transactions.model')).default;
     const TransactionGroupItems = (await import('@models/transaction-group-items.model')).default;
 
@@ -2195,7 +2196,7 @@ export class EnableBankingProvider extends BaseBankDataProvider {
       TransactionSplits.count({ where: { transactionId } }),
       RefundTransactions.count({ where: { originalTxId: transactionId } }),
       RefundTransactions.count({ where: { refundTxId: transactionId } }),
-      BudgetTransactions.count({ where: { transactionId } }),
+      TrackerTransactions.count({ where: { transactionId } }),
       SubscriptionTransactions.count({ where: { transactionId } }),
       TransactionGroupItems.count({ where: { transactionId } }),
     ]);

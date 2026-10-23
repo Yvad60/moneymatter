@@ -27,6 +27,7 @@
       "submitButton": "Pridať sledovač"
     },
     "list": {
+      "loadError": "Sledovače sa nepodarilo načítať.",
       "tabCategory": "Sledovače podľa kategórií",
       "tabManual": "Manuálne sledovače",
       "edit": "Upraviť",
@@ -68,6 +69,55 @@
       "emptyState": {
         "title": "Zatiaľ žiadne sledovače",
         "description": "Vytvorte sledovač a začnite sledovať svoje výdavky alebo konkrétne udalosti."
+      },
+      "searchPlaceholder": "Hľadať sledovače",
+      "filters": {
+        "all": "Všetko",
+        "manual": "Ručne",
+        "category": "Kategória",
+        "archived": "Archivované"
+      },
+      "groups": {
+        "active": "Aktívne teraz",
+        "upcoming": "Nadchádzajúce",
+        "noDates": "Bez dátumov",
+        "ended": "Ukončené",
+        "archived": "Archivované",
+        "show": "zobraziť",
+        "hide": "skryť"
+      },
+      "showMoreEnded": "Zobraziť ešte {count} skončených",
+      "row": {
+        "auto": "automaticky",
+        "transactions": "{count} transakcia | {count} transakcie | {count} transakcií",
+        "moreCategories": "+{count} ďalších",
+        "noLimit": "bez limitu",
+        "archiveSuggestion": "Archivovať?"
+      },
+      "menu": {
+        "moreActions": "Ďalšie akcie",
+        "open": "Otvoriť",
+        "duplicate": "Duplicita"
+      },
+      "duplicateSuccess": "Sledovač duplikovaný",
+      "duplicateError": "Sledovač sa nepodarilo duplikovať",
+      "archiveSuccess": "Sledovač archivovaný",
+      "unarchiveSuccess": "Sledovač odarchivovaný",
+      "noMatch": {
+        "title": "Nič nezodpovedá výrazu „{query}“",
+        "titleNoQuery": "Týmto filtrom nezodpovedajú žiadne sledovače",
+        "description": "Skúste iný názov, alebo zahrňte archivované sledovače.",
+        "includeArchived": "Zahrnúť archivované"
+      },
+      "archivePrompt": {
+        "title": "Archivovať „{name}”?",
+        "endedDaysAgo": "pred {count} dňom | pred {count} dňami | pred {count} dňami",
+        "endedMonthsAgo": "pred {count} mesiacom | pred {count} mesiacmi | pred {count} mesiacmi",
+        "description": "Skončil {ago}. Archivované sledovače sa presunú do skupiny Archivované a zachovajú si svoje transakcie a štatistiky. Archiváciu môžete kedykoľvek zrušiť.",
+        "dontAsk": "Pre tento sledovač sa už nepýtať",
+        "notNow": "Teraz nie",
+        "dismissError": "Sledovač sa nepodarilo aktualizovať",
+        "dismissSuccess": "Dobre. Archivovanie tohto sledovača už nebudeme navrhovať."
       }
     },
     "settings": {
@@ -108,6 +158,193 @@
     },
     "share": {
       "sharedByBadge": "Zdieľané {handle}"
+    },
+    "details": {
+      "statsLoadError": "Súhrny tohto sledovača sa nepodarilo načítať.",
+      "transactionsCount": "{count} transakcia | {count} transakcie | {count} transakcií",
+      "strip": {
+        "limit": "Limit",
+        "spent": "Minuté",
+        "left": "Zostáva",
+        "overBy": "Prečerpané o",
+        "income": "Príjem",
+        "expenses": "Výdavky",
+        "net": "Čistý zostatok",
+        "transactions": "Transakcie",
+        "perDay": "{amount} / deň"
+      },
+      "tabs": {
+        "limits": "Limity"
+      },
+      "tracks": "Záznamy",
+      "membersLabel": "Členovia: {count}",
+      "actions": {
+        "share": "Zdielať",
+        "setLimits": "Nastaviť limity",
+        "removeLimits": "Odstrániť limity",
+        "duplicate": "Duplicita",
+        "openInTransactions": "Otvoriť v Transakciách",
+        "more": "Ďalšie akcie"
+      },
+      "shareDialog": {
+        "title": "Zdieľať „{name}“"
+      },
+      "removeLimitsDialog": {
+        "title": "Odstrániť všetky limity?",
+        "description": "Riadok a jeho limit budú odstránené. Prepojené transakcie zostanú v sledovači. | Všetkých {count} riadkov a ich limity budú odstránené. Prepojené transakcie zostanú v sledovači."
+      },
+      "edit": {
+        "limitHint": "Vymažte ho, ak chcete sledovať bez limitu.",
+        "datesHint": "Zmena dátumov nepridá ani neodstráni už prepojené transakcie.",
+        "categoriesHint": "Odstránenie kategórie ju odstráni aj z každého riadku, v ktorom sa nachádza."
+      }
+    },
+    "lines": {
+      "addLine": "Pridať riadok",
+      "empty": {
+        "title": "Rozdeľte výdavky do riadkov",
+        "titleWithLimit": "Rozdeľte {amount} do riadkov",
+        "description": "Riadok je skupina kategórií s vlastným limitom. Výdavky, ktoré nezapadajú do žiadneho riadku, sa zobrazia ako „Ostatné“."
+      },
+      "columns": {
+        "line": "Riadok",
+        "limit": "Limit",
+        "spent": "Minuté",
+        "left": "Zostáva"
+      },
+      "usage": "{percent} % · {spent} z {limit}",
+      "overUsage": "Prečerpané o {amount} · {spent} z {limit}",
+      "spentOnly": "Vyčerpané {amount}",
+      "categoriesCount": "{count} kategória | {count} kategórie | {count} kategórií",
+      "ofLimit": "z {limit}",
+      "editLimitAria": "Upraviť limit pre {name}",
+      "noLimitPlaceholder": "Bez limitu",
+      "other": {
+        "title": "Ostatné výdavky",
+        "hint": "nie je v žiadnom riadku"
+      },
+      "total": {
+        "title": "Spolu · {count} riadok | Spolu · {count} riadky | Spolu · {count} riadkov",
+        "limitOfOverall": "{sum} z {limit}"
+      },
+      "menu": {
+        "ariaLabel": "Akcie riadku",
+        "edit": "Upraviť riadok",
+        "delete": "Zmazať riadok"
+      },
+      "delete": {
+        "title": "Zmazať riadok?",
+        "description": "„{name}“ bude odstránený a jeho výdavky sa zobrazia pod Ostatné. Transakcie nie sú ovplyvnené."
+      },
+      "dialog": {
+        "addTitle": "Pridať riadok",
+        "editTitle": "Upraviť riadok",
+        "nameLabel": "Názov",
+        "namePlaceholder": "napr. Hotely",
+        "nameRequired": "Zadajte názov",
+        "categoriesLabel": "Kategórie",
+        "categoriesPlaceholder": "Vyberte kategórie",
+        "categoriesRequired": "Vyberte aspoň jednu kategóriu",
+        "categoryTrackerHint": "Tento sledovač počíta iba svoje vlastné kategórie, vyberte teda z nich.",
+        "limitLabel": "Limit (nepovinné)",
+        "limitPlaceholder": "Bez limitu",
+        "limitHint": "Nechajte prázdne, ak chcete zoskupiť výdavky bez limitu."
+      },
+      "notifications": {
+        "limitsRemoved": "Limity odstránené",
+        "created": "Riadok pridaný",
+        "updated": "Riadok aktualizovaný",
+        "deleted": "Riadok zmazaný",
+        "createError": "Riadok sa nepodarilo pridať",
+        "updateError": "Riadok sa nepodarilo aktualizovať",
+        "deleteError": "Riadok sa nepodarilo odstrániť"
+      }
+    },
+    "smartTracking": {
+      "fields": {
+        "heading": "Inteligentné sledovanie",
+        "switchLabel": "Nájdi mi zodpovedajúce transakcie",
+        "switchHint": "Každú noc skontroluje nové a upravené transakcie. Isté zhody sa pridajú automaticky, ostatné počkajú na vašu kontrolu.",
+        "needsStartDate": "Najprv nastavte dátum začiatku, AI sleduje od neho.",
+        "noAi": "Ak to chcete použiť, nastavte AI model v {link}.",
+        "noAiLink": "Nastavenia → AI",
+        "allowanceUsed": "Limit AI bol vyčerpaný. {link}, aby ste v tom pokračovali.",
+        "running": "Porovnávanie prebieha. Zmeny budete môcť vykonať po jeho dokončení.",
+        "descriptionLabel": "Čo patrí do tohto sledovača?",
+        "descriptionPlaceholder": "napr. Dva týždne v Grécku: lety, trajekty, prenájom auta, hotely na ostrovoch",
+        "descriptionRequired": "Popíšte, čo tu patrí, aby AI vedela, čo má hľadať.",
+        "preWindowLabel": "Hľadať aj pred dátumom začiatku",
+        "preWindowPlaceholder": "Vyberte, ako ďaleko dozadu hľadať",
+        "preWindowHint": "Zachytí lety a hotely rezervované vopred.",
+        "preWindowOptions": {
+          "none": "Nehľadať skôr",
+          "twoWeeks": "2 týždne",
+          "oneMonth": "1 mesiac",
+          "twoMonths": "2 mesiace",
+          "threeMonths": "3 mesiace",
+          "sixMonths": "6 mesiacov"
+        },
+        "usesIncluded": "Používa zahrnutú AI. Započítava sa do vášho mesačného limitu AI.",
+        "usesOwnModel": "Používa váš vlastný model · {model}"
+      },
+      "pausedUntil": "Pozastavené do {date}",
+      "connectOwnModel": "Pripojiť vlastný model",
+      "plan": {
+        "locked": "Inteligentné sledovanie je súčasťou Plus. Upgradujte, alebo pripojte vlastný AI kľúč, ak v ňom chcete pokračovať.",
+        "connectOwnKey": "Pripojiť vlastný kľúč",
+        "upgrade": "Navýšiť",
+        "startTrial": "Spustiť skúšobnú verziu zdarma",
+        "trialDaysLeft": "Bezplatná skúška: zostáva {n} deň | Bezplatná skúška: zostávajú {n} dni | Bezplatná skúška: zostáva {n} dní",
+        "trialHint": "Zahŕňa {days}-dňovú bezplatnú skúšku. Začína sa zapnutím inteligentného sledovania."
+      },
+      "turnedOn": "Inteligentné sledovanie je zapnuté. Prvé výsledky o minútu či dve.",
+      "undo": "Vrátiť späť",
+      "unlinked": "Odpojené. AI ju už znova nepridá. | Odpojené {count} transakcie. AI ich už znova nepridá. | Odpojených {count} transakcií. AI ich už znova nepridá.",
+      "relinkError": "Transakcie sa nepodarilo pridať späť. Skúste to znova.",
+      "strip": {
+        "tip": "Nechajte AI nájsť transakcie pre tento sledovač",
+        "turnOn": "Zapnúť",
+        "hide": "Skryť",
+        "scanning": "Hľadajú sa zodpovedajúce transakcie…",
+        "startedAt": "Spustené {time}",
+        "toReview": "{count} na kontrolu",
+        "checkedAt": "kontrolované {when}",
+        "review": "Kontrola",
+        "idle": "Inteligentné sledovanie je zapnuté · nič nové na kontrolu",
+        "settings": "Nastavenia",
+        "paused": "Pozastavené",
+        "allowanceUsed": "Limit AI bol vyčerpaný",
+        "unavailable": "Pripojenie k AI prestalo fungovať",
+        "fixInSettings": "Opraviť v Nastaveniach",
+        "ended": "Inteligentné sledovanie zastavené · sledovač skončil pred viac než 14 dňami",
+        "noStartDate": "Na použitie inteligentného sledovania nastavte dátum začiatku"
+      },
+      "hideTip": {
+        "title": "Skryť tento tip?",
+        "description": "Inteligentné sledovanie môžete zapnúť aj neskôr v nastaveniach sledovača.",
+        "neverShow": "Už nezobrazovať",
+        "neverShowHint": "Skryje ho na všetkých sledovačoch, nielen na tomto.",
+        "confirm": "Skryť"
+      },
+      "review": {
+        "sectionTitle": "Na kontrolu ({count})",
+        "confidence": {
+          "likely": "Pravdepodobné",
+          "possible": "Možné"
+        },
+        "add": "Pridať",
+        "skip": "Preskočiť",
+        "addAria": "Pridať {name} do {tracker}",
+        "skipAria": "Vynechať {name}",
+        "addAll": "Pridať všetky {count}",
+        "addAllShort": "Pridať všetky",
+        "skipAll": "Preskočiť všetko",
+        "added": "Pridaná {count} transakcia do {name} | Pridané {count} transakcie do {name} | Pridaných {count} transakcií do {name}",
+        "skipped": "Vynechané. AI ju už znova nenavrhne. | Vynechané {count} transakcie. AI ich už znova nenavrhne. | Vynechaných {count} transakcií. AI ich už znova nenavrhne.",
+        "acceptError": "Navrhované transakcie sa nepodarilo pridať. Skúste to znova.",
+        "rejectError": "Navrhované transakcie sa nepodarilo vynechať. Skúste to znova.",
+        "restoreError": "Vynechanie sa nepodarilo vrátiť späť. Skúste to znova."
+      }
     }
   }
 }

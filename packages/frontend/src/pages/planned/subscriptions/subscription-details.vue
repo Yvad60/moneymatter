@@ -57,6 +57,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import BrandLogo from '@/components/common/brand-logo.vue';
+import { toEntityLogoDisplayProps } from '@/components/common/logo-selection';
 
 import { AUTOMATION_MODES, type AutomationMode, deriveAutomationMode } from './automation-editor-state';
 import EditAutomationDialog from './components/edit-automation-dialog.vue';
@@ -66,7 +67,7 @@ import EditScheduleDialog from './components/edit-schedule-dialog.vue';
 import LinkedTransactionsSection from './components/linked-transactions-section.vue';
 import SubscriptionMarkPaidDialog from './components/subscription-mark-paid-dialog.vue';
 import SubscriptionTypeBadge from './components/subscription-type-badge.vue';
-import { daysUntilDue } from './subscription-due-status';
+import { daysUntilDue, hasUpcomingDue } from './subscription-due-status';
 import { formatFrequency, getTransactionTypePrefix, getTransactionTypeStyles } from './utils';
 
 const ManageTransactionDialogContent = defineAsyncComponent(
@@ -303,6 +304,13 @@ const currentPeriod = computed(() => {
   );
 });
 
+/** A paused or already-ended subscription has no upcoming payment to show or act on. */
+const upcomingPeriod = computed(() => {
+  const period = currentPeriod.value;
+  if (!period || !subscription.value) return null;
+  return hasUpcomingDue({ subscription: subscription.value, dueDate: period.dueDate }) ? period : null;
+});
+
 function getDaysUntilDue({ dueDate }: { dueDate: string }): number | null {
   return daysUntilDue({ dueDate, now: now.value });
 }
@@ -496,13 +504,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div>
         <div class="flex items-center gap-3">
-          <BrandLogo
-            :domain="subscription.logoDomain"
-            :initials="subscription.logoInitials"
-            :color="subscription.logoColor"
-            :name="subscription.name"
-            class="size-10"
-          />
+          <BrandLogo v-bind="toEntityLogoDisplayProps(subscription)" :name="subscription.name" class="size-10" />
           <h1 class="text-2xl font-semibold tracking-tight">{{ subscription.name }}</h1>
           <SubscriptionTypeBadge :type="subscription.type" size="md" />
           <span
@@ -737,9 +739,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
               <dd class="flex items-center gap-1.5 text-right font-medium">
                 <template v-if="resolvedPayee">
                   <BrandLogo
-                    :domain="resolvedPayee.logoDomain"
-                    :initials="resolvedPayee.logoInitials"
-                    :color="resolvedPayee.logoColor"
+                    v-bind="toEntityLogoDisplayProps(resolvedPayee)"
                     :name="resolvedPayee.name"
                     class="size-5 shrink-0"
                   />
@@ -822,14 +822,14 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
     </div>
 
     <!-- Next Due (scheduled subscriptions only) -->
-    <div v-if="isScheduled && currentPeriod" class="bg-card mb-6 rounded-lg border p-4">
+    <div v-if="isScheduled && upcomingPeriod" class="bg-card mb-6 rounded-lg border p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p class="text-muted-foreground text-xs font-medium uppercase">
             {{ $t('planned.subscriptions.periods.nextDue') }}
           </p>
           <p class="mt-0.5 text-sm font-medium">
-            {{ format(parseISO(currentPeriod.dueDate), 'MMM d, yyyy') }}
+            {{ format(parseISO(upcomingPeriod.dueDate), 'MMM d, yyyy') }}
           </p>
           <p
             :class="[
@@ -842,10 +842,10 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
             <template v-if="currentPeriodStatus === SUBSCRIPTION_PERIOD_STATUSES.overdue">
               {{ $t('planned.subscriptions.periods.overdueBadge') }}
             </template>
-            <template v-else-if="getDaysUntilDue({ dueDate: currentPeriod.dueDate }) !== null">
+            <template v-else-if="getDaysUntilDue({ dueDate: upcomingPeriod.dueDate }) !== null">
               {{
                 $t('planned.subscriptions.periods.inDays', {
-                  count: getDaysUntilDue({ dueDate: currentPeriod.dueDate })!,
+                  count: getDaysUntilDue({ dueDate: upcomingPeriod.dueDate })!,
                 })
               }}
             </template>
@@ -857,7 +857,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
               variant="ghost"
               size="sm"
               :disabled="isPeriodActionPending"
-              @click="skipMutation({ id: subscription.id, periodId: currentPeriod.id })"
+              @click="skipMutation({ id: subscription.id, periodId: upcomingPeriod.id })"
             >
               <SkipForwardIcon class="size-4" />
               {{ $t('planned.subscriptions.periods.actions.skip') }}
@@ -867,7 +867,7 @@ async function openTransaction({ transactionId }: { transactionId: string }) {
             variant="soft-success"
             size="sm"
             :disabled="isPeriodActionPending"
-            @click="payPeriod({ periodId: currentPeriod.id })"
+            @click="payPeriod({ periodId: upcomingPeriod.id })"
           >
             <CheckIcon class="size-4" />
             {{ $t('planned.subscriptions.periods.actions.markPaid') }}

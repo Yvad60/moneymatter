@@ -45,6 +45,11 @@ export enum API_ERROR_CODES {
 
   // loans-related
   loanPaymentOverpayConfirmationRequired = 'LOAN_PAYMENT_OVERPAY_CONFIRMATION_REQUIRED',
+
+  // goals-related
+  goalShareCapacityExceeded = 'GOAL_SHARE_CAPACITY_EXCEEDED',
+  goalCurrencyRateUnavailable = 'GOAL_CURRENCY_RATE_UNAVAILABLE',
+  goalFixedAmountsBelowTarget = 'GOAL_FIXED_AMOUNTS_BELOW_TARGET',
 }
 
 export enum SORT_DIRECTIONS {

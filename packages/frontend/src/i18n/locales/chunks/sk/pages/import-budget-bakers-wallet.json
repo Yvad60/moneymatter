@@ -73,6 +73,11 @@
           "duplicatesSkipped": "Preskočené duplicity",
           "errorsTitle": "Zlyhal {count} riadok | Zlyhali {count} riadky | Zlyhalo {count} riadkov",
           "errorsOverflow": "+{count} ďalších",
+          "errors": {
+            "rowImportFailed": "Tento riadok sa nepodarilo importovať.",
+            "payeeDefaultTagsFailed": "Transakcia bola importovaná, ale predvolené značky príjemcu sa nepodarilo použiť.",
+            "accountBalanceDesync": "Zostatok jedného z účtov sa po importe nepodarilo aktualizovať a nemusí byť správny."
+          },
           "balanceWarningTitle": "Niektoré zostatky účtov môžu byť nesprávne",
           "balanceWarningBody": "Po importe sa nepodarilo obnoviť zostatok na jednom alebo viacerých existujúcich účtoch. Skontrolujte dotknuté účty.",
           "viewTransactions": "Zobraziť transakcie",
@@ -127,6 +132,9 @@
           "back": "Späť",
           "importButton": "Importovať {count} transakcií",
           "importing": "Importovanie..."
+        },
+        "errors": {
+          "fileMissing": "Nie je načítaný žiadny súbor. Nahrajte svoj export z Wallet znova, prosím."
         }
       }
     }

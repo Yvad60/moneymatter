@@ -29,6 +29,7 @@
     "groupNotFound": "Skupina sa nenašla",
     "groupUpdateFailed": "Aktualizácia skupiny nebola úspešná",
     "parentGroupNotExist": "Nadradená skupina s týmto ID neexistuje.",
+    "parentGroupCycle": "A group can't be placed inside itself or one of its own subgroups.",
     "parentGroupDoesNotExist": "Nadradená skupina neexistuje.",
     "accountNotFound": "Účet s týmto ID sa nenašiel.",
     "accountGroupNotFound": "Skupina účtov s týmto ID sa nenašla."
@@ -129,11 +130,24 @@
   },
   "budgets": {
     "budgetNotFound": "Sledovač sa nenašiel",
+    "lineNotFound": "Riadok sledovača sa nenašiel",
+    "onlyOwnerCanDuplicate": "Tento sledovač môže duplikovať len jeho vlastník",
     "someTransactionIdsInvalid": "Niektoré ID transakcií sú neplatné",
     "transactionsAddedSuccessfully": "Transakcie boli úspešne pridané",
     "cannotManuallyLinkToCategoryBudget": "Transakcie nemožno ručne prepojiť so sledovačmi podľa kategórií. Transakcie sa sledujú automaticky podľa kategórie.",
     "someCategoryIdsInvalid": "Niektoré ID kategórií sú neplatné, alebo neexistujú",
-    "notCategoryBudget": "Toto rozhranie je dostupné len pre sledovače podľa kategórií"
+    "notCategoryBudget": "Toto rozhranie je dostupné len pre sledovače podľa kategórií",
+    "lineCategoryOutsideTracker": "Riadok sledovača môže používať len kategórie, ktoré sleduje jeho sledovač",
+    "startDateAfterEndDate": "Dátum začiatku musí byť pred dátumom konca alebo sa s ním zhodovať",
+    "smartTracking": {
+      "ownerOnly": "Inteligentné sledovanie môže zmeniť len vlastník sledovača.",
+      "manualOnly": "Inteligentné sledovanie funguje len pri manuálnych sledovačoch.",
+      "descriptionRequired": "Ak chcete zapnúť inteligentné sledovanie, opíšte, na čo tento sledovač slúži.",
+      "startDateRequired": "Ak chcete zapnúť inteligentné sledovanie, nastavte dátum začiatku.",
+      "scanRunning": "Pre tento sledovač prebieha priraďovanie. Skúste to znova, keď sa dokončí.",
+      "suggestionNotFound": "Návrh sa nenašiel.",
+      "suggestionAlreadyResolved": "Tento návrh je už {{status}}."
+    }
   },
   "budgetPlans": {
     "planNotFound": "Plán rozpočtu sa nenašiel.",
@@ -212,6 +226,7 @@
     "holdingNotFoundForRecalculation": "Pozícia na prepočet sa nenašla.",
     "securityAlreadyInPortfolio": "Tento cenný papier už je v portfóliu.",
     "securityNotFound": "Cenný papier sa nenašiel.",
+    "securitySearchResultNotRecognized": "Výsledok vyhľadávania cenného papiera nie je rozpoznaný, alebo vypršal. Vyhľadajte cenný papier znova.",
     "currencyForSecurityNotFound": "Mena pre cenný papier sa nenašla.",
     "currencyNotFound": "Mena sa nenašla",
     "transactionNotFound": "Investičná transakcia sa nenašla",
@@ -228,7 +243,13 @@
     "transactionAlreadyLinkedToPortfolio": "Transakcia je už prepojená s prevodom do portfólia.",
     "transactionAlreadyLinkedToVenture": "Transakcia je už prepojená s obchodom v rizikovom kapitáli",
     "portfolioTransferNotFound": "Prevod do portfólia sa nenašiel",
-    "exchangeCurrenciesMustDiffer": "Meny pri výmene musia byť rôzne"
+    "exchangeCurrenciesMustDiffer": "Meny pri výmene musia byť rôzne",
+    "importNoTransactionsFound": "V súbore sa nenašli žiadne transakcie.",
+    "import": {
+      "tokenLimitExceededSuggestion": "Rozdeľte nahrávaný súbor na menšie časti, alebo použite model s väčším kontextovým oknom.",
+      "extractFailed": "Investičné transakcie z tohto súboru sa nepodarilo vyťažiť. Skúste to znova, prosím.",
+      "csvColumnNotFound": "Stĺpec „{{column}}” sa v hlavičkách CSV nenašiel."
+    }
   },
   "landingFaq": {
     "unavailable": "Asistent je momentálne nedostupný. Skúste to znova neskôr, alebo napíšte na support@moneymatter.app."
@@ -253,7 +274,8 @@
     "accountIdNotFound": "Účet {{accountId}} sa nenašiel",
     "providerTypeMismatch": "Pripojenie {{connectionId}} je pre poskytovateľa {{actualType}}, nie {{expectedType}}",
     "providerAlreadyRegistered": "Poskytovateľ {{providerType}} je už zaregistrovaný. Duplicitných poskytovateľov nemožno registrovať.",
-    "providerNotRegistered": "Poskytovateľ {{providerType}} nie je zaregistrovaný. Dostupní poskytovatelia: {{available}}"
+    "providerNotRegistered": "Poskytovateľ {{providerType}} nie je zaregistrovaný. Dostupní poskytovatelia: {{available}}",
+    "unexpected": "Neočakávaná chyba."
   },
   "validation": {
     "dateInvalid": "„date\" je neplatný dátum."
@@ -319,6 +341,7 @@
       "sessionExpiredReconnect": "Platnosť bankovej relácie vypršala. Ak chcete pokračovať v synchronizácii, pripojte svoj bankový účet znova, prosím.",
       "apiBadRequestError": "Chyba API Enable Banking: {{message}}",
       "apiGeneralError": "Chyba API Enable Banking: {{message}}",
+      "rateLimitExceeded": "Dosiahnutý limit požiadaviek banky. Niektoré banky povoľujú len niekoľko požiadaviek na údaje za deň a limit obnovujú o polnoci. Skúste to znova neskôr, prosím.",
       "redirectUriNotAllowed": "Vašej aplikácii Enable Banking chýba požadovaná presmerovacia URL adresa. Prihláste sa do portálu Enable Banking, upravte svoju aplikáciu a pridajte túto adresu medzi povolené presmerovacie URL adresy: {{redirectUrl}}"
     },
     "lunchflow": {
@@ -359,7 +382,62 @@
     "dateColumnNotFound": "Stĺpec dátumu „{{columnName}}\" sa v CSV nenašiel",
     "amountColumnNotFound": "Stĺpec sumy „{{columnName}}\" sa v CSV nenašiel",
     "invalidDefaultCurrency": "Neplatný kód predvolenej meny: „{{defaultCurrency}}\"",
-    "payeeColumnNotFound": "Stĺpec protistrany „{{column}}\" sa v hlavičkách CSV nenašiel"
+    "payeeColumnNotFound": "Stĺpec protistrany „{{column}}\" sa v hlavičkách CSV nenašiel",
+    "currencyColumnNotFound": "Stĺpec meny „{{columnName}}” sa v CSV nenašiel",
+    "invalidCurrencyRow": "Riadok {{row}}: neplatná mena „{{currency}}”",
+    "andMoreRows": "…a {{count}} ďalších",
+    "invalidCurrencyCodes": "Nájdené neplatné kódy mien:\n{{rows}}",
+    "unknownCurrencyCodes": "Neznáme kódy mien v CSV: {{codes}}. Tieto meny nie sú systémom podporované.",
+    "currencyMismatchWarning": "Váš CSV súbor obsahuje transakcie v {{currencies}}, no vybraný účet používa {{accountCurrency}}. Všetky transakcie sa importujú v mene {{accountCurrency}}.",
+    "currencyNotSupported": "Mena „{{currency}}” nie je systémom podporovaná.",
+    "accountColumnNotFound": "Stĺpec účtu „{{columnName}}” sa v CSV nenašiel",
+    "categoryColumnNotFound": "Stĺpec kategórie „{{columnName}}” sa v CSV nenašiel",
+    "tagColumnNotFound": "Stĺpec štítku „{{columnName}}” sa v CSV nenašiel",
+    "transactionTypeColumnNotFound": "Stĺpec typu transakcie „{{columnName}}” sa v CSV nenašiel",
+    "accountMultipleCurrencies": "Účet „{{accountName}}” má transakcie vo viacerých menách: {{currencies}}. Systémové účty môžu mať len jednu menu.",
+    "transactionTypeValuesNotCovered": "Stĺpec typu transakcie obsahuje hodnoty, ktoré nepokrývajú zoznamy príjmov/výdavkov: {{uncovered}}. Nájdené hodnoty: {{found}}",
+    "selectedAccountNotFound": "Vybraný účet sa nenašiel, alebo vám nepatrí.",
+    "selectedCategoryNotFound": "Vybraná kategória sa nenašla, alebo vám nepatrí.",
+    "linkedAccountCurrencyMismatch": "Na prepojenie s existujúcim účtom sa musia zhodovať meny: {{mismatches}}. Prepojte účet s rovnakou menou, alebo vytvorte nový."
+  },
+  "ofxImport": {
+    "noFileUploaded": "Nebol nahraný žiadny súbor. Odošlite súbor OFX alebo QFX ako surové telo požiadavky.",
+    "errors": {
+      "emptyFile": "Súbor OFX je prázdny.",
+      "xmlDeclarationIncomplete": "Deklarácia XML súboru OFX je neúplná.",
+      "headerMissing": "Hlavička OFX chýba, alebo je príliš veľká.",
+      "headerFieldMissing": "V hlavičke OFX chýba pole {{field}}.",
+      "invalidVersion": "Verzia OFX je neplatná.",
+      "unsupportedData": "Typ údajov OFX {{data}} nie je podporovaný.",
+      "compressedFile": "Komprimované súbory OFX nie sú podporované.",
+      "prohibitedDeclaration": "Deklarácie DTD a entít v OFX nie sú podporované.",
+      "markupIncomplete": "Značkovanie OFX je neúplné.",
+      "tagsMismatch": "Značky XML v OFX sa nezhodujú.",
+      "unclosedTags": "XML súboru OFX má neuzavreté značky.",
+      "missingRoot": "Koreňový prvok OFX chýba.",
+      "malformedOfx": "Dokument OFX sa nepodarilo spracovať.",
+      "unsupportedEncoding": "Kódovanie OFX {{encoding}}/{{charset}} nie je podporované.",
+      "fileTooLarge": "Súbor OFX je väčší než 10 MB.",
+      "emptyBody": "Súbor OFX nemá telo.",
+      "invalidDate": "Neplatný dátum OFX: {{value}}",
+      "invalidAmount": "Neplatná suma OFX: {{value}}",
+      "textTooLong": "Hodnota poľa OFX {{field}} presahuje {{max}} znakov.",
+      "unsupportedMessageSet": "Súbor neobsahuje žiadne podporované bankové ani kreditné výpisy.",
+      "missingAccount": "Sekcia {{tag}} chýba.",
+      "missingAccountId": "ID zdrojového účtu chýba.",
+      "correctionRecord": "Opravné záznamy OFX nie sú podporované.",
+      "missingAmount": "Suma transakcie OFX chýba.",
+      "missingDate": "Dátum transakcie OFX chýba.",
+      "invalidCurrency": "Mena výpisu chýba, alebo je neplatná.",
+      "rowLimit": "Súbor OFX má viac než {{max}} transakcií.",
+      "conflictingFitid": "Opakované FITID má protichodné údaje transakcie."
+    },
+    "uploadUnavailable": "Tento nahraný súbor OFX už nie je dostupný. Nahrajte súbor znova, prosím.",
+    "importInProgress": "Import tohto súboru už prebieha.",
+    "missingAccountMapping": "Chýba priradenie účtu pre: {{accounts}}",
+    "accountCurrencyMismatch": "Účet {{account}} musí používať {{currency}}.",
+    "linkedAccountNotFound": "Prepojený účet pre {{account}} sa nenašiel.",
+    "crossCurrencyLink": "Účet {{account}} nemožno prepojiť naprieč menami."
   },
   "importExport": {
     "batchDeleteBankLinkedAccount": "Tento import už nemožno vrátiť späť, keďže jeho účet je teraz pripojený k banke. Zmazanie týchto transakcií by mohlo narušiť synchronizovaný zostatok.",
@@ -368,16 +446,104 @@
     "batchDeleteImportStillRunning": "Tento import ešte prebieha. Pred jeho vrátením počkajte, kým sa dokončí.",
     "importIntoBankLinkedAccount": "Účet „{{accountName}}\" je pripojený k banke, preto doň nemožno importovať transakcie. Vyberte iný účet, alebo vytvorte nový.",
     "statementImportInProgress": "Import výpisu už prebieha. Pred spustením ďalšieho počkajte, kým sa dokončí.",
-    "importInterruptedByServerUpdate": "Aktualizácia servera prerušila tento import. Už uložené transakcie zostali zachované. Pred opätovným importom súboru tento import zmažte v sekcii „História importov\", inak sa transakcie zduplikujú."
+    "importInterruptedByServerUpdate": "Aktualizácia servera prerušila tento import. Už uložené transakcie zostali zachované. Pred opätovným importom súboru tento import zmažte v sekcii „História importov\", inak sa transakcie zduplikujú.",
+    "categoryNameTooLong": "Názov kategórie „{{name}}” je príliš dlhý ({{length}} znakov); maximum je {{max}}.",
+    "payeeNameTooLong": "Názov protistrany „{{name}}” je príliš dlhý ({{length}} znakov); maximum je {{max}}.",
+    "categoryIdNotFound": "Kategória s ID {{id}} sa nenašla",
+    "tagIdNotFound": "Štítok s ID {{id}} sa nenašiel",
+    "accountIdNotFound": "Účet s ID {{id}} sa nenašiel",
+    "newAccountCurrencyUnknown": "Menu pre nový účet „{{accountName}}” sa nepodarilo určiť",
+    "accountCreateFailed": "Účet „{{accountName}}” sa nepodarilo vytvoriť.",
+    "accountMappingMissing": "Pre účet „{{accountName}}” sa nenašlo žiadne priradenie",
+    "aiUnparseableResponse": "Odpoveď AI sa nepodarilo spracovať. Výstup nemal očakávaný formát.",
+    "aiTemporarilyUnavailable": "Poskytovateľ AI je dočasne nedostupný. Skúste to znova neskôr, prosím.",
+    "aiRateLimited": "Dosiahnutý limit požiadaviek poskytovateľa AI. Skúste to znova o pár minút, prosím.",
+    "aiExtractionFailed": "Vyťaženie pomocou AI zlyhalo. Skúste to znova, prosím.",
+    "ynab": {
+      "parse": {
+        "fileEmpty": "Súbor YNAB Register.csv je prázdny.",
+        "unparseable": "Súbor YNAB Register.csv sa nepodarilo spracovať ako súbor CSV.",
+        "noTransactions": "Súbor YNAB Register.csv neobsahuje žiadne transakcie.",
+        "tooManyRows": "Súbor YNAB Register.csv má {{rows}} riadkov; podporované maximum je {{max}}.",
+        "missingColumns": "V súbore YNAB Register.csv chýbajú povinné stĺpce: {{columns}}. Formát exportu sa možno zmenil.",
+        "mixedDateOrders": "Stĺpec Date v súbore YNAB Register.csv kombinuje protichodné poradia dňa a mesiaca — niektoré riadky dávajú zmysel len vo formáte DD/MM/YYYY a iné len vo formáte MM/DD/YYYY. Exportujte rozpočet znova s jednotným formátom dátumu.",
+        "noUsableRows": "V súbore YNAB Register.csv sa nenašli žiadne použiteľné riadky (všetky boli preskočené alebo nespracovateľné).",
+        "noUsableRowsWithProblem": "V súbore YNAB Register.csv sa nenašli žiadne použiteľné riadky (všetky boli preskočené alebo nespracovateľné). Prvý problém: {{problem}}"
+      },
+      "warnings": {
+        "ambiguousDateOrder": "Žiadny riadok v stĺpci Date nerozhoduje, či ide o poradie deň-najprv, alebo mesiac-najprv; dátumy boli interpretované ako MM/DD/YYYY. Po importe skontrolujte pár transakcií.",
+        "noAccount": "Riadok nemá Account; preskočený.",
+        "unparseableDate": "Dátum „{{value}}” sa nepodarilo spracovať; riadok preskočený.",
+        "unparseableOutflow": "Outflow „{{value}}” sa nepodarilo spracovať; riadok preskočený.",
+        "unparseableInflow": "Inflow „{{value}}” sa nepodarilo spracovať; riadok preskočený.",
+        "unknownFlag": "Neznáma hodnota príznaku „{{value}}”; ignorovaná.",
+        "transferNoInflow": "Prevod na „{{account}}” nemá zodpovedajúci riadok Inflow; importuje sa ako bežný výdavok.",
+        "transferNoOutflow": "Prevod z „{{account}}” nemá zodpovedajúci riadok Outflow; importuje sa ako bežný príjem.",
+        "currencyUndetected": "Menu pre účet „{{account}}” sa nepodarilo rozpoznať; vyberte ju v náhľade, prosím."
+      }
+    },
+    "budgetBakersWallet": {
+      "parse": {
+        "fileEmpty": "Súbor CSV z Wallet je prázdny.",
+        "unparseable": "Súbor CSV z Wallet sa nepodarilo spracovať ako súbor CSV.",
+        "noTransactions": "Súbor CSV z Wallet neobsahuje žiadne transakcie.",
+        "tooManyRows": "Súbor CSV z Wallet má {{rows}} riadkov; podporované maximum je {{max}}.",
+        "missingColumns": "V súbore CSV z Wallet chýbajú povinné stĺpce: {{columns}}. Formát exportu sa možno zmenil.",
+        "unsupportedLanguage": "Hodnoty typu transakcie (príjem/výdavok) v tomto exporte z Wallet sa nepodarilo rozpoznať. Zatiaľ sú podporované len exporty v angličtine a španielčine. Ďalší jazyk si môžete vyžiadať na stránke plánovaných funkcií: {{url}}",
+        "noUsableRows": "V súbore CSV z Wallet sa nenašli žiadne použiteľné riadky (všetky boli preskočené alebo nespracovateľné)."
+      },
+      "warnings": {
+        "noAccount": "Riadok nemá účet; preskočený.",
+        "unparseableDate": "Dátum „{{value}}” sa nepodarilo spracovať; riadok preskočený.",
+        "unparseableAmount": "Suma „{{value}}” sa nepodarila spracovať; riadok preskočený.",
+        "unparseableRefAmount": "ref_currency_amount „{{value}}” sa nepodarilo spracovať; riadok preskočený.",
+        "unknownType": "Neznámy typ „{{value}}”; riadok preskočený.",
+        "transferNoIncome": "Výdavok z prevodu z „{{account}}” dňa {{date}} nemá zodpovedajúcu príjmovú stranu; importovaný ako prevod mimo peňaženky.",
+        "transferNoExpense": "Príjem z prevodu na „{{account}}” dňa {{date}} nemá zodpovedajúcu výdavkovú stranu; importovaný ako prevod mimo peňaženky."
+      }
+    },
+    "msMoney": {
+      "notMsMoneyFile": "Tento súbor nie je databáza Microsoft Money. Očakával sa súbor .mny uložený programom Microsoft Money.",
+      "incorrectPassword": "Nesprávne heslo pre tento súbor Microsoft Money.",
+      "passwordRequired": "Tento súbor Microsoft Money je chránený heslom. Ak chcete pokračovať, zadajte jeho heslo.",
+      "unreadableFile": "Tento súbor Microsoft Money sa nepodarilo prečítať — môže byť poškodený, alebo uložený nepodporovanou verziou.",
+      "missingTables": "Tomuto súboru Microsoft Money chýbajú tabuľky účtov alebo transakcií — môže byť poškodený, alebo uložený nepodporovanou verziou.",
+      "noFileUploaded": "Nebol nahraný žiadny súbor. Odošlite súbor .mny ako surové telo požiadavky.",
+      "invalidPasswordHeader": "Zadané heslo súboru nie je platné.",
+      "warnings": {
+        "accountTypeUnsupported": "Investičné účty a účty pôžičiek boli preskočené. Investície patria do portfólií a pôžičky používajú vyhradený postup, ktorý neprijíma importované transakcie.",
+        "accountCurrencyDefaulted": "Niektoré účty nemajú v tomto súbore menu, ktorú by bolo možné určiť, preto sa predvolene použila vaša základná mena. Ak to nie je správne, vyberte inú v kroku s účtami.",
+        "accountNameMissing": "Niektoré účty nemajú v tomto súbore názov a importujú sa ako „Účet <number>”. Premenujte ich po importe.",
+        "accountNameDuplicated": "Niekoľko účtov v tomto súbore zdieľa rovnaký názov. Opakovania sú očíslované — „Sporiaci účet (2)” a podobne — aby zostali samostatnými účtami.",
+        "transferCounterpartNotImported": "Niektoré prevody presunuli peniaze na účet, ktorý nie je súčasťou tohto importu. Tieto riadky sa importujú ako prevody zo sledovaných účtov.",
+        "rowLimitReached": "Tento súbor obsahuje viac než {{max}} transakcií. Nadbytočné riadky sa neimportovali.",
+        "rowMissingDate": "Niektoré riadky nemali čitateľný dátum a boli preskočené.",
+        "rowAmountUnreadable": "Niektoré riadky nemali čitateľnú sumu. Namiesto importu s nulovou sumou (čo by vytvorilo transakciu, ktorá nič nepresúva) boli preskočené.",
+        "orphanRowSkipped": "Niektoré transakcie odkazovali na účet, ktorý v súbore už neexistuje, a boli preskočené.",
+        "fileSchemaUnexpected": "Časti tohto súboru nemajú štruktúru, akú Microsoft Money zvyčajne zapisuje, preto sa niektoré údaje nepodarilo prečítať: {{details}}."
+      },
+      "schemaGapTableMissing": "{{table}} (chýba)",
+      "schemaGapColumnsMissing": "{{table}} (chýbajúce stĺpce: {{columns}})"
+    }
   },
   "statementParser": {
-    "imageTooLarge": "This image is over 3.75MB. Upload a smaller or lower-resolution image.",
-    "textExtractionFailed": "Vyťaženie textu zlyhalo. PDF môže byť naskenovaný dokument. Vyťaženie z obrázka zatiaľ nie je implementované.",
+    "imageTooLarge": "Tento obrázok má viac než 3,75 MB. Nahrajte menší obrázok alebo s nižším rozlíšením.",
+    "textExtractionFailed": "Toto PDF neobsahuje čitateľný text, pravdepodobne ide o sken. Namiesto neho nahrajte snímky obrazovky alebo fotografie jeho stránok (JPG, PNG alebo WebP).",
     "failedToExtractText": "Text zo súboru sa nepodarilo vyťažiť.",
     "fileContentRequired": "Obsah súboru je povinný",
     "pdfPasswordRequired": "Toto PDF je chránené heslom. Ak chcete pokračovať, zadajte heslo dokumentu.",
     "pdfPasswordInvalid": "Zadané heslo je nesprávne. Skontrolujte ho a skúste to znova.",
-    "pdfParseFailed": "Toto PDF sa nepodarilo prečítať. Súbor môže byť poškodený, alebo používa nepodporovaný formát."
+    "pdfParseFailed": "Toto PDF sa nepodarilo prečítať. Súbor môže byť poškodený, alebo používa nepodporovaný formát.",
+    "noTransactionsFound": "V súbore sa nenašli žiadne transakcie. Možno nejde o bankový výpis, účtenku ani snímku obrazovky bankovej aplikácie.",
+    "fileTooLarge": "Súbor presahuje maximálnu veľkosť {{maxMb}} MB.",
+    "fileTooSmall": "Súbor je príliš malý na to, aby bol platným výpisom.",
+    "unsupportedFileType": "Nepodporovaný typ súboru. Nahrajte súbor PDF, CSV alebo TXT, prosím.",
+    "unsupportedFileTypeWithImages": "Nepodporovaný typ súboru. Nahrajte súbor PDF, CSV, TXT, JPG, PNG alebo WebP, prosím.",
+    "aiResponseUnparseable": "Odpoveď AI nemala očakávaný formát. Skúste vyťažiť znova, alebo prepnite na iný model.",
+    "allRowsDropped_one": "Model vrátil {{count}} riadok, no nemal čitateľný dátum ani kladnú sumu. Skúste vyťažiť znova, alebo prepnite na iný model.",
+    "allRowsDropped_other": "Model vrátil {{count}} riadkov, no žiadny z nich nemal čitateľný dátum spolu s kladnou sumou. Skúste vyťažiť znova, alebo prepnite na iný model.",
+    "tokenLimitExceeded": "Súbor je pre vybraný model príliš veľký ({{modelName}}). Odhadovaných {{estimatedTokens, number}} tokenov, no limit je {{maxTokens, number}} tokenov.",
+    "tokenLimitExceededSuggestion": "Použite menší súbor, alebo rozdeľte svoj výpis na viac častí. Odporúčané: výpisy s maximálne ~{{maxTransactions, number}} transakciami."
   },
   "currencies": {
     "notSupportedForBaseCurrency": "Zmena základnej meny na {{currency}} nie je podporovaná. Podporované sú len tieto meny: {{supportedCurrencies}}.",
@@ -596,8 +762,13 @@
     "renameCollision": "Tento názov už používa iná protistrana – namiesto premenovania ich zlúčte"
   },
   "brandLogos": {
-    "domainAndInitialsExclusive": "Logo značky a vlastné písmená nemožno nastaviť súčasne.",
-    "colorRequiresInitials": "Farba monogramu vyžaduje písmená monogramu."
+    "colorRequiresInitials": "Farba pozadia vyžaduje písmená alebo ikonu.",
+    "slotsExclusive": "Vyberte jeden typ loga: značku, písmená, ikonu alebo obrázok."
+  },
+  "logoImages": {
+    "invalidImage": "Súbor nie je obrázok vo formáte PNG, JPEG ani WebP.",
+    "tooLarge": "Obrázky loga musia mať najviac 50 KB.",
+    "notFound": "Obrázok loga sa nenašiel."
   },
   "venture": {
     "dealNotFound": "Obchod v rizikovom kapitáli sa nenašiel",
@@ -631,5 +802,45 @@
     "incompleteInvoice": "Z tejto faktúry sa nepodarilo prečítať dodávateľa, celkovú sumu a dátum.",
     "pdfWithoutText": "Vlastné pripojenia AI nedokážu prijímať súbory PDF priamo a tento sa nepodarilo otvoriť ani na prevod (napríklad je chránený heslom). Prevedte ho na obrázok (PNG alebo JPEG), napríklad snímku obrazovky faktúry a nahrajte namiesto neho ten.",
     "noFileUploaded": "Nebol nahraný žiadny súbor."
+  },
+  "auth": {
+    "errors": {
+      "passwordAlreadySet": "Váš účet už má heslo.",
+      "passwordTooShort": "Heslo je príliš krátke.",
+      "passwordTooLong": "Heslo je príliš dlhé.",
+      "reauthenticationRequired": "Z bezpečnostných dôvodov sa na vykonanie tejto zmeny prihláste znova.",
+      "signupsDisabled": "Registrácie sú vypnuté správcom."
+    }
+  },
+  "backup": {
+    "restore": {
+      "errors": {
+        "noUserRecord": "Záloha neobsahuje záznam používateľa, preto vaše existujúce údaje neboli nahradené.",
+        "emptyManifest": "Manifest zálohy neuvádza žiadne súbory, preto vaše existujúce údaje neboli nahradené.",
+        "missingRequiredColumns_one": "Tabuľke „{{table}}” v zálohe chýba povinný stĺpec {{columns}}. Záloha pochádza spred zmeny štruktúry a nemožno ju obnoviť na tejto verzii.",
+        "missingRequiredColumns_other": "Tabuľke „{{table}}” v zálohe chýbajú povinné stĺpce: {{columns}}. Záloha pochádza spred zmeny štruktúry a nemožno ju obnoviť na tejto verzii.",
+        "archiveTooLarge": "Archív zálohy je na obnovenie príliš veľký: jeho nekomprimovaný obsah presahuje limit veľkosti.",
+        "archiveCorrupt": "Archív zálohy je poškodený, alebo bol neoprávnene upravený.",
+        "invalidJson": "Súbor zálohy {{path}} nie je platný JSON.",
+        "rowsNotArray": "Súbor zálohy {{path}} je poškodený: očakávalo sa pole JSON s riadkami.",
+        "rowNotObject": "Súbor zálohy {{path}} je poškodený: každý riadok musí byť objekt JSON.",
+        "userNotObject": "Súbor zálohy {{path}} je poškodený: záznam používateľa musí byť objekt JSON.",
+        "notZip": "Nahraná záloha nie je čitateľný archív zip.",
+        "missingManifest": "Archívu zálohy chýba manifest.json.",
+        "malformedManifest": "Archív zálohy má poškodený manifest.json (nie je objekt JSON).",
+        "malformedManifestFiles": "Archív zálohy má poškodený manifest.json (jeho zoznam súborov nie je objekt).",
+        "invalidFormatVersion": "Manifest zálohy deklaruje neplatnú verziu formátu ({{version}}).",
+        "formatVersionTooNew": "Verzia formátu zálohy {{version}} je novšia, než táto aplikácia podporuje (max. {{max}}). Ak ju chcete obnoviť, aktualizujte aplikáciu.",
+        "malformedManifestEntry": "Archív zálohy má poškodenú položku manifestu pre {{path}}.",
+        "missingFile": "Archívu zálohy chýba {{path}} uvedený v jeho manifeste.",
+        "checksumMismatch": "Súbor zálohy {{path}} neprešiel kontrolou integrity (nezhoda kontrolného súčtu).",
+        "differentAccount": "Táto záloha bola exportovaná iným účtom a tu ju nemožno obnoviť.",
+        "alreadyInProgress": "Obnova zálohy už prebieha. Pred spustením ďalšej počkajte, kým sa dokončí.",
+        "failed": "Obnova zálohy zlyhala. Vaše existujúce údaje sa nezmenili."
+      }
+    }
+  },
+  "dataExport": {
+    "tooManyRows": "Export by obsahoval {{rowCount, number}} riadkov, čo presahuje limit {{limit, number}}."
   }
 }

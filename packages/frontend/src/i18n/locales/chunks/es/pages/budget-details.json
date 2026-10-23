@@ -2,6 +2,7 @@
   "pages": {
     "budgets": {
       "transactionsList": {
+        "loadError": "No se han podido cargar las transacciones",
         "selectionModeWarning": "Modo de selección — elija transacciones para desvincular",
         "selectAll": "Seleccionar todo",
         "selected": "{count} seleccionada(s)",
@@ -15,7 +16,9 @@
         "resetFilters": "Restablecer filtros",
         "addTransactions": "Añadir transacciones",
         "add": "Añadir",
-        "loadingMore": "Cargando más..."
+        "loadingMore": "Cargando más...",
+        "unlinkError": "Error al desvincular las transacciones",
+        "addError": "Error al agregar las transacciones"
       }
     },
     "budgetDetails": {
@@ -57,11 +60,45 @@
         "income": "Ingresos",
         "expenses": "Gastos",
         "incomeLabel": "Ingresos:",
-        "expensesLabel": "Gastos:"
+        "expensesLabel": "Gastos:",
+        "kpi": {
+          "dailyPace": "Ritmo diario",
+          "perDay": "/ día",
+          "allowedPerDay": "permitido {amount} / día · {elapsed} de {total} días",
+          "daysElapsed": "{elapsed} de {total} días",
+          "projectedTotal": "Total previsto",
+          "projectedLimit": "a este ritmo · límite {amount}",
+          "averagePerDay": "Promedio por día",
+          "firstTransaction": "Primera transacción",
+          "lastTransaction": "Última transacción",
+          "transactions": "Transacciones",
+          "avgAmount": "Máx.: {amount}",
+          "biggestDay": "Mejor día",
+          "shareOfTotal": "{percent}% del total"
+        },
+        "byCategory": "Por categoría",
+        "categoriesCount": "{count} categoría | {count} categorías",
+        "byCurrency": "Por moneda",
+        "asPaid": "como pagada",
+        "timeline": "Cronología",
+        "todayMarker": "hoy {date}",
+        "timelineAria": "Gasto acumulativo en el tiempo con barras por período",
+        "limitLabel": "{amount} restantes",
+        "cumulativeLabel": "Acumulativo",
+        "legend": {
+          "cumulative": "Gasto, acumulativo",
+          "evenPace": "Ritmo constante hasta el límite",
+          "projection": "Proyección",
+          "daily": "Por día",
+          "weekly": "Por semana",
+          "monthly": "Por mes"
+        },
+        "topPayees": "Principales beneficiarios",
+        "bySpend": "por gasto",
+        "noPayee": "Sin beneficiario",
+        "txCount": "{count} más"
       },
       "sharing": {
-        "title": "Compartir",
-        "description": "Gestione quién puede ver este presupuesto y contribuir a él.",
         "inviteAnother": "Invitar a alguien",
         "membersHeading": "Miembros",
         "pendingHeading": "Invitaciones pendientes",

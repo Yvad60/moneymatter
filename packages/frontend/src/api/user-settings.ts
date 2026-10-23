@@ -2,6 +2,7 @@ import { api } from '@/api/_api';
 import type { SupportedLocale } from '@bt/shared/i18n/locales';
 import type {
   CategoryMappingPreset,
+  CategoryOrder,
   FireSettings,
   PAYMENT_TYPES,
   TransactionOptionalField,
@@ -131,6 +132,8 @@ export interface UserSettingsSchema {
    * Accounts panel. Defaults to visible/off when unset.
    */
   hideZeroBalances?: boolean;
+  /** Hides the "turn on smart tracking" tip on every tracker. */
+  hideSmartTrackingTip?: boolean;
   accounts?: {
     /** Account preselected in the account pickers. `null` means the user explicitly cleared it. */
     defaultAccountId?: string | null;
@@ -152,6 +155,8 @@ export interface UserSettingsSchema {
    * Subcategories inherit from their parent. Empty or unset lists every category for both.
    */
   incomeCategoryIds?: string[];
+  /** Custom category order: parent id (or `CATEGORY_ORDER_ROOT_KEY`) → child ids in display order. */
+  categoryOrder?: CategoryOrder;
   currencyDisplay?: CurrencyDisplayPreference;
   fire?: FireSettings;
 }

@@ -185,11 +185,16 @@ export async function createAccount({
   currencyCode,
   initialBalance,
   type,
+  accountCategory = 'general',
+  creditLimit = 0,
 }: {
   request: APIRequestContext;
   name: string;
   currencyCode: string;
   initialBalance: number;
+  /** `ACCOUNT_CATEGORIES` value; loan and vehicle are rejected here (use createLoan / createVehicle). */
+  accountCategory?: string;
+  creditLimit?: number;
   /**
    * Account type. Defaults to "system" (regular user account).
    * Use "monobank" to create an external account — only allowed outside production.
@@ -205,8 +210,8 @@ export async function createAccount({
       name,
       currencyCode,
       initialBalance,
-      creditLimit: 0,
-      accountCategory: 'general',
+      creditLimit,
+      accountCategory,
       ...(type !== undefined && { type }),
     },
   });
@@ -366,7 +371,7 @@ export async function setPortfolioCash({
 
 // ─── Categories ──────────────────────────────────────────────────────
 
-async function apiGet({ request, path }: { request: APIRequestContext; path: string }) {
+export async function apiGet({ request, path }: { request: APIRequestContext; path: string }) {
   const response = await request.get(`${API_BASE_URL}${path}`);
   await assertOk({ response, label: `API GET ${path} failed` });
   return response.json();
@@ -584,33 +589,32 @@ export async function signInViaApi({
 
 // ─── Holdings ────────────────────────────────────────────────────────
 
+/** Seeds via a real search so the backend accepts the result; relies on the backend's test fixture securities. */
 export async function createHolding({
   request,
   portfolioId,
-  searchResult,
+  symbol,
+  currencyCode = 'USD',
 }: {
   request: APIRequestContext;
   portfolioId: string;
-  searchResult: {
-    symbol: string;
-    providerSymbol?: string;
-    name: string;
-    assetClass: string;
-    providerName: string;
-    currencyCode: string;
-    exchangeAcronym?: string;
-    exchangeMic?: string;
-    exchangeName?: string;
-  };
+  symbol: string;
+  currencyCode?: string;
 }) {
-  const { providerSymbol, ...rest } = searchResult;
+  const search = await apiGet({
+    request,
+    path: `/api/v1/investments/securities/search?query=${encodeURIComponent(symbol)}`,
+  });
+  const results: Array<{ symbol: string; currencyCode: string }> = search.response;
+  const searchResult = results.find((r) => r.symbol === symbol && r.currencyCode === currencyCode);
+  if (!searchResult) {
+    throw new Error(`createHolding: no search result for ${symbol} (${currencyCode})`);
+  }
+
   return apiPost({
     request,
     path: '/api/v1/investments/holding',
-    data: {
-      portfolioId,
-      searchResult: { ...rest, providerSymbol: providerSymbol ?? rest.symbol },
-    },
+    data: { portfolioId, searchResult },
   });
 }
 

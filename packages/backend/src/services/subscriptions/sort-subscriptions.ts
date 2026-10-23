@@ -1,40 +1,4 @@
-import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
-
-import { computeNextExpectedDate } from './subscription-date.utils';
-
 export type SubscriptionSortBy = 'dueDate' | 'amount' | 'name' | 'recent';
-
-/**
- * The effective next-due date for a list item, computed for EVERY subscription
- * so the UI can always render "in N days" and sort on a single field.
- *
- * Prefers the earliest open period's `dueDate` (period-payments engine). Falls
- * back to the derived date for detection-only subscriptions that have no open
- * period, anchoring the derivation on the latest linked active transaction time
- * (or `startDate` when there are none). Returns null only when uncomputable.
- *
- * `latestTransactionTime` must already exclude planned rows — an intention is not
- * a payment, and anchoring on one pushes the due date a whole cycle forward.
- */
-export const computeEffectiveNextDueDate = ({
-  earliestPeriodDueDate,
-  startDate,
-  frequency,
-  latestTransactionTime,
-}: {
-  earliestPeriodDueDate: string | null;
-  startDate: string;
-  frequency: SUBSCRIPTION_FREQUENCIES;
-  latestTransactionTime: Date | string | null;
-}): string | null => {
-  if (earliestPeriodDueDate) return earliestPeriodDueDate;
-
-  return computeNextExpectedDate({
-    startDate,
-    frequency,
-    transactions: latestTransactionTime ? [{ time: latestTransactionTime }] : [],
-  });
-};
 
 interface SortableSubscription {
   name: string;

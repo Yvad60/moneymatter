@@ -1,4 +1,3 @@
-import type { AccountGroups } from '@/common/types/models';
 import {
   ACCOUNT_CATEGORIES,
   ACCOUNT_STATUSES,
@@ -8,7 +7,7 @@ import {
 } from '@bt/shared/types';
 import { describe, expect, it } from 'vitest';
 
-import { filterSelectableAccounts, flattenGroupAccounts, sortAccounts } from './use-grouped-accounts';
+import { filterSelectableAccounts, sortAccounts } from './use-grouped-accounts';
 
 const makeAccount = (overrides: Partial<AccountModel> = {}): AccountModel => ({
   type: ACCOUNT_TYPES.system,
@@ -28,60 +27,9 @@ const makeAccount = (overrides: Partial<AccountModel> = {}): AccountModel => ({
   logoDomain: null,
   logoInitials: null,
   logoColor: null,
+  logoIcon: null,
+  logoImageId: null,
   ...overrides,
-});
-
-const makeGroup = ({
-  id,
-  accounts = [],
-  childGroups,
-}: {
-  id: string;
-  accounts?: AccountModel[];
-  childGroups?: AccountGroups[];
-}): AccountGroups =>
-  ({
-    id,
-    name: id,
-    accounts,
-    childGroups,
-  }) as unknown as AccountGroups;
-
-describe('flattenGroupAccounts', () => {
-  it('flattens a nested group tree, including grandchildren, in tree order', () => {
-    const a = makeAccount({ id: 'a' as RecordId, name: 'A' });
-    const b = makeAccount({ id: 'b' as RecordId, name: 'B' });
-    const c = makeAccount({ id: 'c' as RecordId, name: 'C' });
-    const group = makeGroup({
-      id: 'top',
-      accounts: [a],
-      childGroups: [
-        makeGroup({
-          id: 'child',
-          accounts: [b],
-          childGroups: [makeGroup({ id: 'grandchild', accounts: [c] })],
-        }),
-      ],
-    });
-
-    expect(flattenGroupAccounts({ group }).map((account) => account.id)).toEqual(['a', 'b', 'c']);
-  });
-
-  it('returns the group own accounts when there are no child groups', () => {
-    const a = makeAccount({ id: 'a' as RecordId });
-    const group = makeGroup({ id: 'top', accounts: [a], childGroups: [] });
-    expect(flattenGroupAccounts({ group }).map((account) => account.id)).toEqual(['a']);
-  });
-
-  it('tolerates a missing childGroups field', () => {
-    const a = makeAccount({ id: 'a' as RecordId });
-    const group = makeGroup({ id: 'top', accounts: [a] });
-    expect(flattenGroupAccounts({ group }).map((account) => account.id)).toEqual(['a']);
-  });
-
-  it('returns an empty list for an empty group', () => {
-    expect(flattenGroupAccounts({ group: makeGroup({ id: 'empty' }) })).toEqual([]);
-  });
 });
 
 describe('sortAccounts', () => {

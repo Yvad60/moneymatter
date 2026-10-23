@@ -33,6 +33,7 @@ import {
 import { canUserAccessResource } from '@services/sharing/auth/can-user-access-resource.service';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
 import { matchTransactionToSubscriptions } from '@services/subscriptions/matching-engine';
+import { settlePeriodOnConfirm } from '@services/subscriptions/settle-period-on-match';
 import { isAutomationEligible } from '@services/transaction-automations/eligibility';
 import { runTransactionAutomations } from '@services/transaction-automations/run-automations';
 import { ConnectionError, DatabaseError, UniqueConstraintError } from 'sequelize';
@@ -51,7 +52,7 @@ import type { CreateTransactionParams, UpdateTransactionParams } from './types';
  * COMMIT into a silent rollback. `UniqueConstraintError` is server-side but extends
  * `ValidationError`, not `DatabaseError`.
  */
-const abortsTransaction = (error: unknown) =>
+export const abortsTransaction = (error: unknown) =>
   error instanceof DatabaseError || error instanceof UniqueConstraintError || error instanceof ConnectionError;
 
 /**
@@ -476,6 +477,9 @@ export const createTransaction = withTransaction(
         });
 
         if (merged) {
+          // The plan may already be linked to a subscription; confirming it is the payment.
+          await settlePeriodOnConfirm({ transaction: merged, userId: accountOwnerUserId });
+
           const mergedResult: CreateTxResult = [merged];
           mergedResult.mergedIntoPlanned = true;
           return mergedResult;

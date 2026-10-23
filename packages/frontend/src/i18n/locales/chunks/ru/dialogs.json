@@ -102,11 +102,12 @@
       "recordList": {},
       "form": {
         "payeeLabel": "Получатель",
-        "outOfWalletDocsLink": "What is Out of Wallet?",
+        "outOfWalletDocsLink": "What is out of wallet?",
         "destinationGroupLabel": "Куда направляются деньги",
         "paymentTypeLabel": "Тип платежа",
         "noteLabel": "Примечание",
         "notePlaceholder": "Примечание",
+        "addFieldsLabel": "Добавить",
         "externalUrlLabel": "Внешний URL",
         "externalUrlPlaceholder": "Ссылка на страницу заказа, бронирования или чека",
         "externalReferenceLabel": "Внешний идентификатор",
@@ -427,8 +428,6 @@
         "announceApplied": "Применён {name} — заполнено {count} поле. Сумма пуста. | Применён {name} — заполнено {count} поля. Сумма пуста. | Применён {name} — заполнено {count} полей. Сумма пуста.",
         "announceAppliedWithAmount": "Применён {name} — заполнено {count} поле. Сумма: {amount}. | Применён {name} — заполнено {count} поля. Сумма: {amount}. | Применён {name} — заполнено {count} полей. Сумма: {amount}.",
         "categoryDeletedHint": "Категория этого шаблона удалена — выберите другую.",
-        "alsoSet": "Шаблон также заполнил: {fields}",
-        "tagsCount": "{count} тег | {count} тега | {count} тегов",
         "applyConfirmTitle": "Применить шаблон?",
         "applyConfirmDescription": "Применение заменит текущие разбиения и связь возврата.",
         "toasts": {
@@ -556,7 +555,11 @@
         "title": "Создать группу",
         "nameLabel": "Название группы",
         "namePlaceholder": "Инвестиции",
-        "createButton": "Создать"
+        "createButton": "Создать",
+        "subgroupTitle": "New subgroup",
+        "insideLabel": "Inside",
+        "subgroupNamePlaceholder": "e.g. Savings",
+        "createSubgroupButton": "Create subgroup"
       }
     },
     "directCashTransaction": {
@@ -574,6 +577,7 @@
       "analyzing": "Reading the invoice and searching your transactions…",
       "attaching": "Attaching the invoice to the transaction…",
       "privacyNote": "The file goes to the AI provider for reading only. Nothing is saved until you link it to a transaction.",
+      "aiPausedHint": "Invoice reading is paused. Open the AI badge above to see your options.",
       "direction": {
         "paid": "I paid this",
         "gotPaid": "I got paid",

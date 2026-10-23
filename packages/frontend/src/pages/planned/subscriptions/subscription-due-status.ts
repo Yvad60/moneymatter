@@ -9,6 +9,18 @@ export const daysUntilDue = ({ dueDate, now }: { dueDate: string; now: Date }): 
   return differenceInCalendarDays(parsed, startOfDay(now));
 };
 
+/** False when the subscription is paused or the due date falls after its end date. */
+export const hasUpcomingDue = ({
+  subscription,
+  dueDate,
+}: {
+  subscription: Pick<SubscriptionListItem, 'isActive' | 'endDate'>;
+  dueDate: string;
+}): boolean => {
+  if (!subscription.isActive) return false;
+  return !subscription.endDate || dueDate.slice(0, 10) <= subscription.endDate.slice(0, 10);
+};
+
 // Overdue when the open period is stored overdue, or when the effective next date has
 // already passed — the latter covers an `upcoming` period whose due date slipped before
 // the daily cron flips the stored status, so a past date never shows "in -1 days".
@@ -19,14 +31,14 @@ export const isSubscriptionOverdue = ({
   subscription: SubscriptionListItem;
   now: Date;
 }): boolean => {
-  if (subscription.currentPeriod?.status === SUBSCRIPTION_PERIOD_STATUSES.overdue) return true;
   if (!subscription.nextDueDate) return false;
+  if (subscription.currentPeriod?.status === SUBSCRIPTION_PERIOD_STATUSES.overdue) return true;
   const days = daysUntilDue({ dueDate: subscription.nextDueDate, now });
   if (days === null) return false;
   return days < 0;
 };
 
-export const DUE_SOON_DAYS = 3;
+const DUE_SOON_DAYS = 3;
 
 export type SubscriptionDueStatus = 'overdue' | 'dueSoon' | null;
 

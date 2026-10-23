@@ -1,5 +1,5 @@
 # 🏗️ Stage 1️⃣: Build
-FROM node:24.21.0-alpine AS build-stage
+FROM node:24.22.1-alpine AS build-stage
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ WORKDIR /app/packages/backend
 RUN npm run build
 
 # 🚀 Stage 2️⃣: Production
-FROM node:24.21.0-alpine AS production
+FROM node:24.22.1-alpine AS production
 
 WORKDIR /app
 
@@ -60,6 +60,7 @@ COPY --from=build-stage --chown=nodejs:nodejs /app/packages/backend/package.json
 
 # Copy .sequelizerc and config folder
 COPY --from=build-stage --chown=nodejs:nodejs /app/packages/backend/.sequelizerc ./packages/backend/.sequelizerc
+COPY --from=build-stage --chown=nodejs:nodejs /app/packages/backend/tsconfig.json ./packages/backend/tsconfig.json
 COPY --from=build-stage --chown=nodejs:nodejs /app/packages/backend/config ./packages/backend/config
 COPY --from=build-stage --chown=nodejs:nodejs /app/packages/backend/src/migrations ./packages/backend/src/migrations
 COPY --from=build-stage --chown=nodejs:nodejs /app/packages/backend/src/resources ./packages/backend/src/resources

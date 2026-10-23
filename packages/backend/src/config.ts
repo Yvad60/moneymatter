@@ -3,7 +3,7 @@ export const BETTER_AUTH_BASE_URL = (process.env.BETTER_AUTH_URL || 'https://loc
 
 export const MCP_BASE_URL = process.env.MCP_BASE_URL || BETTER_AUTH_BASE_URL;
 /** The frontend's own origin; Stripe-hosted pages are sent back to it. */
-const FRONTEND_BASE_URL = (process.env.AUTH_ORIGIN || 'https://localhost:8100').replace(/\/+$/, '');
+export const FRONTEND_BASE_URL = (process.env.AUTH_ORIGIN || 'https://localhost:8100').replace(/\/+$/, '');
 
 /** Where Stripe-hosted checkout and portal send the buyer back; must match the frontend plan-billing route. */
 export const PLAN_BILLING_URL = `${FRONTEND_BASE_URL}/settings/plan-billing`;

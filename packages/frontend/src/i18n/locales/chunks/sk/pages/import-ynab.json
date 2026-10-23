@@ -67,6 +67,10 @@
           "transfersImported": "Importované prevody",
           "splitsDetected": "Rozpoznané rozdelené skupiny",
           "errorsTitle": "Riadky, ktoré sa nepodarilo importovať: {count}",
+          "errors": {
+            "payeeCreateFailed": "Príjemcu „{payeeName}“ sa nepodarilo vytvoriť. Jeho transakcie boli importované bez príjemcu.",
+            "rowImportFailed": "Tento riadok sa nepodarilo importovať."
+          },
           "viewTransactions": "Zobraziť transakcie",
           "importAnother": "Importovať ďalší súbor"
         }

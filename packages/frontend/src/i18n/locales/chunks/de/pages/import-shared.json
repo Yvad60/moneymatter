@@ -4,6 +4,23 @@
       "progress": {
         "jobExpired": "Der Importauftrag ist abgelaufen oder konnte nicht gefunden werden.",
         "lostContact": "Verbindung zum Importauftrag verloren."
+      },
+      "balanceDesync": {
+        "createdAccount": "{account}: Der eingegebene Saldo konnte nach dem Import nicht angewendet werden, daher ist dieser Kontostand möglicherweise fehlerhaft.",
+        "linkedAccount": "{account}: Der Saldo konnte nach dem Import nicht aktualisiert werden, daher ist dieser Kontostand möglicherweise fehlerhaft.",
+        "unnamedAccount": "Ein Kontostand konnte nach dem Import nicht aktualisiert werden und ist möglicherweise fehlerhaft."
+      },
+      "jobFailure": {
+        "interrupted": "Der Import wurde durch einen Serverneustart unterbrochen. Einige Zeilen wurden möglicherweise bereits importiert; mache diesen Import aus dem Import-Verlauf rückgängig, bevor du es erneut versuchst.",
+        "baseCurrencyChangeInProgress": "Eine Änderung der Basiswährung ist im Gange. Warte, bis sie abgeschlossen ist, und versuche dann erneut zu importieren.",
+        "accountCurrencyMismatch": "Währungen müssen übereinstimmen, um ein bestehendes Konto zu verknüpfen: {mismatches}. Verknüpfe ein Konto mit derselben Währung oder erstelle ein neues.",
+        "categoryNameTooLong": "Der Kategoriename \"{name}\" ist zu lang ({length} Zeichen); das Maximum beträgt {max}.",
+        "payeeNameTooLong": "Der Name des Zahlungsempfängers \"{name}\" ist zu lang ({length} Zeichen); das Maximum beträgt {max}.",
+        "accountMappingMissing": "Diese Konten aus der Datei haben keine Zuordnung: {accounts}. Gehe zurück und ordne jedes davon zu.",
+        "linkedAccountNotFound": "Das mit \"{account}\" verknüpfte Konto existiert nicht mehr. Gehe zurück und wähle ein anderes Konto oder erstelle ein neues."
+      },
+      "importResults": {
+        "findTransfers": "Umbuchungen finden"
       }
     }
   },

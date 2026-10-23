@@ -125,6 +125,11 @@
           "errorsTitle": "{count} Zeile(n) konnte(n) nicht importiert werden",
           "errorsOverflow": "…und {count} weitere",
           "rowPrefix": "Zeile {rowIndex}:",
+          "errors": {
+            "rowsSuppressed": "Ab dieser Zeile konnte {count} weitere Zeile nicht importiert werden. Nur die ersten {listed} Fehler werden angezeigt. | Ab dieser Zeile konnten {count} weitere Zeilen nicht importiert werden. Nur die ersten {listed} Fehler werden angezeigt.",
+            "accountBalanceDesync": "Ein Kontostand konnte nach dem Import nicht aktualisiert werden. Überprüfe und korrigiere ihn manuell.",
+            "rowImportFailed": "Diese Zeile konnte nicht importiert werden."
+          },
           "viewTransactions": "Transaktionen anzeigen",
           "importAnother": "Weitere Datei importieren"
         },

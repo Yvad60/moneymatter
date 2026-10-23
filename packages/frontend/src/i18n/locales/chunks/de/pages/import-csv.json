@@ -325,6 +325,12 @@
         "errorColumns": {
           "row": "Zeile",
           "error": "Fehler"
+        },
+        "rowErrors": {
+          "payeeDefaultTagsFailed": "Die Transaktion wurde importiert, aber die Standard-Tags des Zahlungsempfängers konnten nicht angewendet werden.",
+          "accountUnresolved": "Das Konto für diese Zeile konnte nicht zugeordnet werden, daher wurde die Zeile übersprungen.",
+          "readBackFailed": "Die Transaktion wurde gespeichert, konnte aber nicht verifiziert werden und fehlt daher in der Import-Zusammenfassung.",
+          "generic": "Diese Zeile konnte nicht importiert werden."
         }
       }
     }

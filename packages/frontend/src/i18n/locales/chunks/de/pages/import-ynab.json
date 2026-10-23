@@ -67,6 +67,10 @@
           "transfersImported": "Umbuchungen importiert",
           "splitsDetected": "Split-Gruppen erkannt",
           "errorsTitle": "{count} Zeilen konnten nicht importiert werden",
+          "errors": {
+            "payeeCreateFailed": "Zahlungsempfänger \"{payeeName}\" konnte nicht erstellt werden. Seine Transaktionen wurden ohne Zahlungsempfänger importiert.",
+            "rowImportFailed": "Diese Zeile konnte nicht importiert werden."
+          },
           "viewTransactions": "Transaktionen anzeigen",
           "importAnother": "Weitere Datei importieren"
         }

@@ -2,7 +2,7 @@ import {
   ACCOUNT_CATEGORIES,
   API_ERROR_CODES,
   API_RESPONSE_STATUS,
-  BUDGET_TYPES,
+  TRACKER_TYPES,
   LOAN_TYPE,
   PAYMENT_TYPES,
   SUBSCRIPTION_PERIOD_STATUSES,
@@ -18,7 +18,7 @@ import { authPool } from '@config/auth';
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { connection } from '@models/index';
 import Users from '@models/users.model';
-import { extractCookies, listAutomations, makeAuthRequest, makeRequest } from '@tests/helpers';
+import { extractCookies, listAutomations, listGoals, makeAuthRequest, makeRequest } from '@tests/helpers';
 import { clearMockSession, registerMockSession } from '@tests/mocks/better-auth';
 
 import { DEMO_ACCOUNT_GROUPS } from './seed-account-groups.service';
@@ -219,7 +219,7 @@ describe('Demo Mode', () => {
       }
     });
 
-    it('seeds accounts, transactions, budgets, categories, crypto holdings, vehicles, venture deals and loans', async () => {
+    it('seeds accounts, transactions, trackers, categories, crypto holdings, vehicles, venture deals and loans', async () => {
       const accountsRes = await makeRequest({
         method: 'get',
         url: '/accounts',
@@ -311,14 +311,14 @@ describe('Demo Mode', () => {
       const yearsDiff = (newestDate.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
       expect(yearsDiff).toBeGreaterThanOrEqual(2);
 
-      const budgetsRes = await makeRequest({
+      const trackersRes = await makeRequest({
         method: 'get',
-        url: '/budgets',
+        url: '/trackers',
         raw: true,
       });
 
-      // Should have at least 3 budgets per spec
-      expect(budgetsRes.length).toBeGreaterThanOrEqual(3);
+      // Should have at least 3 trackers per spec
+      expect(trackersRes.length).toBeGreaterThanOrEqual(3);
 
       const categoriesRes = await makeRequest({
         method: 'get',
@@ -480,7 +480,7 @@ describe('Demo Mode', () => {
       return rows as DemoTransactionRow[];
     };
 
-    it('seeds payees, tags, transfers, splits, refunds, subscriptions, category budgets, groups, price series and automations', async () => {
+    it('seeds payees, tags, transfers, splits, refunds, subscriptions, category trackers, groups, price series and automations', async () => {
       const payees = await makeRequest({
         method: 'get',
         url: '/payees',
@@ -642,38 +642,38 @@ describe('Demo Mode', () => {
         expect(period.transactionId).not.toBeNull();
       }
 
-      const budgets = await makeRequest({
+      const trackers = await makeRequest({
         method: 'get',
-        url: '/budgets',
+        url: '/trackers',
         raw: true,
       });
 
-      expect(budgets.length).toBeGreaterThanOrEqual(3);
+      expect(trackers.length).toBeGreaterThanOrEqual(3);
 
-      for (const budget of budgets as {
+      for (const tracker of trackers as {
         id: string;
         type: string;
         startDate: string | null;
         endDate: string | null;
         categories: unknown[];
       }[]) {
-        // `category` is what writes the BudgetCategories rows the stats read; a
-        // `manual` budget with no linked transactions would report zero spend.
-        expect(budget.type).toBe(BUDGET_TYPES.category);
-        expect(budget.startDate).not.toBeNull();
-        expect(budget.endDate).not.toBeNull();
-        expect(budget.categories.length).toBeGreaterThan(0);
+        // `category` is what writes the TrackerCategories rows the stats read; a
+        // `manual` tracker with no linked transactions would report zero spend.
+        expect(tracker.type).toBe(TRACKER_TYPES.category);
+        expect(tracker.startDate).not.toBeNull();
+        expect(tracker.endDate).not.toBeNull();
+        expect(tracker.categories.length).toBeGreaterThan(0);
 
         const stats = await makeRequest({
           method: 'get',
-          url: `/budgets/${budget.id}/stats`,
+          url: `/trackers/${tracker.id}/stats`,
           raw: true,
         });
 
         expect(stats.summary.actualExpense).toBeGreaterThan(0);
         expect(Number.isFinite(stats.summary.utilizationRate)).toBe(true);
         expect(stats.summary.utilizationRate).toBeGreaterThan(0);
-        // Sanity band on the date window: a budget without one totals all three
+        // Sanity band on the date window: a tracker without one totals all three
         // years of history against a one-month limit and blows far past this.
         expect(stats.summary.utilizationRate).toBeLessThan(400);
       }
@@ -730,6 +730,14 @@ describe('Demo Mode', () => {
           .flatMap((line) => (line.goal ? [`${line.goal.frequency}/${line.goal.behavior}`] : []))
           .toSorted(),
       ).toEqual(['by_date/reach_balance', 'every_period/budget_another', 'every_period/refill_up_to']);
+
+      const goals = await listGoals({ raw: true });
+      expect(goals.map((goal) => [goal.name, goal.achievedAt !== null])).toEqual([
+        ['Emergency fund', true],
+        ['New laptop', true],
+        ['Trip to Japan', false],
+        ['Car down payment', false],
+      ]);
 
       const accountGroups = await makeRequest({
         method: 'get',

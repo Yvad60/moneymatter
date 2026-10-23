@@ -3,8 +3,9 @@ import { DEACTIVATION_REASON } from '@bt/shared/types';
 import Currencies from '@models/currencies.model';
 import MerchantCategoryCodes from '@models/merchant-category-codes.model';
 import { encryptCredentials } from '@services/bank-data-providers/utils/credential-encryption';
+import { copyLogoImageIfPresent } from '@services/logo-images/logo-images.service';
 import type { Transaction } from 'sequelize';
-import { v7 as uuidv7 } from 'uuid';
+import { validate as isUuid, v7 as uuidv7 } from 'uuid';
 
 import { BACKUP_TABLES, type BackupTableDef } from '../registry';
 import type { ArchiveAnalysis, TableColumnPlan } from './analyze-archive';
@@ -200,6 +201,13 @@ async function insertTable({
       fkNulledByColumn.set(column, (fkNulledByColumn.get(column) ?? 0) + 1);
     }
     Object.assign(overrides, guard.overrides);
+
+    // A logo blob has one owner row, which deletes it on edit or delete, so every
+    // restored row gets its own copy. Rollback orphans are left to the orphan sweep.
+    if (hasColumn({ plan, field: 'logoImageId' }) && row.logoImageId != null) {
+      const id = String(row.logoImageId);
+      overrides.logoImageId = isUuid(id) ? await copyLogoImageIfPresent({ id }) : null;
+    }
 
     // Keep the backup id when free, else mint a fresh one; record the mapping so
     // this table's FK referrers and the self-ref second pass resolve to it.

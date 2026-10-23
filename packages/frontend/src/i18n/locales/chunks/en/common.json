@@ -137,6 +137,14 @@
       "receiptParsing": {
         "name": "Invoice matching",
         "description": "Reads an uploaded invoice or receipt and finds the transaction it belongs to."
+      },
+      "trackerMatching": {
+        "name": "Tracker matching",
+        "description": "Scans new transactions and suggests the ones that belong to a smart tracker."
+      },
+      "transferMatching": {
+        "name": "Transfer matching",
+        "description": "Checks transfer scan results and keeps the pairs that look like real transfers"
       }
     },
     "transactions": {
@@ -152,6 +160,7 @@
       },
       "record": {
         "addedByTooltip": "This transaction was attached to the tracker by {handle}",
+        "matchedByAi": "Matched by AI",
         "externalLinkTooltip": "Open external link",
         "locationTooltip": "Open location on the map",
         "attachmentsTooltip": "Has attachments",
@@ -218,7 +227,9 @@
     "logo": {
       "tabs": {
         "brand": "Brand",
-        "letters": "Letters"
+        "letters": "Letters",
+        "icon": "Icon",
+        "custom": "Image"
       },
       "searchPlaceholder": "Brand name or domain",
       "searchHint": "Type a brand name, or a domain like amazon.com",
@@ -238,8 +249,17 @@
       "colorLabel": "Color",
       "colorSwatchAriaLabel": "Use color {color}",
       "customColorAriaLabel": "Pick a custom color",
-      "applyLetters": "Apply",
-      "lettersSelectedLabel": "Letters “{letters}”"
+      "lettersSelectedLabel": "Letters “{letters}”",
+      "lettersHint": "1–2 letters or an emoji",
+      "chooseImage": "Choose image",
+      "replaceImage": "Replace image",
+      "imageHint": "Cropped to a square and resized to 200×200 on your device.",
+      "imageTooLarge": "The image is still over 50 KB after resizing. Try a simpler picture.",
+      "imageUnreadable": "That file couldn't be read as an image."
+    },
+    "iconPicker": {
+      "searchPlaceholder": "Search icons...",
+      "clear": "Clear icon"
     },
     "importBatchDeleteOverlay": {
       "title": "Deleting imported transactions",
@@ -281,6 +301,10 @@
       "success": "Account has been added to the group",
       "error": "Failed to add the account to the group"
     },
+    "linkMany": {
+      "success": "Accounts added to the group",
+      "error": "Failed to add accounts to the group"
+    },
     "unlink": {
       "success": "Account has been removed from the group",
       "error": "Failed to remove the account from the group"
@@ -301,12 +325,23 @@
     "viewOnGitHub": "View on GitHub",
     "newVersion": "New version {version}",
     "newRelease": "New release",
+    "trackerAiMatches": {
+      "title": "{name}: {summary}",
+      "added": "{count} transaction added | {count} transactions added",
+      "toReview": "{count} transaction to review | {count} transactions to review",
+      "toReviewShort": "{count} to review",
+      "both": "{added}, {toReview}"
+    },
     "tagReminder": {
       "thresholdMessage": "spent {amount} (threshold: {threshold})",
       "existenceMessage": "{count} transaction | {count} transactions"
     },
     "share": {
       "sendFailedHint": "Open the sharing panel to resend."
+    },
+    "goalReached": {
+      "title": "Goal reached: {name}",
+      "message": "You've saved {amount}."
     }
   },
   "currencyNames": {
@@ -401,6 +436,7 @@
   },
   "billing": {
     "seePlans": "See plans",
+    "trialStartFailed": "Couldn't start the free trial. Try again.",
     "updatePaymentMethod": "Update your payment method",
     "planRequired": {
       "essential": "Included in the Essential plan",

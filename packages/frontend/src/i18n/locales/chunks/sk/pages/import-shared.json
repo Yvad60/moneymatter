@@ -4,6 +4,23 @@
       "progress": {
         "jobExpired": "Úloha importu vypršala, alebo sa nenašla.",
         "lostContact": "Stratené spojenie s úlohou importu."
+      },
+      "balanceDesync": {
+        "createdAccount": "{account}: zadaný zostatok sa po importe nepodarilo nastaviť, zostatok tohto účtu preto nemusí byť správny.",
+        "linkedAccount": "{account}: zostatok sa po importe nepodarilo aktualizovať, zostatok tohto účtu preto nemusí byť správny.",
+        "unnamedAccount": "Zostatok jedného z účtov sa po importe nepodarilo aktualizovať a nemusí byť správny."
+      },
+      "jobFailure": {
+        "interrupted": "Import prerušil reštart servera. Niektoré riadky mohli byť už importované; pred opakovaním tento import vráťte späť v histórii importov.",
+        "baseCurrencyChangeInProgress": "Prebieha zmena základnej meny. Počkajte na jej dokončenie a potom skúste import znova.",
+        "accountCurrencyMismatch": "Na prepojenie s existujúcim účtom sa musia zhodovať meny: {mismatches}. Prepojte účet s rovnakou menou alebo vytvorte nový.",
+        "categoryNameTooLong": "Názov kategórie „{name}“ je príliš dlhý ({length} znakov); maximum je {max}.",
+        "payeeNameTooLong": "Názov príjemcu „{name}“ je príliš dlhý ({length} znakov); maximum je {max}.",
+        "accountMappingMissing": "Tieto účty zo súboru nemajú priradenie: {accounts}. Vráťte sa späť a priraďte ich.",
+        "linkedAccountNotFound": "Účet prepojený s „{account}“ už neexistuje. Vráťte sa späť a vyberte iný účet alebo vytvorte nový."
+      },
+      "importResults": {
+        "findTransfers": "Find transfers"
       }
     }
   },

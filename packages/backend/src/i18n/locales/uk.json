@@ -29,6 +29,7 @@
     "groupNotFound": "Групу не знайдено",
     "groupUpdateFailed": "Не вдалося оновити групу",
     "parentGroupNotExist": "Батьківська група з таким id не існує.",
+    "parentGroupCycle": "Групу не можна вкласти в саму себе чи в одну з її власних підгруп.",
     "parentGroupDoesNotExist": "Батьківська група не існує.",
     "accountNotFound": "Рахунок з таким id не знайдено.",
     "accountGroupNotFound": "Групу рахунків з таким id не знайдено."
@@ -131,11 +132,24 @@
   },
   "budgets": {
     "budgetNotFound": "Трекер не знайдено",
+    "lineNotFound": "Рядок трекера не знайдено",
+    "onlyOwnerCanDuplicate": "Дублювати трекер може лише власник",
     "someTransactionIdsInvalid": "Деякі ID транзакцій недійсні",
     "transactionsAddedSuccessfully": "Транзакції успішно додано",
     "cannotManuallyLinkToCategoryBudget": "Неможливо вручну прив'язати транзакції до трекерів за категоріями. Транзакції відстежуються автоматично за категорією.",
     "someCategoryIdsInvalid": "Деякі ID категорій недійсні або не існують",
-    "notCategoryBudget": "Цей ендпоінт доступний тільки для трекерів за категоріями"
+    "notCategoryBudget": "Цей ендпоінт доступний тільки для трекерів за категоріями",
+    "lineCategoryOutsideTracker": "Рядок трекера може використовувати лише категорії, які відстежує сам трекер",
+    "startDateAfterEndDate": "Дата початку має бути не пізніше дати завершення",
+    "smartTracking": {
+      "ownerOnly": "Змінювати розумне відстеження може лише власник трекера.",
+      "manualOnly": "Розумне відстеження працює лише для ручних трекерів.",
+      "descriptionRequired": "Опишіть, для чого цей трекер, щоб увімкнути розумне відстеження.",
+      "startDateRequired": "Вкажіть дату початку, щоб увімкнути розумне відстеження.",
+      "scanRunning": "Для цього трекера виконується зіставлення. Спробуйте ще раз, коли воно завершиться.",
+      "suggestionNotFound": "Пропозицію не знайдено.",
+      "suggestionAlreadyResolved": "Ця пропозиція вже має статус: {{status}}."
+    }
   },
   "budgetPlans": {
     "planNotFound": "Бюджетний план не знайдено.",
@@ -752,8 +766,13 @@
     "renameCollision": "Інший отримувач уже використовує цю назву – об'єднайте їх замість цього"
   },
   "brandLogos": {
-    "domainAndInitialsExclusive": "Логотип бренду та власні літери не можна встановити одночасно.",
-    "colorRequiresInitials": "Колір монограми потребує літер монограми."
+    "colorRequiresInitials": "Колір фону потребує літер або іконки.",
+    "slotsExclusive": "Виберіть один тип логотипа: бренд, літери, іконка або зображення."
+  },
+  "logoImages": {
+    "invalidImage": "Файл не є зображенням PNG, JPEG або WebP.",
+    "tooLarge": "Зображення логотипа має бути не більшим за 50 КБ.",
+    "notFound": "Зображення логотипа не знайдено."
   },
   "venture": {
     "dealNotFound": "Венчурну угоду не знайдено",
@@ -829,5 +848,17 @@
   },
   "dataExport": {
     "tooManyRows": "Експорт міститиме рядків: {{rowCount, number}}, що перевищує ліміт ({{limit, number}})."
+  },
+  "goals": {
+    "goalNotFound": "Ціль не знайдено.",
+    "accountNotFound": "Один із вибраних рахунків не знайдено.",
+    "accountNotEligible": "Рахунок «{{accountName}}» не може враховуватися в цілі. Виберіть готівковий, поточний, накопичувальний, інвестиційний або криптовалютний рахунок.",
+    "shareCapacityExceeded": "На рахунку «{{accountName}}» вільно {{free}}%: ви запросили {{requested}}%, а інші цілі вже використовують {{usedByOtherGoals}}%.",
+    "fixedAmountsBelowTarget": "Фіксовані суми разом становлять {{total}} {{currencyCode}}, що менше за ціль {{target}} {{currencyCode}}. Збільшіть суму або врахуйте рахунок у відсотках.",
+    "currencyRateUnavailable": "Валюту {{currencyCode}} зараз не можна конвертувати у вашу базову валюту. Виберіть іншу валюту або спробуйте пізніше.",
+    "reachedNotification": {
+      "title": "Ціль досягнуто: {{name}}",
+      "message": "Ви заощадили {{amount}} {{currencyCode}}."
+    }
   }
 }

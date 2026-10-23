@@ -104,6 +104,11 @@
           "balanceWarningBody": "Der Endsaldo konnte nicht für jedes Konto festgelegt werden. Überprüfe diese Konten und passe ihre Salden gegebenenfalls an.",
           "errorsTitle": "{count} Transaktion konnte nicht importiert werden | {count} Transaktionen konnten nicht importiert werden",
           "errorsOverflow": "…und {count} weitere",
+          "errors": {
+            "rowImportFailed": "Diese Zeile konnte nicht importiert werden.",
+            "accountBalanceDesync": "Ein Kontostand konnte nach dem Import nicht aktualisiert werden.",
+            "rowsSuppressed": "Ab dieser Zeile konnte {count} weitere Zeile nicht importiert werden. Nur die ersten {listed} Fehler werden angezeigt. | Ab dieser Zeile konnten {count} weitere Zeilen nicht importiert werden. Nur die ersten {listed} Fehler werden angezeigt."
+          },
           "rowPrefix": "Zeile {rowIndex}:",
           "viewTransactions": "Transaktionen anzeigen",
           "importAnother": "Weitere Datei importieren"

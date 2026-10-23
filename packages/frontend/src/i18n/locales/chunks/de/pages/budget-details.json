@@ -2,6 +2,7 @@
   "pages": {
     "budgets": {
       "transactionsList": {
+        "loadError": "Transaktionen konnten nicht geladen werden.",
         "selectionModeWarning": "Auswahlmodus – wähle Transaktionen zum Aufheben der Verknüpfung",
         "selectAll": "Alles auswählen",
         "selected": "{count} ausgewählt",
@@ -15,7 +16,9 @@
         "resetFilters": "Filter zurücksetzen",
         "addTransactions": "Transaktionen hinzufügen",
         "add": "Hinzufügen",
-        "loadingMore": "Mehr laden..."
+        "loadingMore": "Mehr laden...",
+        "unlinkError": "Verknüpfung der Transaktionen konnte nicht aufgehoben werden",
+        "addError": "Hinzufügen der Transaktionen fehlgeschlagen"
       }
     },
     "budgetDetails": {
@@ -57,11 +60,45 @@
         "income": "Einnahmen",
         "expenses": "Ausgaben",
         "incomeLabel": "Einnahmen:",
-        "expensesLabel": "Ausgaben:"
+        "expensesLabel": "Ausgaben:",
+        "kpi": {
+          "dailyPace": "Tägliches Tempo",
+          "perDay": "/ Tag",
+          "allowedPerDay": "erlaubt {amount} / Tag · {elapsed} von {total} Tagen",
+          "daysElapsed": "{elapsed} von {total} Tagen",
+          "projectedTotal": "Voraussichtliche Gesamtsumme",
+          "projectedLimit": "bei diesem Tempo · Limit {amount}",
+          "averagePerDay": "Durchschnitt pro Tag",
+          "firstTransaction": "Erste Transaktion",
+          "lastTransaction": "Letzte Transaktion",
+          "transactions": "Transaktionen",
+          "avgAmount": "Ø {amount}",
+          "biggestDay": "Umsatzstärkster Tag",
+          "shareOfTotal": "{percent}% der Gesamtsumme"
+        },
+        "byCategory": "Nach Kategorie",
+        "categoriesCount": "{count} Kategorie | {count} Kategorien",
+        "byCurrency": "Nach Währung",
+        "asPaid": "als bezahlt",
+        "timeline": "Verlauf",
+        "todayMarker": "heute {date}",
+        "timelineAria": "Kumulierte Ausgaben im Zeitverlauf mit Balken pro Zeitraum",
+        "limitLabel": "{amount} Limit",
+        "cumulativeLabel": "Kumuliert",
+        "legend": {
+          "cumulative": "Ausgegeben, kumuliert",
+          "evenPace": "Gleichmäßiges Tempo bis zum Limit",
+          "projection": "Hochrechnung",
+          "daily": "Pro Tag",
+          "weekly": "Pro Woche",
+          "monthly": "Pro Monat"
+        },
+        "topPayees": "Top-Zahlungsempfänger",
+        "bySpend": "nach Ausgaben",
+        "noPayee": "Kein ZahlungsempfängerEmpfänger",
+        "txCount": "{count} Transaktionen"
       },
       "sharing": {
-        "title": "Freigabe",
-        "description": "Verwalte, wer diesen Tracker sehen und dazu beitragen kann.",
         "inviteAnother": "Jemanden einladen",
         "membersHeading": "Mitglieder",
         "pendingHeading": "Ausstehende Einladungen",

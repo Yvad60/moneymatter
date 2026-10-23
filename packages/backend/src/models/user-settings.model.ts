@@ -4,6 +4,7 @@ import {
   AI_CUSTOM_INSTRUCTIONS_MAX_LENGTH,
   AI_FEATURE,
   AI_PROVIDER,
+  CATEGORY_ORDER_ROOT_KEY,
   CURRENCY_DISPLAY_PREFERENCES,
   type CategoryMappingPreset,
   type Equals,
@@ -89,7 +90,7 @@ const ZodAiSettingsSchema = z.object({
 const ZodNotificationPreferencesSchema = z.object({
   enabled: z.boolean().default(true),
   types: z.object({
-    [NOTIFICATION_TYPES.budgetAlert]: z.boolean().default(true),
+    [NOTIFICATION_TYPES.trackerAlert]: z.boolean().default(true),
     [NOTIFICATION_TYPES.system]: z.boolean().default(true),
     [NOTIFICATION_TYPES.changelog]: z.boolean().default(true),
   }),
@@ -292,6 +293,11 @@ const ZodSavedTransactionViewSchema = z.object({
   datePreset: z.enum(TRANSACTION_DATE_PRESETS).optional(),
 });
 
+// A parent category id, or `CATEGORY_ORDER_ROOT_KEY` for the top-level list.
+const ZodCategoryOrderKeySchema = z
+  .string()
+  .refine((key) => key === CATEGORY_ORDER_ROOT_KEY || z.uuid().safeParse(key).success);
+
 const fireRange = ({ key }: { key: keyof typeof FIRE_LIMITS }) =>
   z.number().min(FIRE_LIMITS[key].min).max(FIRE_LIMITS[key].max);
 
@@ -343,6 +349,8 @@ export const ZodSettingsSchema = z.object({
   // When true, the sidebar Accounts panel hides accounts whose display balance is
   // zero, and hides any account group left with no non-zero account. Off by default.
   hideZeroBalances: z.boolean().optional(),
+  // Hides the "turn on smart tracking" tip on every tracker's Transactions tab.
+  hideSmartTrackingTip: z.boolean().optional(),
   // When true, manual (`system`) accounts are offered as candidates to the bank-sync transfer
   // matcher. Opt-in because linking turns a manually recorded row into a transfer leg, and
   // transfer legs carry no category, so the row disappears from category stats.
@@ -362,6 +370,9 @@ export const ZodSettingsSchema = z.object({
   // Categories offered for income transactions; every other category is offered for expenses.
   // Stored only: the frontend category picker applies it.
   incomeCategoryIds: z.array(z.uuid()).optional(),
+  // Custom category order: parent id (or `CATEGORY_ORDER_ROOT_KEY`) → child ids in display order.
+  // Stored only: the frontend sorts by it, falling back to alphabetical for unlisted categories.
+  categoryOrder: z.record(ZodCategoryOrderKeySchema, z.array(z.uuid())).optional(),
   currencyDisplay: z.enum(CURRENCY_DISPLAY_PREFERENCES).optional(),
   fire: ZodFireSettingsSchema.optional(),
 });
@@ -387,7 +398,7 @@ export const ZodSettingsPatchSchema = z.object({
       enabled: z.boolean().optional(),
       types: z
         .object({
-          [NOTIFICATION_TYPES.budgetAlert]: z.boolean().optional(),
+          [NOTIFICATION_TYPES.trackerAlert]: z.boolean().optional(),
           [NOTIFICATION_TYPES.system]: z.boolean().optional(),
           [NOTIFICATION_TYPES.changelog]: z.boolean().optional(),
         })
@@ -463,12 +474,14 @@ export const ZodSettingsPatchSchema = z.object({
   payeePromotionThreshold: z.number().int().min(1).max(3).optional(),
   showSupportButton: z.boolean().optional(),
   hideZeroBalances: z.boolean().optional(),
+  hideSmartTrackingTip: z.boolean().optional(),
   matchTransfersWithManualAccounts: z.boolean().optional(),
   importPendingBankTransactions: z.boolean().optional(),
   bankSyncHoursUtc: z.array(z.number().int().min(0).max(23)).length(2).optional(),
   savingsCategoryIds: z.array(z.uuid()).optional(),
   taxCategoryIds: z.array(z.uuid()).optional(),
   incomeCategoryIds: z.array(z.uuid()).optional(),
+  categoryOrder: z.record(ZodCategoryOrderKeySchema, z.array(z.uuid()).optional()).optional(),
   currencyDisplay: z.enum(CURRENCY_DISPLAY_PREFERENCES).optional(),
   fire: ZodFireSettingsSchema.optional(),
 });

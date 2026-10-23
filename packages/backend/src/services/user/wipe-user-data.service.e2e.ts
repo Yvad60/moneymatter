@@ -7,13 +7,14 @@ import BudgetLineGoals from '@models/budget-line-goals.model';
 import BudgetLineGroups from '@models/budget-line-groups.model';
 import BudgetLines from '@models/budget-lines.model';
 import BudgetPlans from '@models/budget-plans.model';
-import Budgets from '@models/budget.model';
 import Categories from '@models/categories.model';
+import GoalAccounts from '@models/goal-accounts.model';
 import { connection } from '@models/index';
 import PortfolioTransfers from '@models/investments/portfolio-transfers.model';
 import MerchantCategoryCodes from '@models/merchant-category-codes.model';
 import ResourceShares from '@models/resource-shares.model';
 import Tags from '@models/tags.model';
+import Trackers from '@models/trackers.model';
 import TransactionTemplateTags from '@models/transaction-template-tags.model';
 import Transactions from '@models/transactions.model';
 import UserMerchantCategoryCodes from '@models/user-merchant-category-codes.model';
@@ -40,7 +41,11 @@ describe('User data wipe (POST /user/wipe-data)', () => {
       }),
       raw: true,
     });
-    const budget = await helpers.createCustomBudget({ name: 'Wipe budget', limitAmount: 500, raw: true });
+    const tracker = await helpers.createTracker({ name: 'Wipe tracker', limitAmount: 500, raw: true });
+    const goal = await helpers.createGoal({
+      payload: { name: 'Wipe goal', accounts: [{ accountId: account.id, sharePercent: 50 }] },
+      raw: true,
+    });
     // Soft-deleted on purpose: a paranoid row must be hard-deleted by the wipe too.
     const budgetPlan = await helpers.createBudgetPlan({ raw: true });
     const planId = budgetPlan.plan.id;
@@ -112,7 +117,8 @@ describe('User data wipe (POST /user/wipe-data)', () => {
     expect(await BudgetLines.findAll({ where: { planId } })).toHaveLength(0);
     expect(await BudgetLineGoals.findAll({ where: { lineId: planLine.id } })).toHaveLength(0);
     expect(await TransactionTemplateTags.findAll({ where: { templateId: template.id } })).toHaveLength(0);
-    expect(await Budgets.findAll({ where: { id: budget.id } })).toHaveLength(0);
+    expect(await Trackers.findAll({ where: { id: tracker.id } })).toHaveLength(0);
+    expect(await GoalAccounts.findAll({ where: { goalId: goal.id } })).toHaveLength(0);
 
     // Custom category is gone but defaults are reseeded. The user gets a fresh-start state,
     // not an empty-state — opening the app after a wipe shouldn't force them to recreate

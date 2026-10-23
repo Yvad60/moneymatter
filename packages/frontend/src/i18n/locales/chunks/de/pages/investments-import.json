@@ -75,6 +75,38 @@
       "estimateFailed": "Schätzung der Importkosten fehlgeschlagen",
       "csvParseFailed": "CSV konnte nicht verarbeitet werden. Überprüfe das Dateiformat und versuche es erneut."
     },
+    "errors": {
+      "csv": {
+        "empty": "CSV-Datei ist leer.",
+        "noHeaders": "CSV-Datei hat keine Kopfzeile.",
+        "forbiddenHeader": "CSV-Kopfzeile verwendet einen reservierten Namen (z.B. __proto__).",
+        "tooManyRows": "CSV überschreitet das Limit von {max} Zeilen.",
+        "parseError": "CSV-Datei konnte nicht verarbeitet werden. Überprüfe, ob es sich um eine gültige CSV-Datei handelt."
+      }
+    },
+    "warnings": {
+      "csvRowMissingSymbol": "Zeile {row}: Fehlendes Symbol",
+      "csvRowInvalidDate": "Zeile {row}: Ungültiges Datum \"{value}\"",
+      "csvRowUnmappedSide": "Zeile {row}: Nicht zugewiesener Wert für Transaktionsart \"{value}\"",
+      "csvRowInvalidQuantity": "Zeile {row}: Ungültige Anzahl \"{value}\"",
+      "csvRowInvalidPrice": "Zeile {row}: Ungültiger Preis \"{value}\"",
+      "csvRowInvalidFees": "Zeile {row}: Ungültige Gebühren \"{value}\"",
+      "aiRowsDropped": "Die KI hat {count} Zeile zurückgegeben, die nicht verarbeitet werden konnte (ungültiges Datum, Richtung oder Zahlen), daher wurde sie übersprungen. | Die KI hat {count} Zeilen zurückgegeben, die nicht verarbeitet werden konnten (ungültiges Datum, Richtung oder Zahlen), daher wurden sie übersprungen.",
+      "csvRowsInvalid": "{count} von {total} CSV-Zeilen wurde übersprungen: | {count} von {total} CSV-Zeilen wurden übersprungen:",
+      "csvRowsSkipped": "{count} Zeile wurde übersprungen, da ihr Wert für die Richtung auf \"Überspringen\" zugewiesen ist. | {count} Zeilen wurden übersprungen, da ihr Wert für die Richtung auf \"Überspringen\" zugewiesen ist.",
+      "unsupportedQuoteCurrency": "{symbol}: {count} Zeile hat eine nicht unterstützte Notierungswährung. | {symbol}: {count} Zeilen haben eine nicht unterstützte Notierungswährung.",
+      "duplicateCheckFailed": "Mögliche Duplikate konnten nicht geprüft werden. Überprüfe deine bestehenden Transaktionen manuell.",
+      "providerLookupFailed": "\"{symbol}\" konnte beim Marktdatenanbieter nicht abgerufen werden. Versuche es später erneut.",
+      "noResolvedSecurity": "\"{symbol}\" übersprungen: Kein Wertpapier ausgewählt.",
+      "noCurrency": "\"{symbol}\" übersprungen: Keine Währung ausgewählt.",
+      "portfolioNotFound": "\"{symbol}\" übersprungen: Zielportfolio nicht gefunden.",
+      "holdingSetupFailed": "\"{symbol}\" übersprungen: Die zugehörige Position konnte nicht eingerichtet werden.",
+      "holdingSetupFailedWithReason": "\"{symbol}\" übersprungen: {reason}",
+      "unsupportedCategory": "\"{symbol}\" {side} am {date} übersprungen: Diese Kategorie wird noch nicht unterstützt.",
+      "transactionFailed": "Import von \"{symbol}\" {side} am {date} fehlgeschlagen.",
+      "transactionFailedWithReason": "Import von \"{symbol}\" {side} am {date} fehlgeschlagen: {reason}",
+      "unknown": "Einige Zeilen wurden möglicherweise nicht wie erwartet importiert."
+    },
     "columnMapping": {
       "rowsAndDelimiter": "{rows} Zeilen · Trennzeichen \"{delimiter}\"",
       "backToUpload": "Zurück",

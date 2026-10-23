@@ -325,6 +325,12 @@
         "errorColumns": {
           "row": "Riadok",
           "error": "Chyba"
+        },
+        "rowErrors": {
+          "payeeDefaultTagsFailed": "Transakcia bola importovaná, ale predvolené značky príjemcu sa nepodarilo použiť.",
+          "accountUnresolved": "Účet pre tento riadok sa nepodarilo určiť, riadok preto bol vynechaný.",
+          "readBackFailed": "Transakcia bola vytvorená, ale nepodarilo sa ju opätovne načítať, preto chýba v počte importovaných.",
+          "generic": "Tento riadok sa nepodarilo importovať."
         }
       }
     }

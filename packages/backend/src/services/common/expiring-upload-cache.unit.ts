@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ConflictError, NotFoundError } from '@js/errors';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
@@ -29,7 +29,24 @@ const makeCache = ({ idleTtlMs, maxLifetimeMs }: { idleTtlMs: number; maxLifetim
   };
 };
 
-const wait = ({ ms }: { ms: number }) => new Promise((resolve) => setTimeout(resolve, ms));
+// Time passes by moving the clock the cache reads, never by sleeping: a slow runner cannot age an entry
+// past a window the test meant to stay inside, and no test waits in real time.
+const realNow = Date.now;
+let elapsedMs = 0;
+
+const advanceClock = ({ ms }: { ms: number }) => {
+  elapsedMs += ms;
+};
+
+beforeEach(() => {
+  elapsedMs = 0;
+  const startMs = realNow();
+  jest.spyOn(Date, 'now').mockImplementation(() => startMs + elapsedMs);
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 const msUntil = ({ iso }: { iso: string }) => new Date(iso).getTime() - Date.now();
 
@@ -65,7 +82,7 @@ describe('createExpiringUploadCache', () => {
     const { cache } = makeCache({ idleTtlMs: 30, maxLifetimeMs: 240_000 });
 
     const { id } = await cache.store({ userId: 1, payload: { label: 'stored' } });
-    await wait({ ms: 80 });
+    advanceClock({ ms: 80 });
 
     await expect(cache.read({ userId: 1, id })).rejects.toThrow(NotFoundError);
     await expect(cache.read({ userId: 1, id })).rejects.toThrow(MISSING_MESSAGE);
@@ -75,13 +92,13 @@ describe('createExpiringUploadCache', () => {
     const { cache } = makeCache({ idleTtlMs: 300, maxLifetimeMs: 240_000 });
 
     const { id, lease } = await cache.store({ userId: 1, payload: { label: 'stored' } });
-    await wait({ ms: 200 });
+    advanceClock({ ms: 200 });
 
     const refreshed = await cache.refresh({ userId: 1, id });
     expect(new Date(refreshed.expiresAt).getTime()).toBeGreaterThan(new Date(lease.expiresAt).getTime());
 
     // Past the original expiry, so this read only succeeds because of the refresh.
-    await wait({ ms: 200 });
+    advanceClock({ ms: 200 });
     expect(await cache.read({ userId: 1, id })).toEqual({ label: 'stored' });
   });
 
@@ -92,7 +109,7 @@ describe('createExpiringUploadCache', () => {
     const deadline = new Date(lease.maxExpiresAt).getTime();
 
     for (let attempt = 0; attempt < 3; attempt++) {
-      await wait({ ms: 60 });
+      advanceClock({ ms: 60 });
       const refreshed = await cache.refresh({ userId: 1, id });
 
       expect(refreshed.maxExpiresAt).toBe(lease.maxExpiresAt);
@@ -111,7 +128,7 @@ describe('createExpiringUploadCache', () => {
     await expect(cache.refresh({ userId: 1, id: randomUUID() })).rejects.toThrow(MISSING_MESSAGE);
 
     const { id } = await cache.store({ userId: 1, payload: { label: 'stored' } });
-    await wait({ ms: 80 });
+    advanceClock({ ms: 80 });
 
     await expect(cache.refresh({ userId: 1, id })).rejects.toThrow(NotFoundError);
   });
@@ -126,7 +143,7 @@ describe('createExpiringUploadCache', () => {
     expect(claimed.maxExpiresAt).toBe(lease.maxExpiresAt);
 
     // Past the idle window, which nothing is refreshing once the work is queued.
-    await wait({ ms: 400 });
+    advanceClock({ ms: 400 });
     expect(await cache.read({ userId: 1, id })).toEqual({ label: 'queued' });
   });
 
@@ -136,7 +153,7 @@ describe('createExpiringUploadCache', () => {
     const { id, lease } = await cache.store({ userId: 1, payload: { label: 'stored' } });
 
     const first = await cache.claim({ userId: 1, id, jobId: 'job-1' });
-    await wait({ ms: 80 });
+    advanceClock({ ms: 80 });
     const second = await cache.claim({ userId: 1, id, jobId: 'job-1' });
 
     expect(second.maxExpiresAt).toBe(lease.maxExpiresAt);
@@ -144,7 +161,7 @@ describe('createExpiringUploadCache', () => {
 
     // Claiming buys the rest of the cap and nothing beyond it, however often it
     // is called, so the entry still dies on schedule.
-    await wait({ ms: 600 });
+    advanceClock({ ms: 600 });
     await expect(cache.read({ userId: 1, id })).rejects.toThrow(MISSING_MESSAGE);
   });
 
@@ -215,7 +232,7 @@ describe('createExpiringUploadCache', () => {
     await expect(cache.claim({ userId: 1, id: randomUUID(), jobId: 'job-1' })).rejects.toThrow(MISSING_MESSAGE);
 
     const { id } = await cache.store({ userId: 1, payload: { label: 'stored' } });
-    await wait({ ms: 80 });
+    advanceClock({ ms: 80 });
 
     await expect(cache.claim({ userId: 1, id, jobId: 'job-1' })).rejects.toThrow(NotFoundError);
   });
@@ -278,20 +295,12 @@ describe('createExpiringUploadCache', () => {
 
     const expired = await cache.store({ userId: 1, payload: { label: 'expired' } });
 
-    // Jumping the clock instead of sleeping keeps a slow CI runner from aging the
-    // live entry past its idle window too. Under a minute, so `store` does not
-    // fire a second background sweep.
-    const realNow = Date.now;
-    const clock = jest.spyOn(Date, 'now').mockImplementation(() => realNow() + 5_000);
-    let live: Awaited<ReturnType<typeof cache.store>>;
-    try {
-      live = await cache.store({ userId: 1, payload: { label: 'live' } });
-      // `store` fires the sweep in the background and at most once a minute, so
-      // driving it here is what makes the assertions below deterministic.
-      await cache.sweepExpired();
-    } finally {
-      clock.mockRestore();
-    }
+    // Under a minute, so `store` does not fire a second background sweep.
+    advanceClock({ ms: 5_000 });
+    const live = await cache.store({ userId: 1, payload: { label: 'live' } });
+    // `store` fires the sweep in the background and at most once a minute, so
+    // driving it here is what makes the assertions below deterministic.
+    await cache.sweepExpired();
 
     const remaining = await fs.readdir(directory);
     expect(remaining.filter((entry) => entry.includes(expired.id))).toEqual([]);

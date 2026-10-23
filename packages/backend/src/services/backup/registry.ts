@@ -22,13 +22,15 @@ export type BackupParentScope =
   | 'transactions'
   | 'transactionGroups'
   | 'transactionTemplates'
-  | 'budgets'
+  | 'trackers'
   | 'subscriptions'
   | 'ventureEvents'
   | 'subscriptionPeriods'
   | 'importBatches'
   | 'budgetPlans'
-  | 'budgetLines';
+  | 'budgetLines'
+  | 'trackerLines'
+  | 'goals';
 
 /**
  * How a table's rows are selected for the current user.
@@ -288,8 +290,8 @@ const TABLE_DEFS = [
     restoreMode: 'insert',
   },
   {
-    fileName: 'budgets',
-    model: models.Budgets,
+    fileName: 'trackers',
+    model: models.Trackers,
     tier: 3,
     scope: { strategy: 'userColumn', column: 'userId' },
     restoreMode: 'insert',
@@ -309,6 +311,13 @@ const TABLE_DEFS = [
     restoreMode: 'insert',
     paranoid: true,
     isValidRow: isRestorablePlanRow,
+  },
+  {
+    fileName: 'goals',
+    model: models.Goals,
+    tier: 3,
+    scope: { strategy: 'userColumn', column: 'userId' },
+    restoreMode: 'insert',
   },
 
   // tier 4
@@ -398,6 +407,20 @@ const TABLE_DEFS = [
     scope: { strategy: 'viaParent', fk: 'planId', parent: 'budgetPlans' },
     restoreMode: 'insert',
   },
+  {
+    fileName: 'goal-accounts',
+    model: models.GoalAccounts,
+    tier: 4,
+    scope: { strategy: 'viaParent', fk: 'goalId', parent: 'goals' },
+    restoreMode: 'insert',
+  },
+  {
+    fileName: 'tracker-lines',
+    model: models.TrackerLines,
+    tier: 4,
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
+    restoreMode: 'insert',
+  },
 
   // tier 5
   {
@@ -422,17 +445,17 @@ const TABLE_DEFS = [
     restoreMode: 'insert',
   },
   {
-    fileName: 'budget-transactions',
-    model: models.BudgetTransactions,
+    fileName: 'tracker-transactions',
+    model: models.TrackerTransactions,
     tier: 5,
-    scope: { strategy: 'viaParent', fk: 'budgetId', parent: 'budgets' },
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
     restoreMode: 'insert',
   },
   {
-    fileName: 'budget-categories',
-    model: models.BudgetCategories,
+    fileName: 'tracker-categories',
+    model: models.TrackerCategories,
     tier: 5,
-    scope: { strategy: 'viaParent', fk: 'budgetId', parent: 'budgets' },
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
     restoreMode: 'insert',
   },
   {
@@ -489,6 +512,20 @@ const TABLE_DEFS = [
     model: models.BudgetLines,
     tier: 5,
     scope: { strategy: 'viaParent', fk: 'planId', parent: 'budgetPlans' },
+    restoreMode: 'insert',
+  },
+  {
+    fileName: 'tracker-line-categories',
+    model: models.TrackerLineCategories,
+    tier: 5,
+    scope: { strategy: 'viaParent', fk: 'lineId', parent: 'trackerLines' },
+    restoreMode: 'insert',
+  },
+  {
+    fileName: 'tracker-suggestions',
+    model: models.TrackerSuggestions,
+    tier: 5,
+    scope: { strategy: 'viaParent', fk: 'trackerId', parent: 'trackers' },
     restoreMode: 'insert',
   },
 

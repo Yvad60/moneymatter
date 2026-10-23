@@ -1,24 +1,61 @@
 import type { AccountGroups } from '@/common/types/models';
+import type { AccountModel } from '@bt/shared/types';
 
 export interface AccountGroupListItem {
   group: AccountGroups;
-  /** Name of the group this one sits under, when the parent is part of the same response. */
-  parentName: string | null;
+  /** Subgroups rendered under this row, sorted by name. */
+  children: AccountGroupListItem[];
 }
 
-/**
- * The endpoint returns every group in one flat list, and a nested group's own
- * `childGroups` entries come back without their accounts. So the list renders flat and
- * each row states its parent by name instead of trying to nest, and every row reads
- * `group.accounts` — its own, fully hydrated set — rather than walking `childGroups`.
- */
-export const buildAccountGroupList = ({ groups }: { groups: AccountGroups[] }): AccountGroupListItem[] => {
-  const namesById = new Map(groups.map((group) => [group.id, group.name]));
+export type AccountGroupTreeRow =
+  | { type: 'group'; item: AccountGroupListItem; depth: number }
+  | { type: 'account'; account: AccountModel; groupId: string; depth: number };
 
-  return groups
+/** Sorts a built group tree by name at every level into nested list rows. */
+export const buildAccountGroupList = ({ groups }: { groups: AccountGroups[] }): AccountGroupListItem[] =>
+  [...groups]
+    .sort((a, b) => a.name.localeCompare(b.name))
     .map((group) => ({
       group,
-      parentName: group.parentGroupId ? (namesById.get(group.parentGroupId) ?? null) : null,
-    }))
-    .sort((a, b) => a.group.name.localeCompare(b.group.name));
-};
+      children: buildAccountGroupList({ groups: group.childGroups }),
+    }));
+
+/** Flattens the visible part of the tree: an expanded group lists its subgroups first, then its own accounts. */
+export const listTreeRows = ({
+  items,
+  isExpanded,
+  includeAccounts,
+  depth = 0,
+}: {
+  items: AccountGroupListItem[];
+  isExpanded: (params: { id: string }) => boolean;
+  includeAccounts: boolean;
+  depth?: number;
+}): AccountGroupTreeRow[] =>
+  items.flatMap((item): AccountGroupTreeRow[] => {
+    const row: AccountGroupTreeRow = { type: 'group', item, depth };
+    if (!isExpanded({ id: item.group.id })) return [row];
+
+    const accounts: AccountGroupTreeRow[] = includeAccounts
+      ? item.group.accounts.map((account) => ({
+          type: 'account',
+          account,
+          groupId: item.group.id,
+          depth: depth + 1,
+        }))
+      : [];
+
+    return [
+      row,
+      ...listTreeRows({
+        items: item.children,
+        isExpanded,
+        includeAccounts,
+        depth: depth + 1,
+      }),
+      ...accounts,
+    ];
+  });
+
+export const flattenGroups = ({ groups }: { groups: AccountGroups[] }): AccountGroups[] =>
+  groups.flatMap((group) => [group, ...flattenGroups({ groups: group.childGroups })]);

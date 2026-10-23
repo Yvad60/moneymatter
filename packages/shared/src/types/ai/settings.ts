@@ -20,6 +20,8 @@ export enum AI_FEATURE {
   statementParsing = 'statement_parsing',
   investmentTransactionsParsing = 'investment_transactions_parsing',
   receiptParsing = 'receipt_parsing',
+  trackerMatching = 'tracker_matching',
+  transferMatching = 'transfer_matching',
   // Future features:
   // insights = 'insights',
 }

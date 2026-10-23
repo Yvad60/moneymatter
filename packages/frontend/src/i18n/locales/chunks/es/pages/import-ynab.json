@@ -67,6 +67,10 @@
           "transfersImported": "Transferencias importadas",
           "splitsDetected": "Grupos de divisiones detectados",
           "errorsTitle": "No se pudieron importar {count} filas",
+          "errors": {
+            "payeeCreateFailed": "No se pudo crear el beneficiario \"{payeeName}\". Sus transacciones fueron importadas sin un beneficiario.",
+            "rowImportFailed": "Esta fila no pudo ser importada."
+          },
           "viewTransactions": "Ver transacciones",
           "importAnother": "Importar otro archivo"
         }

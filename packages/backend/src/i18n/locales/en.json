@@ -29,6 +29,7 @@
     "groupNotFound": "Group not found",
     "groupUpdateFailed": "Group update was not successful",
     "parentGroupNotExist": "Parent with such id does not exist.",
+    "parentGroupCycle": "A group can't be placed inside itself or one of its own subgroups.",
     "parentGroupDoesNotExist": "Parent group does not exists.",
     "accountNotFound": "Account with such id is not found.",
     "accountGroupNotFound": "Account group with such id is not found."
@@ -129,11 +130,24 @@
   },
   "budgets": {
     "budgetNotFound": "Tracker not found",
+    "lineNotFound": "Tracker line not found",
+    "onlyOwnerCanDuplicate": "Only the owner can duplicate this tracker",
     "someTransactionIdsInvalid": "Some transactions IDs are invalid",
     "transactionsAddedSuccessfully": "Transactions added successfully",
     "cannotManuallyLinkToCategoryBudget": "Cannot manually link transactions to category-based trackers. Transactions are tracked automatically by category.",
     "someCategoryIdsInvalid": "Some category IDs are invalid or do not exist",
-    "notCategoryBudget": "This endpoint is only available for category-based trackers"
+    "notCategoryBudget": "This endpoint is only available for category-based trackers",
+    "lineCategoryOutsideTracker": "A tracker line can only use categories tracked by its tracker",
+    "startDateAfterEndDate": "Start date must be on or before the end date",
+    "smartTracking": {
+      "ownerOnly": "Only the tracker owner can change smart tracking.",
+      "manualOnly": "Smart tracking works only for manual trackers.",
+      "descriptionRequired": "Describe what this tracker is for to turn on smart tracking.",
+      "startDateRequired": "Set a start date to turn on smart tracking.",
+      "scanRunning": "Matching is running for this tracker. Try again when it finishes.",
+      "suggestionNotFound": "Suggestion not found.",
+      "suggestionAlreadyResolved": "This suggestion is already {{status}}."
+    }
   },
   "budgetPlans": {
     "planNotFound": "Budget plan not found.",
@@ -748,8 +762,13 @@
     "renameCollision": "Another payee already uses this name – merge them instead"
   },
   "brandLogos": {
-    "domainAndInitialsExclusive": "A brand logo and custom letters can't be set at the same time.",
-    "colorRequiresInitials": "A monogram color requires monogram letters."
+    "colorRequiresInitials": "A background color needs letters or an icon.",
+    "slotsExclusive": "Pick one logo type: brand, letters, icon, or image."
+  },
+  "logoImages": {
+    "invalidImage": "The file is not a PNG, JPEG, or WebP image.",
+    "tooLarge": "Logo images must be 50 KB or smaller.",
+    "notFound": "Logo image not found."
   },
   "venture": {
     "dealNotFound": "Venture deal not found",
@@ -823,5 +842,17 @@
   },
   "dataExport": {
     "tooManyRows": "Export would contain {{rowCount, number}} rows, which exceeds the limit of {{limit, number}}."
+  },
+  "goals": {
+    "goalNotFound": "Goal not found.",
+    "accountNotFound": "One of the selected accounts was not found.",
+    "accountNotEligible": "{{accountName}} can't count toward a goal. Pick a cash, current, savings, investment or crypto account.",
+    "shareCapacityExceeded": "{{accountName}} has {{free}}% free: you asked for {{requested}}%, and other goals already use {{usedByOtherGoals}}%.",
+    "fixedAmountsBelowTarget": "Fixed amounts add up to {{total}} {{currencyCode}}, below the {{target}} {{currencyCode}} target. Raise an amount or count an account by percent.",
+    "currencyRateUnavailable": "{{currencyCode}} can't be converted to your base currency right now. Pick another currency or try again later.",
+    "reachedNotification": {
+      "title": "Goal reached: {{name}}",
+      "message": "You've saved {{amount}} {{currencyCode}}."
+    }
   }
 }

@@ -5,7 +5,17 @@
       "failedToFetchSelfHost": "Nie je možné sa pripojiť k serveru. Backend sa možno ešte spúšťa (približne 30 sekúnd po spustení) alebo vaša premenná prostredia ALLOWED_ORIGINS neobsahuje túto URL adresu.",
       "unexpectedError": "Neočakávaná chyba.",
       "sessionExpired": "Vaša relácia vypršala. Prihláste sa znova, prosím",
-      "payloadTooLarge": "Požiadavka je príliš veľká. Skúste importovať menej položiek naraz, prosím."
+      "payloadTooLarge": "Požiadavka je príliš veľká. Skúste importovať menej položiek naraz, prosím.",
+      "tooManyRequests": "Príliš veľa pokusov. Počkajte chvíľu a skúste to znova, prosím."
+    },
+    "auth": {
+      "reauthenticationRequired": "Z bezpečnostných dôvodov sa na vykonanie tejto zmeny prihláste znova.",
+      "passwordTooShort": "Heslo je príliš krátke.",
+      "passwordTooLong": "Heslo je príliš dlhé.",
+      "providerNotConfigured": "Tento poskytovateľ prihlásenia nie je na tomto serveri nakonfigurovaný.",
+      "accountAlreadyLinked": "Tento účet je už prepojený s iným používateľom.",
+      "cannotUnlinkLastAccount": "Svoj jediný spôsob prihlásenia nemôžete odstrániť.",
+      "passkeyAlreadyRegistered": "Tento prístupový kľúč už je zaregistrovaný."
     },
     "notFound": {
       "title": "Táto stránka nie je uvedená v zozname",

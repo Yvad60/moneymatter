@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { NotificationStruct } from '@/api/notifications';
+import { useFormatCurrency } from '@/composable/formatters';
 import { useDateLocale } from '@/composable/use-date-locale';
 import {
   ChangelogNotificationPayload,
+  type GoalReachedNotificationPayload,
   NOTIFICATION_STATUSES,
   NOTIFICATION_TYPES,
   NotificationType,
@@ -10,12 +12,14 @@ import {
   type ShareInvitationSendFailedPayload,
   type ShareLifecycleNotificationPayload,
   TagReminderNotificationPayload,
+  type TrackerAiMatchesNotificationPayload,
 } from '@bt/shared/types';
 import {
   AlertTriangleIcon,
   CalendarCheckIcon,
   CalendarClockIcon,
   ClockIcon,
+  FlagIcon,
   HandshakeIcon,
   HomeIcon,
   HourglassIcon,
@@ -71,14 +75,16 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const { formatDistanceToNow } = useDateLocale();
+const { formatAmountByCurrencyCode } = useFormatCurrency();
 
 const getIcon = (type: NotificationType) => {
   switch (type) {
-    case NOTIFICATION_TYPES.budgetAlert:
+    case NOTIFICATION_TYPES.trackerAlert:
       return WalletIcon;
     case NOTIFICATION_TYPES.system:
       return AlertTriangleIcon;
     case NOTIFICATION_TYPES.changelog:
+    case NOTIFICATION_TYPES.trackerAiMatches:
       return SparklesIcon;
     case NOTIFICATION_TYPES.tagReminder:
       return TagIcon;
@@ -88,6 +94,8 @@ const getIcon = (type: NotificationType) => {
       return CalendarCheckIcon;
     case NOTIFICATION_TYPES.stuckPending:
       return HourglassIcon;
+    case NOTIFICATION_TYPES.goalReached:
+      return FlagIcon;
     case NOTIFICATION_TYPES.shareInvitationReceived:
     case NOTIFICATION_TYPES.householdInvitationReceived:
       return MailIcon;
@@ -123,12 +131,14 @@ const getIcon = (type: NotificationType) => {
 
 const getIconBg = (type: NotificationType) => {
   switch (type) {
-    case NOTIFICATION_TYPES.budgetAlert:
+    case NOTIFICATION_TYPES.trackerAlert:
       return 'bg-orange-500';
     case NOTIFICATION_TYPES.system:
       return 'bg-blue-500';
     case NOTIFICATION_TYPES.changelog:
       return 'bg-purple-500';
+    case NOTIFICATION_TYPES.trackerAiMatches:
+      return 'bg-primary';
     case NOTIFICATION_TYPES.tagReminder:
       return 'bg-amber-500';
     case NOTIFICATION_TYPES.subscriptionReminder:
@@ -137,6 +147,8 @@ const getIconBg = (type: NotificationType) => {
       return 'bg-teal-500';
     case NOTIFICATION_TYPES.stuckPending:
       return 'bg-yellow-500';
+    case NOTIFICATION_TYPES.goalReached:
+      return 'bg-success';
     case NOTIFICATION_TYPES.shareInvitationReceived:
     case NOTIFICATION_TYPES.householdInvitationReceived:
       return 'bg-violet-500';
@@ -175,7 +187,37 @@ const getTitle = (notification: NotificationStruct): string => {
       ? t('notifications.newVersion', { version: payload.version })
       : t('notifications.newRelease');
   }
+  if (notification.type === NOTIFICATION_TYPES.trackerAiMatches) {
+    const { trackerName, linkedCount, suggestedCount } = notification.payload as TrackerAiMatchesNotificationPayload;
+    const added = t('notifications.trackerAiMatches.added', { count: linkedCount }, linkedCount);
+    const toReview = t('notifications.trackerAiMatches.toReview', { count: suggestedCount }, suggestedCount);
+    let summary = added;
+    if (!linkedCount) summary = toReview;
+    else if (suggestedCount) {
+      summary = t('notifications.trackerAiMatches.both', {
+        added,
+        toReview: t('notifications.trackerAiMatches.toReviewShort', { count: suggestedCount }),
+      });
+    }
+    return t('notifications.trackerAiMatches.title', { name: trackerName, summary });
+  }
+  if (notification.type === NOTIFICATION_TYPES.goalReached) {
+    const payload = notification.payload as Partial<GoalReachedNotificationPayload> | undefined;
+    if (payload?.goalName) return t('notifications.goalReached.title', { name: payload.goalName });
+  }
   return notification.title || '';
+};
+
+const getMessage = (notification: NotificationStruct): string | null => {
+  if (notification.type === NOTIFICATION_TYPES.goalReached) {
+    const payload = notification.payload as Partial<GoalReachedNotificationPayload> | undefined;
+    if (typeof payload?.achievedAmount === 'number' && payload.currencyCode) {
+      return t('notifications.goalReached.message', {
+        amount: formatAmountByCurrencyCode(payload.achievedAmount, payload.currencyCode),
+      });
+    }
+  }
+  return notification.message;
 };
 
 const formatRelativeTime = (date: Date | string) => {
@@ -249,7 +291,7 @@ const handleDismiss = (event: Event) => {
               | undefined
           "
         />
-        <DefaultContent v-else :message="notification.message" />
+        <DefaultContent v-else :message="getMessage(notification)" />
 
         <p class="text-muted-foreground mt-1 text-xs">
           {{ formatRelativeTime(notification.createdAt) }}

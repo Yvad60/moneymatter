@@ -61,6 +61,14 @@ Container queries aren't needed everywhere — use judgement:
 - **Viewport breakpoints** (`md:`, `lg:`): showing/hiding the sidebar, header layout, simple show/hide toggles that genuinely depend on screen size
 - **`useWindowBreakpoints`**: JS-based responsive logic — toggling components, conditional rendering based on device class
 
+### KPI / summary cards collapse into rows when narrow
+
+A grid of stat cards (label on top, big value below) wastes vertical space on phones and small tablets. When the container is narrower than `@md`, render the same items as **rows**: label on the left, value (plus hint) right-aligned, one item per line, divided by hairlines. Switch to cards only from `@md` of the section's container up.
+
+- Analytics pages: use `pages/analytics/components/summary-rows.vue` for the narrow layout and the cards for wide.
+- Elsewhere: one markup with container variants, e.g. `flex items-baseline justify-between @md/section:block` on each cell and `grid-cols-1 @md/section:grid-cols-4` on the grid (see the header strip in `pages/trackers/trackers-info/tracker-details.vue`).
+- Never use a 2-column card grid as the phone fallback — it is the layout this rule replaces.
+
 ---
 
 ## Testing
@@ -98,6 +106,13 @@ Semantic colors come in pairs: the **base token is a fill** (button/badge backgr
 - **Never** use `text-primary` or `text-destructive` to color text or icons. Fill tokens are tuned so a white label passes contrast _on top of them_, which makes them too low-contrast _as_ text on the dark theme (this is why `--primary-text` exists as a separate, brighter tint in dark mode)
 - Tinted chips like `bg-primary/10` still count as a dark background — text/icons inside them use `text-primary-text`
 - Borders, strokes (progress rings), and chart lines may keep using the base token — non-text UI parts only need 3:1 contrast
+
+### Font sizes
+
+- **14px (`text-sm`) is the floor for regular UI**: row titles, values, amounts, filter chips, buttons, page subtitles and empty-state copy. Leave row titles at the inherited base size.
+- Anything below 14px (`text-xs`, `text-[11px]`, `text-[13px]`, …) needs a real justification. Typical cases are tiny metadata badges/pills, secondary captions under a row title, uppercase section labels and chart axis ticks. "It fits better" or "it looks denser" is not a justification. Fix the layout instead.
+- Never go below 12px (`text-xs`). No `text-[10px]`/`text-[11px]`.
+- Reference: the recurring payments list (`pages/planned/subscriptions`). It uses a `text-sm` subtitle, base-size titles, `text-sm` amounts and `text-xs` only for captions and badges.
 
 ---
 

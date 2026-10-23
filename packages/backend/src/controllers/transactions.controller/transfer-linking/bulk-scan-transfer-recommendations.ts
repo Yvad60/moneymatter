@@ -1,25 +1,36 @@
-import { SORT_DIRECTIONS, TRANSACTION_TRANSFER_NATURE, TRANSACTION_TYPES } from '@bt/shared/types';
+import {
+  type BulkTransferScanMatch,
+  SORT_DIRECTIONS,
+  TRANSACTION_TRANSFER_NATURE,
+  TRANSACTION_TYPES,
+} from '@bt/shared/types';
 import { dateRange, withDateOrder } from '@common/lib/zod/custom-types';
 import { createController } from '@controllers/helpers/controller-factory';
 import Transactions from '@models/transactions.model';
 import { getDismissalsForUser } from '@models/transfer-suggestion-dismissals.model';
 import { serializeTransaction, TransactionApiResponse } from '@root/serializers/transactions.serializer';
 import * as transactionsService from '@services/transactions';
+import {
+  type TransferPairReview,
+  aiReviewTransferMatches,
+  transferPairKey,
+} from '@services/transactions/transactions-linking/ai-review-transfer-matches';
 import { addDays, endOfDay, startOfDay, subDays } from 'date-fns';
 import { z } from 'zod';
 
 import { MS_PER_DAY, RECOMMENDATION_DAYS_RANGE, RECOMMENDATION_PERCENT_RANGE } from './constants';
 
 const MAX_MATCHES_PER_EXPENSE = 4;
+/** Below this the pair is a coincidence of amount and date, not worth showing. */
+const MIN_CONFIDENCE = 50;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const CONFIDENCE_WEIGHT_AMOUNT = 50;
 const CONFIDENCE_WEIGHT_DATE = 30;
 const CONFIDENCE_WEIGHT_CURRENCY = 20;
 
-interface BulkScanMatch {
+interface BulkScanMatch extends Pick<BulkTransferScanMatch, 'confidence' | 'ai'> {
   transaction: TransactionApiResponse;
-  confidence: number;
 }
 
 interface BulkScanItem {
@@ -31,6 +42,8 @@ interface BulkScanResponse {
   total: number;
   items: BulkScanItem[];
 }
+
+const verdictRank = (match: { ai?: TransferPairReview }) => (match.ai?.verdict === 'likely' ? 0 : 1);
 
 const emptyResponse = (): BulkScanResponse => ({ total: 0, items: [] });
 
@@ -86,13 +99,14 @@ const schema = z.object({
       limit: z.number().int().positive().max(MAX_LIMIT).optional().default(DEFAULT_LIMIT),
       offset: z.number().int().min(0).optional().default(0),
       includeOutOfWallet: z.boolean().optional().default(false),
+      aiReview: z.boolean().optional().default(false),
     }),
   ),
 });
 
 export default createController(schema, async ({ user, body }) => {
   const { id: userId } = user;
-  const { from, to, limit, offset, includeOutOfWallet } = body;
+  const { from, to, limit, offset, includeOutOfWallet, aiReview } = body;
 
   const dateFromParsed = startOfDay(new Date(from));
   const dateToParsed = endOfDay(new Date(to));
@@ -159,9 +173,9 @@ export default createController(schema, async ({ user, body }) => {
   const dismissedPairsSet = new Set(dismissals.map((d) => `${d.expenseTransactionId}:${d.incomeTransactionId}`));
 
   // 4. Match expenses to incomes in-memory
-  const results: Array<{
+  let results: Array<{
     expense: Transactions;
-    matches: Array<{ transaction: Transactions; confidence: number }>;
+    matches: Array<{ transaction: Transactions; confidence: number; ai?: TransferPairReview }>;
   }> = [];
 
   for (const expense of eligibleExpenses) {
@@ -196,6 +210,7 @@ export default createController(schema, async ({ user, body }) => {
         expenseCurrency: expense.currencyCode,
         matchCurrency: income.currencyCode,
       });
+      if (confidence < MIN_CONFIDENCE) continue;
 
       matchCandidates.push({ transaction: income, confidence });
     }
@@ -213,10 +228,31 @@ export default createController(schema, async ({ user, body }) => {
   // 5. Sort results by expense date descending (newest first)
   results.sort((a, b) => new Date(b.expense.time).getTime() - new Date(a.expense.time).getTime());
 
+  if (aiReview) {
+    const reviews = await aiReviewTransferMatches({
+      userId,
+      pairs: results.flatMap(({ expense, matches }) =>
+        matches.map(({ transaction }) => ({ expenseId: expense.id, incomeId: transaction.id })),
+      ),
+    });
+    results = results
+      .map(({ expense, matches }) => ({
+        expense,
+        matches: matches
+          .map((match) => ({
+            ...match,
+            ai: reviews.get(transferPairKey({ expenseId: expense.id, incomeId: match.transaction.id })),
+          }))
+          .filter((match) => match.ai?.verdict !== 'unlikely')
+          .toSorted((a, b) => verdictRank(a) - verdictRank(b) || b.confidence - a.confidence),
+      }))
+      .filter(({ matches }) => matches.length > 0);
+  }
+
   const total = results.length;
 
-  // 6. Apply pagination
-  const paginatedResults = results.slice(offset, offset + limit);
+  // 6. Apply pagination. A reviewed scan answers in one page, so paging never re-runs the AI.
+  const paginatedResults = aiReview ? results : results.slice(offset, offset + limit);
 
   // 7. Serialize
   const items: BulkScanItem[] = paginatedResults.map((result) => ({
@@ -224,6 +260,7 @@ export default createController(schema, async ({ user, body }) => {
     matches: result.matches.map((match) => ({
       transaction: serializeTransaction(match.transaction),
       confidence: match.confidence,
+      ...(match.ai && { ai: match.ai as BulkScanMatch['ai'] }),
     })),
   }));
 

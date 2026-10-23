@@ -2,11 +2,11 @@
 
 MoneyMatter exposes a remote Model Context Protocol (MCP) server. Connecting an
 agent to this server gives the agent OAuth-secured access to the user's
-financial data (accounts, transactions, trackers, subscriptions, transaction
-automations, categories, tags, cash flow, balance history, investment
-portfolios, holdings, and investment transactions). The agent can read these
-records and — when the user grants the corresponding scopes — create, edit,
-and delete them.
+financial data (accounts, transactions, trackers, savings goals,
+subscriptions, transaction automations, categories, tags, cash flow, balance
+history, investment portfolios, holdings, and investment transactions). The
+agent can read these records and — when the user grants the corresponding
+scopes — create, edit, and delete them.
 
 Use this skill when the user asks to "connect Claude to my budget", "hook up
 ChatGPT to MoneyMatter", "let my AI see my finances", or similar.
@@ -56,14 +56,24 @@ page.
 | `search_transactions`                   | Filter transactions by date, category, tag, amount, etc.                                                         |
 | `get_categories`                        | List spending/income categories                                                                                  |
 | `get_tags`                              | List transaction tags                                                                                            |
-| `get_budgets`                           | Trackers ("budget" in tool names) with progress and overspend state                                              |
-| `create_budget`                         | Create a new tracker with limit, date range, categories (`finance:write`)                                        |
-| `update_budget`                         | Update name, date range, limit, or categories of a tracker (`finance:write`)                                     |
-| `delete_budget`                         | Permanently delete a tracker and its transaction links (`finance:delete`)                                        |
-| `archive_budget`                        | Archive or restore a tracker — active ↔ archived (`finance:write`)                                               |
-| `add_transactions_to_budget`            | Link transactions to a manual tracker (`finance:write`)                                                          |
-| `remove_transactions_from_budget`       | Unlink transactions from a tracker (`finance:write`)                                                             |
-| `get_budget_spending_stats`             | Category breakdown and time-series spending for a tracker                                                        |
+| `get_trackers`                          | Trackers with limits, categories and lines                                                                       |
+| `create_tracker`                        | Create a new tracker with limit, date range, categories, smart tracking (`finance:write`)                        |
+| `update_tracker`                        | Update name, dates, limit (null clears), categories, or smart tracking of a tracker (`finance:write`)            |
+| `delete_tracker`                        | Permanently delete a tracker and its transaction links (`finance:delete`)                                        |
+| `archive_tracker`                       | Archive or restore a tracker — active ↔ archived (`finance:write`)                                               |
+| `add_transactions_to_tracker`           | Link transactions to a manual tracker (`finance:write`)                                                          |
+| `remove_transactions_from_tracker`      | Unlink transactions from a tracker (`finance:write`)                                                             |
+| `get_tracker_spending_stats`            | Category breakdown, time-series, per-line spent and "other" spending for a tracker                               |
+| `create_tracker_line`                   | Add a line (category set + optional limit) to a tracker (`finance:write`)                                        |
+| `update_tracker_line`                   | Update a tracker line's name, categories, limit, or position (`finance:write`)                                   |
+| `delete_tracker_line`                   | Permanently delete a tracker line (`finance:delete`)                                                             |
+| `list_tracker_suggestions`              | Smart-tracking suggestions (score, AI reason), AI-matched transactions, scan status of an owned tracker          |
+| `accept_tracker_suggestions`            | Accept pending suggestions, linking their transactions (`finance:write`)                                         |
+| `reject_tracker_suggestions`            | Reject suggestions; also unlinks AI-linked or accepted ones (`finance:write`)                                    |
+| `get_goals`                             | Savings goals with backing accounts, shares, progress, pace, ETA, needed per month (goal currency)               |
+| `create_goal`                           | Create a savings goal funded by % shares of accounts (`finance:write`, Goals feature)                            |
+| `update_goal`                           | Update target, date, monthly plan, accounts, or status of a goal (`finance:write`, Goals feature)                |
+| `delete_goal`                           | Permanently delete a goal and free its account shares (`finance:delete`, Goals feature)                          |
 | `get_spending_by_categories`            | Aggregate spending by category over a range                                                                      |
 | `get_cash_flow`                         | Income vs expenses over a range                                                                                  |
 | `get_balance_history`                   | Time-series of account balances                                                                                  |
@@ -159,6 +169,19 @@ multi-currency data.
   saved rule in the app. The first rule that applies an action wins. Test conditions with `preview_transaction_automation` before
   saving a rule, and pass the full current id set to
   `reorder_transaction_automations`.
+- Tracker lines split a tracker's spending into named category sets, each with
+  an optional limit. A transaction lands in at most one line: the first by
+  `position` whose categories (expanded to children) contain it. Spending that
+  matches no line is reported as `otherSpent` by `get_tracker_spending_stats`.
+- Smart tracking (`aiEnabled`) is owner-only and works on manual trackers with
+  an `aiDescription` and a `startDate`. The AI links transactions it is sure of
+  (score >= 0.85) and suggests weaker matches (>= 0.5) as pending in
+  `list_tracker_suggestions`. Rejected transactions are not suggested again.
+- Savings goals count a percentage share of each backing account's balance
+  (minus its credit limit, never below 0) toward a target in the goal's own
+  currency. An account's shares across active and paused goals cannot pass
+  100%; archiving a goal frees them. Goal writes need the Goals feature on the
+  user's plan or an active trial.
 - Portfolio queries are gated by `portfolioId`. Call `get_portfolios` first
   to discover ids before calling `get_portfolio_summary`,
   `get_portfolio_holdings`, or `get_portfolio_balances`.

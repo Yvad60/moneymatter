@@ -1,9 +1,7 @@
-import { loadAccountGroups } from '@/api/account-groups';
-import { VUE_QUERY_CACHE_KEYS } from '@/common/const';
-import { AccountGroups } from '@/common/types/models';
+import { collectGroupAccounts } from '@/components/sidebar/accounts-view/helpers/account-totals';
+import { useAccountGroupsQuery } from '@/composable/data-queries/account-groups';
 import { useAccountsStore } from '@/stores';
 import { ACCOUNT_STATUSES, AccountModel, isDedicatedFlowAccountCategory } from '@bt/shared/types';
-import { useQuery } from '@tanstack/vue-query';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 
@@ -26,19 +24,6 @@ export const sortAccounts = ({ accounts }: { accounts: AccountModel[] }): Accoun
     if (aHasBalance !== bHasBalance) return aHasBalance ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
-
-/**
- * Collapses a nested `AccountGroups` node — the group plus every descendant group —
- * into a single flat list of accounts. Child groups are folded into their top-level
- * ancestor rather than shown as their own rows.
- */
-export const flattenGroupAccounts = ({ group }: { group: AccountGroups }): AccountModel[] => {
-  const accounts = [...group.accounts];
-  for (const child of group.childGroups ?? []) {
-    accounts.push(...flattenGroupAccounts({ group: child }));
-  }
-  return accounts;
-};
 
 /**
  * Narrows the account store to the set a multi-select should offer: active accounts only unless
@@ -82,12 +67,7 @@ export const useGroupedAccounts = ({
 }: { includeArchived?: boolean; excludeDedicatedFlow?: boolean } = {}) => {
   const { accounts: storeAccounts, isAccountsFetched } = storeToRefs(useAccountsStore());
 
-  const { data: accountGroups, isLoading: isGroupsLoading } = useQuery({
-    queryKey: VUE_QUERY_CACHE_KEYS.accountGroups,
-    queryFn: () => loadAccountGroups(),
-    staleTime: Infinity,
-    placeholderData: [],
-  });
+  const { data: accountGroups, isLoading: isGroupsLoading } = useAccountGroupsQuery({ placeholderData: [] });
 
   /** The selectable universe — see `filterSelectableAccounts`. */
   const allAccounts = computed<AccountModel[]>(() =>
@@ -106,7 +86,7 @@ export const useGroupedAccounts = ({
         id: group.id,
         name: group.name,
         accounts: sortAccounts({
-          accounts: flattenGroupAccounts({ group }).filter((account) => visible.has(account.id)),
+          accounts: collectGroupAccounts({ group }).filter((account) => visible.has(account.id)),
         }),
       }))
       .filter((group) => group.accounts.length > 0);

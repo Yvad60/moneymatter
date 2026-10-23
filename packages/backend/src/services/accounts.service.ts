@@ -25,6 +25,7 @@ import { isRevaluedAccount, scheduleBalanceRevalue } from '@services/balances/re
 import { applyManualLogoPatch } from '@services/brand-logos';
 import { attachEligibleAccounts } from '@services/budget-plans/auto-attach-account';
 import { calculateRefAmount } from '@services/calculate-ref-amount.service';
+import { releaseIneligibleGoalShares } from '@services/goals/release-ineligible-goal-shares';
 import { ensureUserCurrencyConnected } from '@services/sharing/auth/ensure-currency-connected.service';
 import {
   cleanupAccountSharesInTx,
@@ -205,7 +206,7 @@ export const createAccount = withTransaction(
     payload: Omit<Accounts.CreateAccountPayload, 'refCreditLimit' | 'refInitialBalance'>,
   ): Promise<Accounts.default | null> => {
     try {
-      const { logoDomain, logoInitials, logoColor, ...rest } = payload;
+      const { logoDomain, logoInitials, logoColor, logoIcon, ...rest } = payload;
       const { userId, accountCategory, creditLimit, currencyCode, initialBalance } = rest;
 
       if (accountCategory && isDedicatedFlowAccountCategory(accountCategory)) {
@@ -238,7 +239,7 @@ export const createAccount = withTransaction(
         ...rest,
         refCreditLimit,
         refInitialBalance,
-        ...applyManualLogoPatch({ patch: { logoDomain, logoInitials, logoColor } }),
+        ...applyManualLogoPatch({ patch: { logoDomain, logoInitials, logoColor, logoIcon } }),
       });
     } catch (e) {
       // A 4xx is the caller's mistake, not a failure of account creation, so it
@@ -282,6 +283,7 @@ export const updateAccount = withTransaction(
     logoDomain,
     logoInitials,
     logoColor,
+    logoIcon,
     initialBalance: nextInitialBalance,
     ...payload
   }: Accounts.UpdateAccountByIdPayload &
@@ -356,6 +358,13 @@ export const updateAccount = withTransaction(
     if (wasAttachable && !isAttachable) {
       await BudgetPlanAccounts.destroy({ where: { accountId: accountData.id } });
     }
+    if (payload.accountCategory !== undefined && payload.accountCategory !== accountData.accountCategory) {
+      await releaseIneligibleGoalShares({
+        accountId: accountData.id,
+        userId: accountData.userId,
+        accountCategory: payload.accountCategory,
+      });
+    }
 
     const currentBalanceIsChanging =
       payload.currentBalance !== undefined && !payload.currentBalance.equals(accountData.currentBalance);
@@ -406,12 +415,8 @@ export const updateAccount = withTransaction(
     }
 
     const logoPatch = applyManualLogoPatch({
-      patch: { logoDomain, logoInitials, logoColor },
-      stored: {
-        logoDomain: accountData.logoDomain,
-        logoInitials: accountData.logoInitials,
-        logoColor: accountData.logoColor,
-      },
+      patch: { logoDomain, logoInitials, logoColor, logoIcon },
+      stored: accountData,
     });
 
     // `refInitialBalance` is intentionally NOT written here: the ref side of the

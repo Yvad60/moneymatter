@@ -73,6 +73,11 @@
           "duplicatesSkipped": "Duplicados omitidos",
           "errorsTitle": "{count} fila(s) fallaron | {count} fila falló | {count} filas fallaron",
           "errorsOverflow": "+{count} más",
+          "errors": {
+            "rowImportFailed": "Esta fila no pudo ser importada.",
+            "payeeDefaultTagsFailed": "La transacción fue importada, pero las etiquetas por defecto del beneficiario no pudieron ser aplicadas.",
+            "accountBalanceDesync": "El saldo de una cuenta no se pudo actualizar después de la importación y puede ser incorrecto."
+          },
           "balanceWarningTitle": "Algunos saldos de cuenta pueden ser incorrectos",
           "balanceWarningBody": "No pudimos restablecer el saldo de una o más cuentas existentes tras la importación. Revise las cuentas afectadas.",
           "viewTransactions": "Ver transacciones",
@@ -127,6 +132,9 @@
           "back": "Atrás",
           "importButton": "Importar {count} transacciones",
           "importing": "Importando…"
+        },
+        "errors": {
+          "fileMissing": "Ningún archivo cargado. Por favor, sube tu archivo de Walletapp de nuevo."
         }
       }
     }

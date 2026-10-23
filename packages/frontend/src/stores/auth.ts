@@ -1,3 +1,4 @@
+import { loadUserData } from '@/api';
 import { analyticsPlan } from '@/common/const/billing';
 import type { DemoEndReason } from '@/common/const/demo';
 import { getDeviceName } from '@/common/utils/device-name';
@@ -87,11 +88,8 @@ export const useAuthStore = defineStore('auth', () => {
    * before any persisted query mounts so a fresh account never restores another's
    * cached lists. No-op on first login and when the same user returns.
    */
-  const reconcilePersistedQueriesForUser = async () => {
-    const currentUserId = userStore.user?.id;
-    if (currentUserId == null) return;
-
-    const currentUserIdStr = String(currentUserId);
+  const reconcilePersistedQueriesForUser = async ({ userId }: { userId: number }) => {
+    const currentUserIdStr = String(userId);
     const lastSeenUserId = localStorage.getItem(PERSISTED_QUERIES_USER_KEY);
 
     if (lastSeenUserId !== null && lastSeenUserId !== currentUserIdStr) {
@@ -104,10 +102,14 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   /**
-   * Loads initial data after authentication (currencies, categories)
+   * Loads initial data after authentication (user, currencies, categories)
    */
   const loadPostAuthData = async () => {
-    await reconcilePersistedQueriesForUser();
+    // Publishing the user enables user-gated queries in long-lived stores; a cache
+    // wipe after that orphans their observers and they never resolve until reload.
+    const user = await loadUserData();
+    await reconcilePersistedQueriesForUser({ userId: user.id });
+    userStore.user = user;
     // Sweep abandoned persisted-query rows (see `collectPersistedQueryGarbage`);
     // not awaited – nothing below depends on it.
     void collectPersistedQueryGarbage();
@@ -135,7 +137,6 @@ export const useAuthStore = defineStore('auth', () => {
       throw new UnexpectedError(result.error.message, result.error);
     }
 
-    await userStore.loadUser();
     await loadPostAuthData();
 
     // Identify user for analytics and error tracking
@@ -191,7 +192,6 @@ export const useAuthStore = defineStore('auth', () => {
       throw new UnexpectedError(result.error.message, result.error);
     }
 
-    await userStore.loadUser();
     await loadPostAuthData();
 
     // Identify user for analytics and error tracking
@@ -232,7 +232,6 @@ export const useAuthStore = defineStore('auth', () => {
         return false;
       }
 
-      await userStore.loadUser();
       await setLoggedIn();
 
       // Identify user for analytics and error tracking

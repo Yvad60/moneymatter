@@ -1,7 +1,7 @@
 import { SUBSCRIPTION_FREQUENCIES } from '@bt/shared/types';
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
-import { computeNextExpectedDate } from './subscription-date.utils';
+import { computeNextExpectedDate, resolveNextExpectedDate } from './subscription-date.utils';
 
 const FROZEN_NOW = new Date('2025-06-15T12:00:00Z');
 
@@ -164,6 +164,87 @@ describe('computeNextExpectedDate', () => {
         transactions: [{ time: '2025-05-20T00:00:00Z' }],
       });
       expect(result).toBe('2025-06-20');
+    });
+  });
+});
+
+describe('resolveNextExpectedDate', () => {
+  const base = {
+    startDate: '2025-01-08T00:00:00Z',
+    frequency: SUBSCRIPTION_FREQUENCIES.monthly,
+    isActive: true,
+    endDate: null,
+    dueDate: null,
+  };
+
+  describe('with a schedule', () => {
+    it('prefers the open period dueDate over the payment-based estimate', () => {
+      const result = resolveNextExpectedDate({
+        ...base,
+        openPeriodDueDate: '2025-07-08',
+        dueDate: '2025-07-08',
+        transactions: [{ time: '2025-06-06T00:00:00Z' }],
+      });
+      expect(result).toBe('2025-07-08');
+    });
+
+    it('keeps a past open period dueDate as is (overdue)', () => {
+      const result = resolveNextExpectedDate({ ...base, dueDate: '2025-06-01', openPeriodDueDate: '2025-06-01' });
+      expect(result).toBe('2025-06-01');
+    });
+
+    it('is null once the schedule has no open period left', () => {
+      const result = resolveNextExpectedDate({
+        ...base,
+        dueDate: '2025-03-08',
+        openPeriodDueDate: null,
+        transactions: [{ time: '2025-06-06T00:00:00Z' }],
+      });
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('without a schedule', () => {
+    it('keeps the payment-based estimate', () => {
+      const result = resolveNextExpectedDate({ ...base, transactions: [{ time: '2025-06-06T00:00:00Z' }] });
+      expect(result).toBe('2025-07-06');
+    });
+  });
+
+  describe('inactive and ended subscriptions', () => {
+    it('is null when the subscription is inactive', () => {
+      expect(
+        resolveNextExpectedDate({ ...base, isActive: false, dueDate: '2025-07-08', openPeriodDueDate: '2025-07-08' }),
+      ).toBeNull();
+    });
+
+    it('is null when the endDate is before the next date', () => {
+      const result = resolveNextExpectedDate({
+        ...base,
+        endDate: '2025-06-01',
+        dueDate: '2025-07-08',
+        openPeriodDueDate: '2025-07-08',
+      });
+      expect(result).toBeNull();
+    });
+
+    it('is null for a payment-based estimate past the endDate', () => {
+      const result = resolveNextExpectedDate({
+        ...base,
+        endDate: '2025-06-20',
+        transactions: [{ time: '2025-06-06T00:00:00Z' }],
+      });
+      expect(result).toBeNull();
+    });
+
+    it('keeps the date when it falls exactly on the endDate', () => {
+      const result = resolveNextExpectedDate({
+        ...base,
+        endDate: '2025-07-08',
+        dueDate: '2025-07-08',
+        openPeriodDueDate: '2025-07-08',
+      });
+      expect(result).toBe('2025-07-08');
     });
   });
 });

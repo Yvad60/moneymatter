@@ -71,8 +71,13 @@
           "outOfWalletImported": "Externe Buchungen importiert",
           "mergedIntoPlanned": "Mit geplanten zusammengeführt",
           "duplicatesSkipped": "Duplikate übersprungen",
-          "errorsTitle": "{count} Zeile(n) fehlgeschlagen | {count} Zeile fehlgeschlagen | {count} Zeilen fehlgeschlagen",
+          "errorsTitle": "{count} Zeilen fehlgeschlagen | {count} Zeile fehlgeschlagen | {count} Zeilen fehlgeschlagen",
           "errorsOverflow": "+{count} weitere",
+          "errors": {
+            "rowImportFailed": "Diese Zeile konnte nicht importiert werden.",
+            "payeeDefaultTagsFailed": "Die Transaktion wurde importiert, aber die Standard-Tags des Zahlungsempfängers konnten nicht angewendet werden.",
+            "accountBalanceDesync": "Ein Kontostand konnte nach dem Import nicht aktualisiert werden und ist möglicherweise fehlerhaft."
+          },
           "balanceWarningTitle": "Einige Kontosalden könnten fehlerhaft sein",
           "balanceWarningBody": "Wir konnten den Saldo eines oder mehrerer bestehender Konten nach dem Import nicht zurücksetzen. Überprüfe die betroffenen Konten.",
           "viewTransactions": "Transaktionen anzeigen",
@@ -127,6 +132,9 @@
           "back": "Zurück",
           "importButton": "{count} Transaktionen importieren",
           "importing": "Importieren…"
+        },
+        "errors": {
+          "fileMissing": "Keine Datei geladen. Bitte lade deinen Wallet-Export erneut hoch."
         }
       }
     }

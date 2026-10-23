@@ -17,13 +17,13 @@ import betterAuthExtensionsRoutes from './routes/better-auth-extensions.route';
 import billingRoutes from './routes/billing.route';
 import brandLogosRoutes from './routes/brand-logos.route';
 import budgetPlansRoutes from './routes/budget-plans.route';
-import budgetsRoutes from './routes/budgets.route';
 import categoriesRoutes from './routes/categories.route';
 import clientLogsRoutes from './routes/client-logs.route';
 import modelsCurrenciesRoutes from './routes/currencies.route';
 import demoRoutes from './routes/demo.route';
 import exchangeRatesRoutes from './routes/exchange-rates';
 import githubRoutes from './routes/github.route';
+import goalsRoutes from './routes/goals.route';
 import aiMappingRoutes from './routes/import-export/ai-mapping.route';
 import batchesRoutes from './routes/import-export/batches.route';
 import budgetBakersWalletImportRoutes from './routes/import-export/budget-bakers-wallet.route';
@@ -35,6 +35,7 @@ import ynabImportRoutes from './routes/import-export/ynab.route';
 import investmentsRoutes from './routes/investments.route';
 import landingRoutes from './routes/landing.route';
 import loansRoutes from './routes/loans.route';
+import logoImagesRoutes from './routes/logo-images.route';
 import mcpRoutes from './routes/mcp.route';
 import notificationsRoutes from './routes/notifications.route';
 import { setupOAuthMetadataRoutes } from './routes/oauth-metadata.route';
@@ -47,6 +48,7 @@ import subscriptionsRoutes from './routes/subscriptions.route';
 import tagRemindersRoutes from './routes/tag-reminders.route';
 import tagsRoutes from './routes/tags.route';
 import testsRoutes from './routes/tests.route';
+import trackersRoutes from './routes/trackers.route';
 import transactionAutomationsRoutes from './routes/transaction-automations.route';
 import transactionGroupsRoutes from './routes/transaction-groups.route';
 import transactionTemplatesRoutes from './routes/transaction-templates.route';
@@ -55,7 +57,7 @@ import userRoutes from './routes/user.route';
 import vehiclesRoutes from './routes/vehicles.route';
 import ventureRoutes from './routes/venture.route';
 import webhooksRoutes from './routes/webhooks.route';
-import traceRoutes from "./trace-app/trace.route";
+import traceRoutes from './trace-app/trace.route';
 
 export function setupRoutes(app: Express) {
   app.get('/health', (_req: Request, res: Response) => {
@@ -75,11 +77,9 @@ export function setupRoutes(app: Express) {
   // We wrap the handler to preserve AsyncLocalStorage context for locale-aware category creation
   const authHandler = toNodeHandler(auth);
 
-  // Patch OAuth2 dynamic client registration requests so they always register as
-  // public clients.  better-auth's oauth-provider treats clients without
-  // `token_endpoint_auth_method: "none"` as confidential and rejects unauthenticated
-  // registration with 401 – even when allowUnauthenticatedClientRegistration is true.
-  // MCP clients (e.g. Claude.ai) often omit this field, so we default it here.
+  // Patch unauthenticated OAuth2 dynamic client registrations so they always register
+  // as public clients. better-auth keeps whatever token_endpoint_auth_method the request
+  // carries, and MCP clients (e.g. Claude.ai) often omit it.
   //
   // We can't patch the stream in-place (Node 23's Fetch API reads the internal
   // buffer directly), so we proxy the request through a local HTTP call with the
@@ -95,12 +95,10 @@ export function setupRoutes(app: Express) {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString());
         const isUnauthenticated = !req.headers.authorization && !req.headers.cookie;
-        const isConfidential = parsed.token_endpoint_auth_method && parsed.token_endpoint_auth_method !== 'none';
 
-        // Unauthenticated + confidential always fails in better-auth (401), so
-        // downgrade to public client.  Authenticated registrations and requests
-        // that are already public pass through unchanged.
-        if (isUnauthenticated && isConfidential) {
+        // An omitted method defaults to client_secret_basic, which would make a self-registered
+        // MCP client confidential and hand it a secret it must then present at the token endpoint.
+        if (isUnauthenticated && parsed.token_endpoint_auth_method !== 'none') {
           parsed.token_endpoint_auth_method = 'none';
         }
         body = Buffer.from(JSON.stringify(parsed));
@@ -118,6 +116,8 @@ export function setupRoutes(app: Express) {
           method: 'POST',
           headers: {
             ...req.headers,
+            // The inner hop arrives from trusted loopback, so a caller-sent X-Forwarded-For would be believed.
+            'x-forwarded-for': req.ip ?? '',
             'content-length': body.length.toString(),
             'x-register-patched': '1',
           },
@@ -180,14 +180,16 @@ export function setupRoutes(app: Express) {
   app.use(`${API_PREFIX}/accounts`, accountsRoutes);
   app.use(`${API_PREFIX}/transactions`, transactionsRoutes);
   app.use(`${API_PREFIX}/attachments`, attachmentsRoutes);
+  app.use(`${API_PREFIX}/logo-images`, logoImagesRoutes);
   app.use(`${API_PREFIX}/categories`, categoriesRoutes);
   app.use(`${API_PREFIX}/models/currencies`, modelsCurrenciesRoutes);
   app.use(`${API_PREFIX}/bank-data-providers`, bankDataProvidersRoutes);
   app.use(`${API_PREFIX}/stats`, statsRoutes);
   app.use(`${API_PREFIX}/account-group`, accountGroupsRoutes);
   app.use(`${API_PREFIX}/currencies/rates`, exchangeRatesRoutes);
-  app.use(`${API_PREFIX}/budgets`, budgetsRoutes);
+  app.use(`${API_PREFIX}/trackers`, trackersRoutes);
   app.use(`${API_PREFIX}/budget-plans`, budgetPlansRoutes);
+  app.use(`${API_PREFIX}/goals`, goalsRoutes);
   app.use(`${API_PREFIX}/subscriptions`, subscriptionsRoutes);
   app.use(`${API_PREFIX}/tags`, tagsRoutes);
   app.use(`${API_PREFIX}/tag-reminders`, tagRemindersRoutes);

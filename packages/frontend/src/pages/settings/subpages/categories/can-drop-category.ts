@@ -20,7 +20,7 @@ export type CategoryDropError =
   | 'already-top-level';
 
 /** `target: null` is the top-level drop zone; a real target requires its depth (roots count as 1). */
-export type DropTarget = { target: null } | { target: FormattedCategory; targetDepth: number };
+type DropTarget = { target: null } | { target: FormattedCategory; targetDepth: number };
 
 /**
  * Returns why the drop is forbidden, or `null` when it is allowed.
@@ -45,5 +45,24 @@ export const categoryDropError = (
     return targetDepth + 1 > maxNesting ? 'too-deep' : 'children-too-deep';
   }
 
+  return null;
+};
+
+/** Same as `categoryDropError`, but for placing `dragged` next to `target` as its sibling. */
+export const categorySiblingDropError = ({
+  dragged,
+  target,
+  targetDepth,
+  maxNesting,
+}: {
+  dragged: DraggedCategory;
+  target: FormattedCategory;
+  targetDepth: number;
+  maxNesting: number;
+}): CategoryDropError | null => {
+  if (target.type === CATEGORY_TYPES.internal) return 'internal-target';
+  if (target.id === dragged.id) return 'self';
+  if (containsCategory({ parent: dragged, categoryId: target.id })) return 'inside-itself';
+  if (targetDepth - 1 + subtreeHeight({ category: dragged }) > maxNesting) return 'children-too-deep';
   return null;
 };

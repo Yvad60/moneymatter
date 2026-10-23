@@ -2,6 +2,7 @@ import { logger } from '@js/utils/logger';
 import { shutdownPostHog } from '@js/utils/posthog';
 import { accountSyncWorker } from '@services/bank-data-providers/sync/account-sync-queue';
 
+import { aiUsageMonthEndCron } from './crons/ai-usage-month-end';
 import { attachmentsOrphanSweepCron } from './crons/attachments-orphan-sweep';
 import { balanceRevalueSweepCron } from './crons/balance-revalue-sweep';
 import { bankAccountsSyncCron } from './crons/bank-accounts-sync';
@@ -10,6 +11,7 @@ import { cryptoPricesSyncCron } from './crons/crypto-prices-sync';
 import { demoCleanupCron } from './crons/demo-cleanup';
 import { demoTemplateRefreshCron } from './crons/demo-template-refresh';
 import { loadCurrencyRatesJob } from './crons/exchange-rates';
+import { goalsReachedCheckCron } from './crons/goals-reached-check';
 import { purgeDeletedPortfoliosCron } from './crons/purge-deleted-portfolios';
 import { securitiesDailySyncCron } from './crons/securities-daily-sync';
 import { shareInvitationsExpireCron } from './crons/share-invitations-expire';
@@ -19,6 +21,7 @@ import { subscriptionAutoRecordCron } from './crons/subscription-auto-record';
 import { subscriptionCandidateDetectionCron } from './crons/subscription-candidate-detection';
 import { subscriptionRemindersCron } from './crons/subscription-reminders-check';
 import { tagRemindersCron } from './crons/tag-reminders-check';
+import { trackerSmartScanCron } from './crons/tracker-smart-scan';
 import { initializeHistoricalRates } from './services/exchange-rates/initialize-historical-rates.service';
 
 const allEnvCrons = [demoCleanupCron, demoTemplateRefreshCron];
@@ -28,6 +31,7 @@ const prodOnlyCrons = [
   cryptoPricesSyncCron,
   tagRemindersCron,
   stuckPendingCheckCron,
+  goalsReachedCheckCron,
   subscriptionRemindersCron,
   subscriptionAutoRecordCron,
   subscriptionCandidateDetectionCron,
@@ -38,6 +42,8 @@ const prodOnlyCrons = [
   balanceRevalueSweepCron,
   attachmentsOrphanSweepCron,
   bankAccountsSyncCron,
+  trackerSmartScanCron,
+  aiUsageMonthEndCron,
 ];
 
 export function initializeBackgroundJobs() {
