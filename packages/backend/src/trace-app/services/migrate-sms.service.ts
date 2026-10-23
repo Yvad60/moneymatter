@@ -8,6 +8,7 @@ import {
 } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import * as Accounts from '@models/accounts.model';
+import * as Transactions from '@models/transactions.model';
 import * as accountsService from '@services/accounts.service';
 import * as transactionsService from '@services/transactions';
 
@@ -95,13 +96,15 @@ function parseMessages({ mtnMomo, bk }: { mtnMomo: RawSmsMessage[]; bk: RawSmsMe
 
 function convertParsedSmsToAppTransaction({
   parsedMessage,
+  source,
   userId,
   accountId,
 }: {
   parsedMessage: SMSTransaction;
+  source: SmsSource;
   userId: number;
   accountId: RecordId;
-}): CreateTransactionInternal {
+}): CreateTransactionInternal & { originalId?: string; externalData: Record<string, unknown> } {
   return {
     userId,
     accountId,
@@ -112,6 +115,10 @@ function convertParsedSmsToAppTransaction({
     transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
     time: parsedMessage.date,
     note: parsedMessage.rawMessage,
+    // The provider's own reference is stable across devices and re-reads of the same SMS.
+    // Messages without one rely on the sync-time cursor alone.
+    originalId: parsedMessage.transactionId,
+    externalData: { sms: { source } },
   };
 }
 
@@ -131,23 +138,54 @@ export async function migrateSmsTransactions({
     bk: await resolveSmsSourceAccountId({ userId, source: 'bk' }),
   };
 
-  const results = await Promise.all(
-    migrated
-      .filter((entry): entry is typeof entry & { parsed: SMSTransaction } => entry.parsed !== null)
-      .map(async (entry) => {
-        const params = convertParsedSmsToAppTransaction({
-          parsedMessage: entry.parsed,
-          userId,
-          accountId: accountIdBySource[entry.source],
-        });
+  const parsedEntries = migrated
+    .filter((entry): entry is typeof entry & { parsed: SMSTransaction } => entry.parsed !== null)
+    .map((entry) => ({ ...entry, accountId: accountIdBySource[entry.source] }));
 
-        try {
-          await transactionsService.createTransaction(params);
-          return { success: true as const, original: entry.original };
-        } catch (error) {
-          return { success: false as const, original: entry.original, error: (error as Error).message };
-        }
-      }),
+  const toKey = ({ accountId, originalId }: { accountId: RecordId; originalId: string }) =>
+    `${accountId}:${originalId}`;
+
+  const incomingIds = parsedEntries.flatMap((entry) =>
+    entry.parsed.transactionId ? [entry.parsed.transactionId] : [],
+  );
+  const existing =
+    incomingIds.length > 0
+      ? await Transactions.getTransactionsByArrayOfField({ fieldName: 'originalId', fieldValues: incomingIds, userId })
+      : [];
+  const seenKeys = new Set(
+    existing.map((tx) => toKey({ accountId: tx.accountId as RecordId, originalId: tx.originalId })),
+  );
+
+  let duplicatesSkipped = 0;
+  const entriesToCreate = parsedEntries.filter((entry) => {
+    const originalId = entry.parsed.transactionId;
+    if (!originalId) return true;
+
+    const key = toKey({ accountId: entry.accountId, originalId });
+    if (seenKeys.has(key)) {
+      duplicatesSkipped += 1;
+      return false;
+    }
+    seenKeys.add(key);
+    return true;
+  });
+
+  const results = await Promise.all(
+    entriesToCreate.map(async (entry) => {
+      const params = convertParsedSmsToAppTransaction({
+        parsedMessage: entry.parsed,
+        source: entry.source,
+        userId,
+        accountId: entry.accountId,
+      });
+
+      try {
+        await transactionsService.createTransaction(params);
+        return { success: true as const, original: entry.original };
+      } catch (error) {
+        return { success: false as const, original: entry.original, error: (error as Error).message };
+      }
+    }),
   );
 
   // Advance even when some messages failed: they are likely unparseable and would never succeed on retry.
@@ -159,6 +197,7 @@ export async function migrateSmsTransactions({
   return {
     status: true,
     created: results.filter((result) => result.success).length,
+    duplicatesSkipped,
     failed: results.filter(
       (result): result is { success: false; original: RawSmsMessage; error: string } => !result.success,
     ),
