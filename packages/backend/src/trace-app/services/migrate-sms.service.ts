@@ -92,7 +92,7 @@ function parseMessages({ mtnMomo, bk }: { mtnMomo: RawSmsMessage[]; bk: RawSmsMe
   ];
 }
 
-export function convertParsedSmsToAppTransaction({
+function convertParsedSmsToAppTransaction({
   parsedMessage,
   userId,
   accountId,

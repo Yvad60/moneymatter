@@ -1,14 +1,7 @@
-import { logger } from "@js/utils/logger";
+import { logger } from '@js/utils/logger';
 
-import type { Parser, SMSTransaction } from "./sms-parser.shared";
-import {
-  getRequiredGroups,
-  isValidTransaction,
-  normalizeMessage,
-  parseAmount,
-} from "./sms-parser.shared";
-
-export type { SMSTransaction, SMSTransactionType } from "./sms-parser.shared";
+import type { Parser, SMSTransaction } from './sms-parser.shared';
+import { getRequiredGroups, isValidTransaction, normalizeMessage, parseAmount } from './sms-parser.shared';
 
 export class MtnMomoSmsParser {
   private readonly parsers: Parser[];
@@ -79,13 +72,13 @@ export class MtnMomoSmsParser {
     );
 
     const groups = getRequiredGroups(match?.groups, [
-      "amount",
-      "senderName",
-      "senderAccount",
-      "date",
-      "time",
-      "balance",
-      "transactionId",
+      'amount',
+      'senderName',
+      'senderAccount',
+      'date',
+      'time',
+      'balance',
+      'transactionId',
     ] as const);
 
     if (!groups) {
@@ -101,9 +94,9 @@ export class MtnMomoSmsParser {
     }
 
     return {
-      type: "received",
+      type: 'received',
       amount,
-      currency: "RWF",
+      currency: 'RWF',
       date,
       balance,
       fee: 0,
@@ -113,7 +106,7 @@ export class MtnMomoSmsParser {
         account: groups.senderAccount,
       },
       rawMessage: message,
-      parser: "received-money-v1",
+      parser: 'received-money-v1',
     };
   }
 
@@ -127,15 +120,15 @@ export class MtnMomoSmsParser {
     );
 
     const groups = getRequiredGroups(match?.groups, [
-      "amount",
-      "senderName",
-      "senderMaskedAccount",
-      "date",
-      "time",
-      "metadataSender",
-      "accountId",
-      "balance",
-      "transactionId",
+      'amount',
+      'senderName',
+      'senderMaskedAccount',
+      'date',
+      'time',
+      'metadataSender',
+      'accountId',
+      'balance',
+      'transactionId',
     ] as const);
 
     if (!groups) {
@@ -151,9 +144,9 @@ export class MtnMomoSmsParser {
     }
 
     return {
-      type: "received",
+      type: 'received',
       amount,
-      currency: "RWF",
+      currency: 'RWF',
       date,
       balance,
       fee: 0,
@@ -163,7 +156,7 @@ export class MtnMomoSmsParser {
         account: groups.accountId || groups.senderMaskedAccount,
       },
       rawMessage: message,
-      parser: "received-bank-v1",
+      parser: 'received-bank-v1',
     };
   }
 
@@ -176,13 +169,7 @@ export class MtnMomoSmsParser {
       /TxId:(?<transactionId>\d+)\s*\*S\*Your payment of\s+(?<amount>[\d,]+)\s+RWF\s+to\s+(?<recipient>.+?)\s+(?:with token\b.*?\s+)?was completed at\s+(?<date>\d{4}-\d{2}-\d{2})\s+(?<time>\d{2}:\d{2}:\d{2})\.\s*(?:Balance:\s*(?<balance>[\d,]+)\s+RWF\.\s*Fee\s+(?<fee>[\d,]+)\s+RWF|Fee\s+(?<feeAlt>[\d,]+)\s+RWF\.\s*Balance:\s*(?<balanceAlt>[\d,]+)\s+RWF)/i,
     );
 
-    const groups = getRequiredGroups(match?.groups, [
-      "transactionId",
-      "amount",
-      "recipient",
-      "date",
-      "time",
-    ] as const);
+    const groups = getRequiredGroups(match?.groups, ['transactionId', 'amount', 'recipient', 'date', 'time'] as const);
 
     if (!groups) {
       return null;
@@ -205,16 +192,16 @@ export class MtnMomoSmsParser {
     }
 
     return {
-      type: "payment",
+      type: 'payment',
       amount,
-      currency: "RWF",
+      currency: 'RWF',
       date,
       balance,
       fee,
       transactionId: groups.transactionId,
       recipient: this.parseRecipient(groups.recipient),
       rawMessage: message,
-      parser: "payment-v1",
+      parser: 'payment-v1',
     };
   }
 
@@ -228,13 +215,13 @@ export class MtnMomoSmsParser {
     );
 
     const groups = getRequiredGroups(match?.groups, [
-      "amount",
-      "recipientName",
-      "recipientAccount",
-      "date",
-      "time",
-      "fee",
-      "balance",
+      'amount',
+      'recipientName',
+      'recipientAccount',
+      'date',
+      'time',
+      'fee',
+      'balance',
     ] as const);
 
     if (!groups) {
@@ -251,9 +238,9 @@ export class MtnMomoSmsParser {
     }
 
     return {
-      type: "transfer",
+      type: 'transfer',
       amount,
-      currency: "RWF",
+      currency: 'RWF',
       date,
       balance,
       fee,
@@ -262,7 +249,7 @@ export class MtnMomoSmsParser {
         account: groups.recipientAccount,
       },
       rawMessage: message,
-      parser: "transfer-v1",
+      parser: 'transfer-v1',
     };
   }
 
@@ -276,13 +263,13 @@ export class MtnMomoSmsParser {
     );
 
     const groups = getRequiredGroups(match?.groups, [
-      "amount",
-      "date",
-      "time",
-      "balance",
-      "fee",
-      "transactionId",
-      "externalTransactionId",
+      'amount',
+      'date',
+      'time',
+      'balance',
+      'fee',
+      'transactionId',
+      'externalTransactionId',
     ] as const);
 
     if (!groups) {
@@ -299,15 +286,15 @@ export class MtnMomoSmsParser {
     }
 
     return {
-      type: "savings",
+      type: 'savings',
       amount,
-      currency: "RWF",
+      currency: 'RWF',
       date,
       balance,
       fee,
       transactionId: groups.transactionId,
       rawMessage: message,
-      parser: "mokash-v1",
+      parser: 'mokash-v1',
     };
   }
 
@@ -317,14 +304,14 @@ export class MtnMomoSmsParser {
     );
 
     const groups = getRequiredGroups(match?.groups, [
-      "amount",
-      "recipient",
-      "date",
-      "time",
-      "balance",
-      "fee",
-      "transactionId",
-      "externalTransactionId",
+      'amount',
+      'recipient',
+      'date',
+      'time',
+      'balance',
+      'fee',
+      'transactionId',
+      'externalTransactionId',
     ] as const);
 
     if (!groups) {
@@ -341,9 +328,9 @@ export class MtnMomoSmsParser {
     }
 
     return {
-      type: "payment",
+      type: 'payment',
       amount,
-      currency: "RWF",
+      currency: 'RWF',
       date,
       balance,
       fee,
@@ -352,7 +339,7 @@ export class MtnMomoSmsParser {
         name: groups.recipient,
       },
       rawMessage: message,
-      parser: "merchant-transaction-v1",
+      parser: 'merchant-transaction-v1',
     };
   }
 
