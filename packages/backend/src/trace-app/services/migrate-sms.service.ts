@@ -51,7 +51,10 @@ const SMS_CURRENCY_CODE = 'RWF';
 async function resolveSmsSourceAccountId({ userId, source }: { userId: number; source: SmsSource }): Promise<RecordId> {
   const { externalId, name } = SMS_SOURCE_ACCOUNT[source];
 
-  const existingAccounts = await Accounts.getAccounts({ userId, type: ACCOUNT_TYPES.system });
+  const existingAccounts = await Accounts.getAccounts({
+    userId,
+    type: ACCOUNT_TYPES.system,
+  });
   const existing = existingAccounts.find((account) => account.externalId === externalId);
   if (existing) return existing.id as RecordId;
 
@@ -85,7 +88,11 @@ function parseMessages({ mtnMomo, bk }: { mtnMomo: RawSmsMessage[]; bk: RawSmsMe
   const mtnMomoParser = new MtnMomoSmsParser();
 
   return [
-    ...bk.map((message) => ({ source: 'bk' as const, original: message, parsed: bkParser.parse(message.body) })),
+    ...bk.map((message) => ({
+      source: 'bk' as const,
+      original: message,
+      parsed: bkParser.parse(message.body),
+    })),
     ...mtnMomo.map((message) => ({
       source: 'mtnMomo' as const,
       original: message,
@@ -104,7 +111,10 @@ function convertParsedSmsToAppTransaction({
   source: SmsSource;
   userId: number;
   accountId: RecordId;
-}): CreateTransactionInternal & { originalId?: string; externalData: Record<string, unknown> } {
+}): CreateTransactionInternal & {
+  originalId?: string;
+  externalData: Record<string, unknown>;
+} {
   return {
     userId,
     accountId,
@@ -122,14 +132,34 @@ function convertParsedSmsToAppTransaction({
   };
 }
 
+const toKey = ({ accountId, originalId }: { accountId: RecordId; originalId: string }) => `${accountId}:${originalId}`;
+
+const toFingerprint = ({
+  accountId,
+  time,
+  amountCents,
+  transactionType,
+}: {
+  accountId: RecordId;
+  time: Date;
+  amountCents: number;
+  transactionType: TRANSACTION_TYPES;
+}) => `${accountId}:${time.getTime()}:${amountCents}:${transactionType}`;
+
+/**
+ * `advanceCursor: false` is for single live messages delivered out of band: they must not move the
+ * sync time past older messages the device has not uploaded yet.
+ */
 export async function migrateSmsTransactions({
   userId,
   mtnMomo,
   bk,
+  advanceCursor = true,
 }: {
   userId: number;
   mtnMomo: RawSmsMessage[];
   bk: RawSmsMessage[];
+  advanceCursor?: boolean;
 }) {
   const migrated = parseMessages({ mtnMomo, bk });
 
@@ -142,24 +172,58 @@ export async function migrateSmsTransactions({
     .filter((entry): entry is typeof entry & { parsed: SMSTransaction } => entry.parsed !== null)
     .map((entry) => ({ ...entry, accountId: accountIdBySource[entry.source] }));
 
-  const toKey = ({ accountId, originalId }: { accountId: RecordId; originalId: string }) =>
-    `${accountId}:${originalId}`;
-
   const incomingIds = parsedEntries.flatMap((entry) =>
     entry.parsed.transactionId ? [entry.parsed.transactionId] : [],
   );
   const existing =
     incomingIds.length > 0
-      ? await Transactions.getTransactionsByArrayOfField({ fieldName: 'originalId', fieldValues: incomingIds, userId })
+      ? await Transactions.getTransactionsByArrayOfField({
+          fieldName: 'originalId',
+          fieldValues: incomingIds,
+          userId,
+        })
       : [];
   const seenKeys = new Set(
     existing.map((tx) => toKey({ accountId: tx.accountId as RecordId, originalId: tx.originalId })),
   );
 
+  const entriesWithoutId = parsedEntries.filter((entry) => !entry.parsed.transactionId);
+  const existingWithoutId =
+    entriesWithoutId.length > 0
+      ? await Transactions.getTransactionsByArrayOfField({
+          fieldName: 'time',
+          fieldValues: entriesWithoutId.map((entry) => entry.parsed.date),
+          userId,
+        })
+      : [];
+  const seenFingerprints = new Set(
+    existingWithoutId.map((tx) =>
+      toFingerprint({
+        accountId: tx.accountId as RecordId,
+        time: new Date(tx.time),
+        amountCents: tx.amount.toCents(),
+        transactionType: tx.transactionType,
+      }),
+    ),
+  );
+
   let duplicatesSkipped = 0;
   const entriesToCreate = parsedEntries.filter((entry) => {
     const originalId = entry.parsed.transactionId;
-    if (!originalId) return true;
+    if (!originalId) {
+      // Without a provider reference, the same moment, amount and direction on one account is the same SMS.
+      const fingerprint = toFingerprint({
+        accountId: entry.accountId,
+        time: entry.parsed.date,
+        amountCents: Money.fromDecimal(entry.parsed.amount).toCents(),
+        transactionType: SMS_TYPE_TO_TRANSACTION_TYPE[entry.parsed.type],
+      });
+      if (seenFingerprints.has(fingerprint)) {
+        duplicatesSkipped += 1;
+        return false;
+      }
+      return true;
+    }
 
     const key = toKey({ accountId: entry.accountId, originalId });
     if (seenKeys.has(key)) {
@@ -183,14 +247,18 @@ export async function migrateSmsTransactions({
         await transactionsService.createTransaction(params);
         return { success: true as const, original: entry.original };
       } catch (error) {
-        return { success: false as const, original: entry.original, error: (error as Error).message };
+        return {
+          success: false as const,
+          original: entry.original,
+          error: (error as Error).message,
+        };
       }
     }),
   );
 
   // Advance even when some messages failed: they are likely unparseable and would never succeed on retry.
   const newestTimestamp = Math.max(...[...mtnMomo, ...bk].map((message) => message.timestamp));
-  if (Number.isFinite(newestTimestamp)) {
+  if (advanceCursor && Number.isFinite(newestTimestamp)) {
     await advanceLatestSmsSyncTimestamp({ userId, timestamp: newestTimestamp });
   }
 
