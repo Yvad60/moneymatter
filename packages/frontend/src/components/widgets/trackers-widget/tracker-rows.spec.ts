@@ -47,4 +47,14 @@ describe('utilizationClasses', () => {
     expect(utilizationClasses({ rate: 90 }).text).toBe('text-warning-text');
     expect(utilizationClasses({ rate: 91 }).text).toBe('text-app-expense-color');
   });
+
+  it('shifts thresholds with the elapsed share of the period', () => {
+    const tracker = { startDate: new Date(2026, 0, 1), endDate: new Date(2026, 11, 31) };
+    const now = new Date(2026, 9, 25);
+    expect(utilizationClasses({ rate: 80, tracker, now }).bg).toBe('bg-success-text');
+    expect(utilizationClasses({ rate: 88, tracker, now }).bg).toBe('bg-warning-text');
+    expect(utilizationClasses({ rate: 95, tracker, now }).bg).toBe('bg-app-expense-color');
+    expect(utilizationClasses({ rate: 99, tracker, now: new Date(2026, 11, 31, 12) }).bg).toBe('bg-success-text');
+    expect(utilizationClasses({ rate: 101, tracker, now: new Date(2026, 11, 31, 12) }).bg).toBe('bg-app-expense-color');
+  });
 });

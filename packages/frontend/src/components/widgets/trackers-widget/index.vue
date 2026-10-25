@@ -57,7 +57,7 @@ const rows = computed(() =>
           summary,
           utilizationRate,
           ended: getTrackerTimeStatus({ startDate: tracker.startDate, endDate: tracker.endDate }).kind === 'ended',
-          tone: utilizationClasses({ rate: utilizationRate ?? 0 }),
+          tone: utilizationClasses({ rate: utilizationRate ?? 0, tracker }),
         },
       ];
     }),
@@ -147,7 +147,12 @@ const retry = () => {
             </span>
           </span>
 
-          <UtilizationBar v-if="row.utilizationRate !== null" :rate="row.utilizationRate" class="mt-1.5" />
+          <UtilizationBar
+            v-if="row.utilizationRate !== null"
+            :rate="row.utilizationRate"
+            :tracker="row.tracker"
+            class="mt-1.5"
+          />
 
           <span class="text-muted-foreground mt-1 flex justify-between gap-3 text-xs leading-4 tabular-nums">
             <span class="min-w-0 truncate">

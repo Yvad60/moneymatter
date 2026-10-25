@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { cn } from '@/lib/utils';
+import type { TrackerModel } from '@bt/shared/types';
 import { computed, useAttrs } from 'vue';
 
 import { utilizationClasses } from '../utilization-classes';
@@ -8,10 +9,10 @@ const OVERFLOW_BAR_WIDTH = 96;
 
 defineOptions({ inheritAttrs: false });
 
-const props = defineProps<{ rate: number }>();
+const props = defineProps<{ rate: number; tracker?: Pick<TrackerModel, 'startDate' | 'endDate'> }>();
 const attrs = useAttrs();
 
-const tone = computed(() => utilizationClasses({ rate: props.rate }));
+const tone = computed(() => utilizationClasses({ rate: props.rate, tracker: props.tracker }));
 </script>
 
 <template>

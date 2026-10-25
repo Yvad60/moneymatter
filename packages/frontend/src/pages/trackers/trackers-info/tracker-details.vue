@@ -213,7 +213,7 @@ const stripCells = computed<StripCell[]>(() => {
       key: 'spent',
       label: t('budgets.details.strip.spent'),
       value: formatBaseCurrency(spent),
-      valueClass: utilizationClasses({ rate }).text,
+      valueClass: utilizationClasses({ rate, tracker: props.tracker }).text,
       hint: `${Math.round(rate)}%`,
     },
     {
