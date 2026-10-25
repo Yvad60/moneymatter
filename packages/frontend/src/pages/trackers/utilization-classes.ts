@@ -1,9 +1,11 @@
-import type { TrackerModel } from '@bt/shared/types';
+import { TRACKER_LIMIT_KINDS, type TrackerModel } from '@bt/shared/types';
 import { endOfDay } from 'date-fns';
 
 import { parseTrackerDate } from './tracker-time-status';
 
-type TrackerPeriod = Pick<TrackerModel, 'startDate' | 'endDate'>;
+type TrackerPeriod = Pick<TrackerModel, 'startDate' | 'endDate' | 'limitKind'>;
+
+const INCOME_TARGET_SLACK = 10;
 
 const getElapsedPercent = ({ tracker, now }: { tracker?: TrackerPeriod; now: Date }): number => {
   const start = parseTrackerDate(tracker?.startDate);
@@ -14,7 +16,10 @@ const getElapsedPercent = ({ tracker, now }: { tracker?: TrackerPeriod; now: Dat
   return Math.min(100, Math.max(0, ((now.getTime() - start.getTime()) / total) * 100));
 };
 
-/** Thresholds shift with the elapsed share of the period, so spending in line with time stays green. */
+/**
+ * Thresholds shift with the elapsed share of the period, so progress in line with time stays green.
+ * An income target warns only when it falls behind that pace and is never red: going over is a win.
+ */
 export const utilizationClasses = ({
   rate,
   tracker,
@@ -25,6 +30,11 @@ export const utilizationClasses = ({
   now?: Date;
 }) => {
   const elapsed = getElapsedPercent({ tracker, now });
+  if (tracker?.limitKind === TRACKER_LIMIT_KINDS.incomeTarget) {
+    return rate < elapsed - INCOME_TARGET_SLACK
+      ? { text: 'text-warning-text', bg: 'bg-warning-text' }
+      : { text: 'text-success-text', bg: 'bg-success-text' };
+  }
   if (rate > Math.min(100, Math.max(90, elapsed + 10)))
     return { text: 'text-app-expense-color', bg: 'bg-app-expense-color' };
   if (rate > Math.max(70, elapsed)) return { text: 'text-warning-text', bg: 'bg-warning-text' };

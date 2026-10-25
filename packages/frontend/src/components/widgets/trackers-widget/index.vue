@@ -159,7 +159,9 @@ const retry = () => {
               {{
                 row.utilizationRate !== null
                   ? $t('dashboard.widgets.trackers.spentOfLimit', {
-                      spent: formatBaseCurrency(getTrackerSpent({ summary: row.summary })),
+                      spent: formatBaseCurrency(
+                        getTrackerSpent({ summary: row.summary, limitKind: row.tracker.limitKind }),
+                      ),
                       limit: formatBaseCurrency(row.tracker.limitAmount ?? 0),
                     })
                   : $t('dashboard.widgets.trackers.inOut', {
