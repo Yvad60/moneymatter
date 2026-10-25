@@ -7,6 +7,7 @@ import { DesktopOnlyTooltip } from '@/components/lib/ui/tooltip';
 import { useFormatCurrency } from '@/composable/formatters';
 import { cn } from '@/lib/utils';
 import { getTrackerSpent } from '@/pages/trackers/trackers-info/tracker-summary';
+import TrackerLogo from '@/pages/trackers/components/tracker-logo.vue';
 import UtilizationBar from '@/pages/trackers/components/utilization-bar.vue';
 import { getTrackerTimeStatus } from '@/pages/trackers/tracker-time-status';
 import { utilizationClasses } from '@/pages/trackers/utilization-classes';
@@ -106,7 +107,7 @@ const retry = () => {
       </div>
     </div>
 
-    <div v-else-if="!rows.length" class="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center">
+    <div v-else-if="!rows.length" class="flex min-h-55 flex-col items-center justify-center gap-3 text-center">
       <TargetIcon class="text-muted-foreground size-10" />
       <p class="text-muted-foreground text-sm">{{ $t('dashboard.widgets.trackers.empty') }}</p>
       <router-link
@@ -129,6 +130,7 @@ const retry = () => {
         >
           <span class="flex min-w-0 items-baseline justify-between gap-3">
             <span class="flex min-w-0 items-baseline gap-2">
+              <TrackerLogo :tracker="row.tracker" class="size-5 shrink-0 self-center rounded" />
               <span class="min-w-0 truncate text-sm font-semibold">{{ row.tracker.name }}</span>
               <span v-if="row.ended" class="text-muted-foreground shrink-0 text-xs">
                 {{ $t('dashboard.widgets.trackers.ended') }}
