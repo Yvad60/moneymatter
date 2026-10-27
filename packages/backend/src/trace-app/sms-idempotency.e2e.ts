@@ -17,6 +17,13 @@ const momoTransferWithoutId = ({ timestamp }: { timestamp: number }) => ({
   timestamp,
 });
 
+const momoPaymentWithFee = ({ txId, timestamp }: { txId: string; timestamp: number }) => ({
+  id: null,
+  address: 'M-Money',
+  body: `TxId:${txId}*S*Your payment of 1,450 RWF to CITY MARKET LTD 200002 was completed at 2026-01-11 08:11:39.  Balance: 1,211 RWF. Fee 250 RWF.*EN#`,
+  timestamp,
+});
+
 const authenticate = async () => {
   const user = await helpers.getUserInfo({ raw: true });
   helpers.configureTraceAuth({ userId: user.id });
@@ -84,10 +91,10 @@ describe('POST /trace/migrate-sms-transactions idempotency', () => {
     const first = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
     const second = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
 
-    expect(first.created).toBe(1);
+    expect(first.created).toBe(2);
     expect(second.created).toBe(0);
-    expect(second.duplicatesSkipped).toBe(1);
-    expect((await helpers.getTransactions({ raw: true })).length).toBe(1);
+    expect(second.duplicatesSkipped).toBe(2);
+    expect((await helpers.getTransactions({ raw: true })).length).toBe(2);
   });
 
   it('skips repeated SMS without a provider reference inside one batch', async () => {
@@ -96,9 +103,34 @@ describe('POST /trace/migrate-sms-transactions idempotency', () => {
 
     const result = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
 
-    expect(result.created).toBe(1);
-    expect(result.duplicatesSkipped).toBe(1);
-    expect((await helpers.getTransactions({ raw: true })).length).toBe(1);
+    expect(result.created).toBe(2);
+    expect(result.duplicatesSkipped).toBe(2);
+    expect((await helpers.getTransactions({ raw: true })).length).toBe(2);
+  });
+
+  it('books the fee as a separate expense on the same account, keyed off the SMS reference', async () => {
+    await authenticate();
+    const mtnMomo = [momoPaymentWithFee({ txId: '10000000020', timestamp: 20000 })];
+
+    const result = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
+    expect(result.created).toBe(2);
+
+    const transactions = await helpers.getTransactions({ raw: true });
+    const payment = transactions.find((tx) => tx.originalId === '10000000020');
+    const fee = transactions.find((tx) => tx.originalId === '10000000020:fee');
+
+    expect(payment?.amount).toBe(1450);
+    expect(payment?.transactionType).toBe('expense');
+    expect(payment?.categoryId).toBeFalsy();
+    expect(fee?.amount).toBe(250);
+    expect(fee?.transactionType).toBe('expense');
+    expect(fee?.categoryId).toBeTruthy();
+    expect(fee?.accountId).toBe(payment?.accountId);
+    expect(fee?.note?.startsWith('Fee · ')).toBe(true);
+
+    const resynced = await helpers.migrateSmsTransactions({ mtnMomo, raw: true });
+    expect(resynced.created).toBe(0);
+    expect(resynced.duplicatesSkipped).toBe(2);
   });
 
   describe('failure handling', () => {

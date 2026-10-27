@@ -1,6 +1,7 @@
 import {
   ACCOUNT_CATEGORIES,
   ACCOUNT_TYPES,
+  CATEGORY_TYPES,
   PAYMENT_TYPES,
   TRANSACTION_TRANSFER_NATURE,
   TRANSACTION_TYPES,
@@ -8,6 +9,7 @@ import {
 } from '@bt/shared/types';
 import { Money } from '@common/types/money';
 import * as Accounts from '@models/accounts.model';
+import Categories from '@models/categories.model';
 import * as Transactions from '@models/transactions.model';
 import * as accountsService from '@services/accounts.service';
 import * as transactionsService from '@services/transactions';
@@ -41,6 +43,14 @@ const SMS_SOURCE_ACCOUNT: Record<SmsSource, { externalId: string; name: string }
 };
 
 const SMS_CURRENCY_CODE = 'RWF';
+
+/** Seeded default category (`common/const/default-categories.ts`) that fee legs book against. */
+const FEE_CATEGORY = {
+  key: 'charges-fees',
+  name: 'Charges & fees',
+  color: '#16a085',
+  icon: 'receipt-money-20-filled',
+};
 
 /**
  * Finds the conventional per-user system account for an SMS source
@@ -77,6 +87,22 @@ async function resolveSmsSourceAccountId({ userId, source }: { userId: number; s
   return created.id as RecordId;
 }
 
+async function resolveFeeCategoryId({ userId }: { userId: number }): Promise<RecordId> {
+  const existing = await Categories.findOne({ where: { userId, key: FEE_CATEGORY.key }, attributes: ['id'] });
+  if (existing) return existing.id as RecordId;
+
+  const created = await Categories.create({
+    userId,
+    key: FEE_CATEGORY.key,
+    name: FEE_CATEGORY.name,
+    color: FEE_CATEGORY.color,
+    icon: FEE_CATEGORY.icon,
+    type: CATEGORY_TYPES.custom,
+  });
+
+  return created.id as RecordId;
+}
+
 type RawSmsMessage = {
   id: string | null;
   address: string;
@@ -102,34 +128,86 @@ function parseMessages({ mtnMomo, bk }: { mtnMomo: RawSmsMessage[]; bk: RawSmsMe
   ];
 }
 
-function convertParsedSmsToAppTransaction({
-  parsedMessage,
-  source,
-  userId,
-  accountId,
-}: {
-  parsedMessage: SMSTransaction;
+type LedgerLeg = {
   source: SmsSource;
-  userId: number;
+  original: RawSmsMessage;
   accountId: RecordId;
-}): CreateTransactionInternal & {
+  time: Date;
+  amount: number;
+  transactionType: TRANSACTION_TYPES;
+  note: string;
+  originalId?: string;
+  categoryId?: RecordId;
+  feeOf?: string;
+  isFee: boolean;
+};
+
+/**
+ * Fees become their own expense on the same account, so the account balance moves the way the
+ * provider's balance does. A fee leg's reference is derived from the SMS reference so the two legs
+ * dedupe independently, and `feeOf` points back at the amount leg it belongs to.
+ */
+function buildLedgerLegs({
+  parsedEntries,
+  feeCategoryId,
+}: {
+  parsedEntries: Array<{ source: SmsSource; original: RawSmsMessage; parsed: SMSTransaction; accountId: RecordId }>;
+  feeCategoryId?: RecordId;
+}): LedgerLeg[] {
+  return parsedEntries.flatMap(({ source, original, parsed, accountId }) => {
+    const transactionType = SMS_TYPE_TO_TRANSACTION_TYPE[parsed.type];
+    const base = { source, original, accountId, time: parsed.date };
+    const amountLeg: LedgerLeg = {
+      ...base,
+      amount: parsed.amount,
+      transactionType,
+      note: parsed.rawMessage,
+      originalId: parsed.transactionId,
+      isFee: false,
+    };
+
+    if (parsed.fee <= 0) return [amountLeg];
+
+    const feeLeg: LedgerLeg = {
+      ...base,
+      amount: parsed.fee,
+      transactionType: TRANSACTION_TYPES.expense,
+      note: `Fee · ${parsed.rawMessage}`,
+      originalId: parsed.transactionId ? `${parsed.transactionId}:fee` : undefined,
+      categoryId: feeCategoryId,
+      feeOf: parsed.transactionId
+        ? parsed.transactionId
+        : toFingerprint({
+            accountId,
+            time: parsed.date,
+            amountCents: Money.fromDecimal(parsed.amount).toCents(),
+            transactionType,
+          }),
+      isFee: true,
+    };
+
+    return [amountLeg, feeLeg];
+  });
+}
+
+function convertLegToAppTransaction({ leg, userId }: { leg: LedgerLeg; userId: number }): CreateTransactionInternal & {
   originalId?: string;
   externalData: Record<string, unknown>;
 } {
   return {
     userId,
-    accountId,
-    amount: Money.fromDecimal(parsedMessage.amount),
-    commissionRate: Money.fromDecimal(parsedMessage.fee),
-    transactionType: SMS_TYPE_TO_TRANSACTION_TYPE[parsedMessage.type],
+    accountId: leg.accountId,
+    amount: Money.fromDecimal(leg.amount),
+    transactionType: leg.transactionType,
+    categoryId: leg.categoryId,
     paymentType: PAYMENT_TYPES.mobilePayment,
     transferNature: TRANSACTION_TRANSFER_NATURE.not_transfer,
-    time: parsedMessage.date,
-    note: parsedMessage.rawMessage,
+    time: leg.time,
+    note: leg.note,
     // The provider's own reference is stable across devices and re-reads of the same SMS.
     // Messages without one rely on the sync-time cursor alone.
-    originalId: parsedMessage.transactionId,
-    externalData: { sms: { source } },
+    originalId: leg.originalId,
+    externalData: { sms: { source: leg.source, kind: leg.isFee ? 'fee' : 'amount', feeOf: leg.feeOf } },
   };
 }
 
@@ -173,9 +251,11 @@ export async function migrateSmsTransactions({
     .filter((entry): entry is typeof entry & { parsed: SMSTransaction } => entry.parsed !== null)
     .map((entry) => ({ ...entry, accountId: accountIdBySource[entry.source] }));
 
-  const incomingIds = parsedEntries.flatMap((entry) =>
-    entry.parsed.transactionId ? [entry.parsed.transactionId] : [],
-  );
+  const hasFees = parsedEntries.some((entry) => entry.parsed.fee > 0);
+  const feeCategoryId = hasFees ? await resolveFeeCategoryId({ userId }) : undefined;
+  const legs = buildLedgerLegs({ parsedEntries, feeCategoryId });
+
+  const incomingIds = legs.flatMap((leg) => (leg.originalId ? [leg.originalId] : []));
   const existing =
     incomingIds.length > 0
       ? await Transactions.getTransactionsByArrayOfField({
@@ -188,12 +268,12 @@ export async function migrateSmsTransactions({
     existing.map((tx) => toKey({ accountId: tx.accountId as RecordId, originalId: tx.originalId })),
   );
 
-  const entriesWithoutId = parsedEntries.filter((entry) => !entry.parsed.transactionId);
+  const legsWithoutId = legs.filter((leg) => !leg.originalId);
   const existingWithoutId =
-    entriesWithoutId.length > 0
+    legsWithoutId.length > 0
       ? await Transactions.getTransactionsByArrayOfField({
           fieldName: 'time',
-          fieldValues: entriesWithoutId.map((entry) => entry.parsed.date),
+          fieldValues: legsWithoutId.map((leg) => leg.time),
           userId,
         })
       : [];
@@ -209,15 +289,14 @@ export async function migrateSmsTransactions({
   );
 
   let duplicatesSkipped = 0;
-  const entriesToCreate = parsedEntries.filter((entry) => {
-    const originalId = entry.parsed.transactionId;
-    if (!originalId) {
+  const legsToCreate = legs.filter((leg) => {
+    if (!leg.originalId) {
       // Without a provider reference, the same moment, amount and direction on one account is the same SMS.
       const fingerprint = toFingerprint({
-        accountId: entry.accountId,
-        time: entry.parsed.date,
-        amountCents: Money.fromDecimal(entry.parsed.amount).toCents(),
-        transactionType: SMS_TYPE_TO_TRANSACTION_TYPE[entry.parsed.type],
+        accountId: leg.accountId,
+        time: leg.time,
+        amountCents: Money.fromDecimal(leg.amount).toCents(),
+        transactionType: leg.transactionType,
       });
       if (seenFingerprints.has(fingerprint)) {
         duplicatesSkipped += 1;
@@ -227,7 +306,7 @@ export async function migrateSmsTransactions({
       return true;
     }
 
-    const key = toKey({ accountId: entry.accountId, originalId });
+    const key = toKey({ accountId: leg.accountId, originalId: leg.originalId });
     if (seenKeys.has(key)) {
       duplicatesSkipped += 1;
       return false;
@@ -237,25 +316,20 @@ export async function migrateSmsTransactions({
   });
 
   const results = await Promise.all(
-    entriesToCreate.map(async (entry) => {
-      const params = convertParsedSmsToAppTransaction({
-        parsedMessage: entry.parsed,
-        source: entry.source,
-        userId,
-        accountId: entry.accountId,
-      });
+    legsToCreate.map(async (leg) => {
+      const params = convertLegToAppTransaction({ leg, userId });
 
       try {
         await transactionsService.createTransaction(params);
-        return { success: true as const, original: entry.original };
+        return { success: true as const, original: leg.original };
       } catch (error) {
         // Lost a race with a concurrent sync that booked the same provider reference.
         if (error instanceof UniqueConstraintError) {
-          return { success: true as const, duplicate: true as const, original: entry.original };
+          return { success: true as const, duplicate: true as const, original: leg.original };
         }
         return {
           success: false as const,
-          original: entry.original,
+          original: leg.original,
           error: (error as Error).message,
           retryable: error instanceof ConnectionError || error instanceof TimeoutError,
         };
