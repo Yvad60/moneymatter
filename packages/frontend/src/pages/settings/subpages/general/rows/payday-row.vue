@@ -15,6 +15,7 @@
 import SelectField from '@/components/fields/select-field.vue';
 import { useNotificationCenter } from '@/components/notification-center';
 import { useUserSettings } from '@/composable/data-queries/user-settings';
+import { CASH_FLOW_PERIOD_STORAGE_KEYS } from '@/pages/analytics/utils';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -33,7 +34,12 @@ const handlePaydayChange = (option: (typeof paydayOptions)[number] | null) => {
   if (!option) return;
   patch(
     { payday: option.value },
-    { onSuccess: () => addSuccessNotification(t('settings.general.payday.successNotification')) },
+    {
+      onSuccess: () => {
+        CASH_FLOW_PERIOD_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
+        addSuccessNotification(t('settings.general.payday.successNotification'));
+      },
+    },
   );
 };
 </script>
