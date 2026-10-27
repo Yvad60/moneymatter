@@ -9,6 +9,12 @@
         "successNotification": "Setting updated successfully",
         "errorNotification": "Failed to update setting"
       },
+      "payday": {
+        "label": "Payday",
+        "description": "Day of the month your pay period starts. The dashboard's default period runs from this day to the day before it next month.",
+        "placeholder": "Select day",
+        "successNotification": "Payday updated"
+      },
       "manualTransferMatching": {
         "label": "Match transfers with manual accounts",
         "description": "Allow automatically detected transfers to link a synced bank transaction with one you created manually.",
